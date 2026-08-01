@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>进销存管理系统 · 云端版</title>
+<link rel="stylesheet" href="css/style.css">
+<!-- 第三方库（vendor，已本地化，可离线运行） -->
+<script src="vendor/vue.global.prod.js"></script>
+<script src="vendor/echarts.min.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/supabase.js"></script>
+</head>
+<body>
+<div id="app">
+  <!-- 脚本尚未接管时的占位；Vue 挂载后会被替换 -->
+  <div class="boot-holder">
+    <div class="bh-title">📦 进销存管理系统 · 云端版</div>
+    <div>正在载入…若长时间停留在此页，请检查浏览器控制台或确认已用 http 方式访问。</div>
+  </div>
+</div>
+<div id="print-area"></div>
+
+<!-- 工具与基础层 -->
+<script src="js/utils.js"></script>
+<script src="js/config.js"></script>
+<script src="js/cloud.js"></script>
+<script src="js/perm.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/store.js"></script>
+<script src="js/demo-data.js"></script>
+<script src="js/components.js"></script>
+<!-- 业务页面 -->
+<script src="js/pages/dashboard.js"></script>
+<script src="js/pages/goods.js"></script>
+<script src="js/pages/customers.js"></script>
+<script src="js/pages/partners.js"></script>
+<script src="js/pages/warehouse.js"></script>
+<script src="js/pages/purchase.js"></script>
+<script src="js/pages/inventory.js"></script>
+<script src="js/pages/sales.js"></script>
+<script src="js/pages/finance.js"></script>
+<script src="js/pages/complaint.js"></script>
+<script src="js/pages/report.js"></script>
+<script src="js/pages/commission.js"></script>
+<script src="js/pages/members.js"></script>
+<script src="js/pages/settings.js"></script>
+<!-- 应用入口（含启动门禁） -->
+<script src="js/app.js"></script>
+</body>
+</html>
