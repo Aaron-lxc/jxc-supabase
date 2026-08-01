@@ -107,6 +107,7 @@ cd jxc-supabase && python3 -m http.server 8080
 3. 仓库 **Settings → Pages → Build and deployment → Source** 选择 **Deploy from a branch**，分支选 `main`、目录选 `/(root)`，保存。
 4. 等待 1–2 分钟，访问 `https://<你的用户名>.github.io/<仓库名>/` 即可。
 5. 之后更新代码：`git add -A && git commit -m "..." && git push`。
+   - 若 `sql/schema.sql` 有改动（如新增 RPC / 策略），需同时在 Supabase 控制台 **SQL Editor** 重新执行一遍 `sql/schema.sql`（脚本全部幂等：`drop policy ... create policy`、`create or replace function`），否则前端调用的新函数不存在会报错。
 
 > GitHub Pages 会把站点放在 `https://<用户>.github.io/<仓库>/` **子路径**下；本项目 `index.html` 全部使用相对路径，已适配，无需改动。`.nojekyll` 用于禁用 Jekyll，避免页面里的 `{{ }}` 被误当模板破坏。
 

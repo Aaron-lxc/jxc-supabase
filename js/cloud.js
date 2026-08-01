@@ -6,7 +6,8 @@ window.Cloud = {
     workspaces: [],      // [{id,name,owner_id,role,permissions,member_count}]
     ws: null,            // 当前账套
     online: true,
-    lastError: ''
+    lastError: '',
+    globalHasWs: false   // 全局是否已有账套（建账套权限判断用）
   }),
 
   /* ---------- 客户端 ---------- */
@@ -110,10 +111,28 @@ window.Cloud = {
     if (error) { this.state.lastError = this._dbErr(error); return null; }
     this.state.lastError = '';
     this.state.workspaces = data || [];
+    // 记录全局是否已有账套（首个账套放开创建，之后仅管理员可建）
+    try {
+      const r = await this.sb.rpc('any_workspace_exists');
+      if (!r.error) this.state.globalHasWs = !!r.data;
+    } catch (_) { /* 忽略：不影响主流程 */ }
     return this.state.workspaces;
   },
 
   async createWorkspace(name) {
+    // 权限闸门：全局无账套（引导场景）允许任意已登录用户创建首个账套；
+    // 一旦已有账套，只有「在某账套是创建者/管理员」的用户才能新建。
+    try {
+      const { data: hasAny, error: e1 } = await this.sb.rpc('any_workspace_exists');
+      if (e1) return { error: this._dbErr(e1) };
+      if (hasAny) {
+        const mine = this.state.workspaces || [];
+        const can = mine.some(w => w.role === '创建者' || w.role === '管理员');
+        if (!can) {
+          return { error: '你尚未被邀请为账套管理员，无法创建账套。请联系账套创建者邀请你并授予管理员权限。' };
+        }
+      }
+    } catch (e) { return { error: this._dbErr(e) }; }
     const { data, error } = await this.sb.rpc('create_workspace', { ws_name: name });
     if (error) return { error: this._dbErr(error) };
     await this.loadWorkspaces();

@@ -64,7 +64,14 @@
       sync() { return Sync.state; },
       myRole() { return P.roleLabel(P.role()); },
       wsName2() { return Cloud.state.ws ? Cloud.state.ws.name : ''; },
-      meEmail() { return Cloud.state.user ? Cloud.state.user.email : ''; }
+      meEmail() { return Cloud.state.user ? Cloud.state.user.email : ''; },
+      /* 是否允许创建账套：全局无账套（引导）放开；之后仅自己是创建者/管理员的用户可建 */
+      canCreateWs() {
+        const mine = Cloud.state.workspaces || [];
+        if (Cloud.state.globalHasWs === false) return true; // 全局无账套（首个引导）允许
+        if (!mine.length) return false;                     // 全局有账套但自己无账套 → 未受邀
+        return mine.some(w => w.role === '创建者' || w.role === '管理员');
+      }
     },
 
     created() {
@@ -337,13 +344,23 @@
           <div class="form-hint" v-else style="margin:0 0 6px">
             当前账号还没有任何账套，请在下方创建一个（创建者自动成为该账套的管理员）。
           </div>
-          <div class="form-item" style="margin-top:16px"><label>新建账套名称</label>
-            <input type="text" v-model="wsName" placeholder="例如：XX贸易有限公司" @keyup.enter="createWs"></div>
-          <div class="gate-err" v-if="err" style="white-space:pre-line">{{err}}</div>
-          <div style="display:flex;gap:10px;margin-top:12px">
-            <button class="btn btn-primary" :disabled="busy" @click="createWs">{{ busy ? '创建中…' : '创建并进入' }}</button>
-            <button class="btn" @click="relogin">切换账号</button>
-          </div>
+          <template v-if="canCreateWs">
+            <div class="form-item" style="margin-top:16px"><label>新建账套名称</label>
+              <input type="text" v-model="wsName" placeholder="例如：XX贸易有限公司" @keyup.enter="createWs"></div>
+            <div class="gate-err" v-if="err" style="white-space:pre-line">{{err}}</div>
+            <div style="display:flex;gap:10px;margin-top:12px">
+              <button class="btn btn-primary" :disabled="busy" @click="createWs">{{ busy ? '创建中…' : '创建并进入' }}</button>
+              <button class="btn" @click="relogin">切换账号</button>
+            </div>
+          </template>
+          <template v-else>
+            <div class="form-hint" style="margin-top:16px;color:#c0392b">
+              你尚未被邀请加入任何账套，无法创建账套。请联系账套创建者邀请你并授予管理员权限后重试。
+            </div>
+            <div style="margin-top:12px">
+              <button class="btn" @click="relogin">切换账号</button>
+            </div>
+          </template>
         </div>
       </div>
 

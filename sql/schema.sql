@@ -353,6 +353,13 @@ begin
 end;
 $$;
 
+-- 全局是否已有任意账套（用于「建账套」权限判断：首个账套放开，之后仅管理员可建）
+-- security definer 绕过 RLS，读取全局是否存在账套
+create or replace function public.any_workspace_exists()
+returns boolean language sql security definer set search_path = public as $$
+  select exists(select 1 from public.workspaces);
+$$;
+
 -- 添加成员：已注册直接入伙；未注册写入邀请，注册后自动生效
 create or replace function public.add_member(
   ws uuid, member_email text, member_role text default 'member', perms jsonb default '{}'::jsonb
