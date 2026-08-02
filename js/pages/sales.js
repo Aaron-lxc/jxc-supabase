@@ -629,7 +629,7 @@ const SettleList = {
 
     <x-modal v-if="showSettle" title="销售收款结算" :width="520" @close="showSettle=false">
       <div class="form-grid">
-        <div class="form-item"><label>销售单号</label><input type="text" :value="cur?s.no:''" disabled></div>
+        <div class="form-item"><label>销售单号</label><input type="text" :value="cur && cur.s ? cur.s.no : ''" disabled></div>
         <div class="form-item"><label>客户名称</label><input type="text" :value="cur?S.name('customers',cur.s.customerId):''" disabled></div>
         <div class="form-item"><label>应收净额(含税)</label><input type="text" :value="cur?fmtMoney(S.salePayable(cur.s)):''" disabled></div>
         <div class="form-item"><label>支付方式<b class="req">*</b></label><x-combobox v-model="settleForm.method" :options="methodOpts" placeholder="请选择"/></div>
