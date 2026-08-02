@@ -4,7 +4,7 @@ window.Pages = window.Pages || {};
 const ExpenseList = {
   data() {
     return {
-      q: { catId: '', status: '', desc: '', d1: '', d2: '' },
+      q: { catId: '', status: '', desc: '', d1: '', d2: '', payMethod: '' },
       page: 1, pageSize: 10, showForm: false, editing: null, form: {}
     };
   },
@@ -15,12 +15,16 @@ const ExpenseList = {
         (!this.q.catId || x.catId === this.q.catId) &&
         (!this.q.status || x.status === this.q.status) &&
         U.kw(x.desc, this.q.desc) &&
-        U.inRange(x.createTime, this.q.d1, this.q.d2)
+        U.inRange(x.createTime, this.q.d1, this.q.d2) &&
+        (!this.q.payMethod || x.payMethod === this.q.payMethod)
       ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
     },
     catOpts() { return [{ value: '', label: '全部类目' }].concat(S.db.expenseCats.map(c => ({ value: c.id, label: c.name }))); },
     catOptsEnabled() { return [{ value: '', label: '请选择' }].concat(S.enabled('expenseCats').map(c => ({ value: c.id, label: c.name }))); },
     statusOpts() { return [{ value: '', label: '全部状态' }, { value: '未计算', label: '未计算' }, { value: '已计算', label: '已计算' }]; },
+    payMethodOpts() {
+      return [{ value: '', label: '全部支付方式' }].concat((window.PAY_METHODS || []).map(m => ({ value: m, label: m })));
+    },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
     sumCalc() {
       return U.round2(this.rows.filter(x => x.status === '已计算').reduce((a, x) => a + Number(x.amount), 0));
@@ -28,17 +32,17 @@ const ExpenseList = {
   },
   methods: {
     fmtMoney: U.fmtMoney,
-    openNew() { this.editing = null; this.form = { catId: '', amount: null, desc: '' }; this.showForm = true; },
+    openNew() { this.editing = null; this.form = { catId: '', amount: null, desc: '', payMethod: '' }; this.showForm = true; },
     openEdit(x) {
       if (x.status === '已计算') return alert('已计算的运营单不能修改，请先撤销计算');
-      this.editing = x; this.form = { catId: x.catId, amount: x.amount, desc: x.desc }; this.showForm = true;
+      this.editing = x; this.form = { catId: x.catId, amount: x.amount, desc: x.desc, payMethod: x.payMethod || '' }; this.showForm = true;
     },
     save() {
       const f = this.form;
       if (!f.catId) return alert('请选择类目');
       if (!f.amount || f.amount <= 0) return alert('请填写金额');
-      if (this.editing) Object.assign(this.editing, { catId: f.catId, amount: Number(f.amount), desc: f.desc });
-      else S.db.expenses.push({ id: S.genId(), catId: f.catId, amount: Number(f.amount), desc: f.desc, createTime: U.now(), status: '未计算' });
+      if (this.editing) Object.assign(this.editing, { catId: f.catId, amount: Number(f.amount), desc: f.desc, payMethod: f.payMethod || '' });
+      else S.db.expenses.push({ id: S.genId(), catId: f.catId, amount: Number(f.amount), desc: f.desc, payMethod: f.payMethod || '', createTime: U.now(), status: '未计算' });
       this.showForm = false;
     },
     del(x) {
@@ -57,7 +61,7 @@ const ExpenseList = {
     exportData() {
       U.exportExcel('日常运营支出.xlsx', this.rows.map((x, i) => ({
         '序号': i + 1, '类目名称': S.name('expenseCats', x.catId), '金额': x.amount,
-        '详细描述': x.desc, '状态': x.status, '创建时间': x.createTime
+        '支付方式': x.payMethod || '-', '详细描述': x.desc, '状态': x.status, '创建时间': x.createTime
       })));
     }
   },
@@ -66,6 +70,7 @@ const ExpenseList = {
     <div class="toolbar">
       <x-combobox v-model="q.catId" :options="catOpts" placeholder="全部类目"/>
       <x-combobox v-model="q.status" :options="statusOpts" placeholder="全部状态"/>
+      <x-combobox v-model="q.payMethod" :options="payMethodOpts" placeholder="全部支付方式"/>
       <input v-model="q.desc" placeholder="详细描述模糊查询" style="width:180px">
       <label>创建时间</label><input type="date" v-model="q.d1"> - <input type="date" v-model="q.d2">
       <div class="spacer"></div>
@@ -75,11 +80,11 @@ const ExpenseList = {
     </div>
     <div class="table-wrap">
     <table class="grid">
-      <thead><tr><th>序号</th><th>类目名称</th><th class="num">金额</th><th>详细描述</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
+      <thead><tr><th>序号</th><th>类目名称</th><th class="num">金额</th><th>支付方式</th><th>详细描述</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
       <tbody>
         <tr v-for="(x,i) in paged" :key="x.id">
           <td>{{(page-1)*pageSize+i+1}}</td><td>{{S.name('expenseCats',x.catId)}}</td>
-          <td class="num money">{{fmtMoney(x.amount)}}</td><td>{{x.desc||'-'}}</td>
+          <td class="num money">{{fmtMoney(x.amount)}}</td><td>{{x.payMethod||'—'}}</td><td>{{x.desc||'-'}}</td>
           <td>{{x.createTime}}</td><td><x-status :v="x.status"/></td>
           <td class="ops">
             <template v-if="x.status==='未计算'">
@@ -90,7 +95,7 @@ const ExpenseList = {
             <span v-else class="link warn" @click="uncalc(x)">撤销计算</span>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="7" class="empty">暂无数据</td></tr>
+        <tr v-if="!paged.length"><td colspan="8" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
     </div>
@@ -101,6 +106,8 @@ const ExpenseList = {
         <div class="form-item"><label>类目名称<b class="req">*</b></label>
           <x-combobox v-model="form.catId" :options="catOptsEnabled" placeholder="请选择"/></div>
         <div class="form-item"><label>金额（元）<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="form.amount"></div>
+        <div class="form-item"><label>支付方式</label>
+          <x-combobox v-model="form.payMethod" :options="payMethodOpts" placeholder="请选择"/></div>
         <div class="form-item full"><label>详细描述</label><textarea rows="2" v-model="form.desc"></textarea></div>
       </div>
       <template #foot>

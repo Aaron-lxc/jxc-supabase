@@ -58,7 +58,7 @@ const files = [
   'js/store.js', 'js/demo-data.js', 'js/components.js',
   'js/pages/dashboard.js', 'js/pages/goods.js', 'js/pages/customers.js',
   'js/pages/partners.js', 'js/pages/warehouse.js', 'js/pages/purchase.js',
-  'js/pages/inventory.js', 'js/pages/sales.js', 'js/pages/finance.js',
+  'js/pages/inventory.js', 'js/pages/sales.js', 'js/pages/opening.js', 'js/pages/capital.js', 'js/pages/finance.js',
   'js/pages/complaint.js', 'js/pages/report.js', 'js/pages/commission.js',
   'js/pages/members.js', 'js/pages/settings.js'
 ];
@@ -93,13 +93,13 @@ if (failures) process.exit(1);
 let asserts = 0, failed = 0;
 function ok(cond, msg) { asserts++; if (!cond) { failed++; console.error('  ✗ ' + msg); } }
 
-/* 页面数量：13 业务页 + 账户管理 = 14 */
-ok(Object.keys(sandbox.Pages || {}).length === 14, 'Pages 应有 14 个页面（含 members）');
+/* 页面数量：15 业务模块页 + 账户管理 = 16 */
+ok(Object.keys(sandbox.Pages || {}).length === 16, 'Pages 应有 16 个页面（含 members）');
 ok(!!sandbox.Pages['page-members'], '应存在 page-members 账户管理页');
 
 /* 权限 / 菜单过滤 */
 sandbox.Cloud.state.ws = { id: 'w1', role: 'owner', permissions: {}, name: '测试账套' };
-ok(sandbox.P.menus().length === 14, 'owner 的菜单应为 13 模块 + 账户管理 = 14 项');
+ok(sandbox.P.menus().length === 16, 'owner 的菜单应为 15 模块 + 账户管理 = 16 项');
 sandbox.Cloud.state.ws = { id: 'w2', role: 'member', permissions: sandbox.P.defaultPermissions() };
 const mm = sandbox.P.menus();
 console.log('  [debug] member menus =', mm.map(m => m.key).join(','), '| isManager=', sandbox.P.isManager());

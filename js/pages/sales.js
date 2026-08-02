@@ -513,7 +513,7 @@ const ReturnList = {
 /* ---------------- 结算管理 ---------------- */
 const SettleList = {
   data() {
-    return { q: { cust: '', pay: '', overdue: false }, page: 1, pageSize: 10 };
+    return { q: { cust: '', pay: '', overdue: false }, page: 1, pageSize: 10, showSettle: false, cur: null, settleForm: { method: '', actualPaid: null } };
   },
   computed: {
     S() { return window.S; },
@@ -534,24 +534,45 @@ const SettleList = {
         .sort((a, b) => b.overdue - a.overdue || (b.s.finishTime || '').localeCompare(a.s.finishTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
-    payOpts() { return [{ value: '', label: '全部支付状态' }, { value: '未支付', label: '未支付' }, { value: '已支付', label: '已支付' }]; }
+    payOpts() { return [{ value: '', label: '全部支付状态' }, { value: '未支付', label: '未支付' }, { value: '已支付', label: '已支付' }]; },
+    methodOpts() { return window.PAY_METHODS.map(m => ({ value: m, label: m })); },
+    settleFee() {
+      if (!this.cur) return 0;
+      const rate = S.feeRateOf(this.settleForm.method);
+      return U.round2((Number(this.settleForm.actualPaid) || 0) * rate / 100);
+    }
   },
   methods: {
     fmtMoney: U.fmtMoney,
     markPaid(r) {
-      if (!U.confirm('确认客户已按约定支付销售单 ' + r.no + '（净额 ￥' + U.fmtMoney(r.net) + '）？')) return;
+      this.cur = r;
+      this.settleForm = { method: r.s.payMethod || '', actualPaid: S.salePayable(r.s) };
+      this.showSettle = true;
+    },
+    confirmSettle() {
+      const r = this.cur; if (!r) return;
+      if (!this.settleForm.method) return alert('请选择支付方式');
+      if (!this.settleForm.actualPaid || this.settleForm.actualPaid <= 0) return alert('请填写实际支付金额');
+      r.s.payMethod = this.settleForm.method;
+      r.s.actualPaid = U.round2(Number(this.settleForm.actualPaid));
+      r.s.fee = this.settleFee;
       r.s.payStatus = '已支付';
       r.s.payTime = U.now();
+      this.showSettle = false; this.cur = null;
     },
     unpay(r) {
-      if (!U.confirm('撤销支付标记？该单将重新计入客户欠款。')) return;
+      if (!U.confirm('撤销支付标记？该单将重新计入客户欠款，且已记录的支付方式/手续费将清空。')) return;
       r.s.payStatus = '未支付';
+      r.s.payMethod = r.s.payMethod || '';
+      r.s.actualPaid = '';
+      r.s.fee = '';
       r.s.payTime = '';
     },
     exportData() {
       U.exportExcel('结算明细.xlsx', this.rows.map((r, i) => ({
         '序号': i + 1, '销售单号': r.no, '客户名称': r.cust, '账期': r.cycle,
         '销售金额': r.total, '退货金额': r.returned, '税点费用': S.saleTaxCost(r.s), '应收净额(含税)': S.salePayable(r.s),
+        '支付方式': r.s.payMethod || '', '实际收款': r.s.actualPaid || '', '手续费': r.s.fee || '',
         '应付日期': r.due, '超期天数': r.overdue, '支付状态': r.payStatus, '支付时间': r.payTime || ''
       })));
     }
@@ -570,6 +591,7 @@ const SettleList = {
       <thead><tr>
         <th>序号</th><th>销售单号</th><th>客户名称</th><th>账期</th>
         <th class="num">销售金额</th><th class="num">退货金额</th><th class="num">税点费用</th><th class="num">应收净额(含税)</th>
+        <th>支付方式</th><th class="num">实际收款</th><th class="num">手续费</th>
         <th>应付日期</th><th>超期</th><th>支付状态</th><th>支付时间</th><th>操作</th>
       </tr></thead>
       <tbody>
@@ -579,6 +601,9 @@ const SettleList = {
           <td class="num money" :class="{red:r.returned>0}">{{fmtMoney(r.returned)}}</td>
           <td class="num money" :class="{red:S.saleTaxCost(r.s)>0}">{{fmtMoney(S.saleTaxCost(r.s))}}</td>
           <td class="num money"><b>{{fmtMoney(S.salePayable(r.s))}}</b></td>
+          <td>{{r.s.payMethod||'-'}}</td>
+          <td class="num money">{{r.s.actualPaid?fmtMoney(r.s.actualPaid):'-'}}</td>
+          <td class="num money" :class="{red:r.s.fee>0}">{{r.s.fee?fmtMoney(r.s.fee):'-'}}</td>
           <td>{{r.due}}</td>
           <td><span v-if="r.overdue>0" class="tag tag-red">超期{{r.overdue}}天</span><span v-else class="muted">-</span></td>
           <td><x-status :v="r.payStatus"/></td><td>{{r.payTime||'-'}}</td>
@@ -587,11 +612,28 @@ const SettleList = {
             <span v-else class="link warn" @click="unpay(r)">撤销支付</span>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="14" class="empty">暂无已完成的销售单</td></tr>
+        <tr v-if="!paged.length"><td colspan="16" class="empty">暂无已完成的销售单</td></tr>
       </tbody>
     </table>
     </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
+
+    <x-modal v-if="showSettle" title="销售收款结算" :width="520" @close="showSettle=false">
+      <div class="form-grid">
+        <div class="form-item"><label>销售单号</label><input type="text" :value="cur?s.no:''" disabled></div>
+        <div class="form-item"><label>客户名称</label><input type="text" :value="cur?S.name('customers',cur.s.customerId):''" disabled></div>
+        <div class="form-item"><label>应收净额(含税)</label><input type="text" :value="cur?fmtMoney(S.salePayable(cur.s)):''" disabled></div>
+        <div class="form-item"><label>支付方式<b class="req">*</b></label><x-combobox v-model="settleForm.method" :options="methodOpts" placeholder="请选择"/></div>
+        <div class="form-item"><label>实际支付金额<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="settleForm.actualPaid"></div>
+        <div class="form-item full"><label>手续费（成本）</label>
+          <input type="text" :value="fmtMoney(settleFee)" disabled>
+          <span class="muted" style="font-size:12px">按「系统设置」中该支付方式手续费比例自动计算，结算后固定不变</span></div>
+      </div>
+      <template #foot>
+        <button class="btn" @click="showSettle=false">取消</button>
+        <button class="btn btn-primary" @click="confirmSettle">确认收款</button>
+      </template>
+    </x-modal>
   </div>`
 };
 

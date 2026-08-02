@@ -24,9 +24,13 @@ window.S = {
       complaintTypes: [], complaints: [],
       resourceRates: [], regionRates: [],
       commissionPayments: [],
+      openingStocks: [], openingAr: [], openingAp: [], openingFunds: [],
+      capitalInjections: [],
       settings: {
         company: '我的公司', fixedCosts: [], backupKeep: 20, backupDays: 0,
-        saleTemplate: null /* 为空时使用系统默认模版，见 sales.js DEFAULT_TPL */
+        saleTemplate: null,
+        opened: false, openTime: '',
+        feeRates: { '现金': 0, '微信': 0, '支付宝': 0, '收款码': 0, '对公': 0, '银行卡': 0, '其他': 0 }
       }
     };
   },
@@ -44,6 +48,7 @@ window.S = {
     }
     for (const k of Object.keys(base)) if (data[k] === undefined) data[k] = base[k];
     this.migrateTaxManual(data);
+    this.ensureSettings(data);
 
     this.state.db = data;
     this.state.ready = true;
@@ -74,6 +79,7 @@ window.S = {
     const base = this.emptyDB();
     for (const k of Object.keys(base)) if (db[k] === undefined) db[k] = base[k];
     this.migrateTaxManual(db);
+    this.ensureSettings(db);
     if (!this.state.db) { this.state.db = db; }
     else {
       for (const k of Object.keys(db)) this.state.db[k] = db[k];
@@ -87,6 +93,7 @@ window.S = {
     const base = this.emptyDB();
     for (const k of Object.keys(base)) if (db[k] === undefined) db[k] = base[k];
     this.migrateTaxManual(db);
+    this.ensureSettings(db);
     for (const k of Object.keys(db)) this.state.db[k] = db[k];
     for (const k of Object.keys(this.state.db)) if (db[k] === undefined) delete this.state.db[k];
     this._buildIds();
@@ -110,6 +117,26 @@ window.S = {
       s.taxManual = (sRate !== cRate || sExempt !== cExempt);
     });
   },
+
+  /* 确保 settings 嵌套默认值齐全（尤其后增加的 feeRates / opened）。
+     兼容历史、演示、远端数据中缺失嵌套字段的情况，避免页面读取 undefined 崩溃。 */
+  ensureSettings(db) {
+    const base = this.emptyDB().settings;
+    if (!db.settings || typeof db.settings !== 'object') { db.settings = Object.assign({}, base); return; }
+    for (const k of Object.keys(base)) {
+      if (db.settings[k] === undefined) db.settings[k] = base[k];
+    }
+    if (!db.settings.feeRates || typeof db.settings.feeRates !== 'object') {
+      db.settings.feeRates = Object.assign({}, base.feeRates);
+    } else {
+      for (const m of Object.keys(base.feeRates)) {
+        if (db.settings.feeRates[m] === undefined) db.settings.feeRates[m] = base.feeRates[m];
+      }
+    }
+    if (db.settings.opened === undefined) db.settings.opened = false;
+    if (db.settings.openTime === undefined) db.settings.openTime = '';
+  },
+
 
   /* ---------------- id / 编号（去中心化，抗并发） ---------------- */
   _ids: null,
@@ -221,6 +248,7 @@ window.S = {
     p.inTime = U.now();
     p.amount = U.round2(p.qty * p.price);
     p.operator = Cloud.state.user ? Cloud.state.user.name : '';
+    p.payMethod = p.payMethod || '';
     this.db.purchases.push(p);
     const rec = this.stockRec(p.whId, p.goodsId, true);
     rec.qty += Number(p.qty);
@@ -235,6 +263,84 @@ window.S = {
     rec.qty -= Number(p.qty);
     this.db.purchases = this.db.purchases.filter(x => x.id !== id);
     return null;
+  },
+
+  /* ------- 期初 / 注资 ------- */
+  /* 是否存在「真实业务」数据（用于限制「期初启用 / 反初始化」必须在空白账套上进行）。
+     注意：期初本身（openingStocks/Ar/Ap/Funds）与注资（capitalInjections）是启用期初前
+     就要录入的基准数据，不能算作「真实业务」，否则永远无法启用期初。故此处仅校验
+     采购/销售/退货/已计算运营支出。 */
+  hasBusinessData() {
+    const d = this.db;
+    return !!(
+      (d.purchases && d.purchases.length) || (d.sales && d.sales.length)
+      || (d.returns && d.returns.length) || (d.expenses && d.expenses.some(x => x.status === '已计算'))
+    );
+  },
+  applyOpening() {
+    if (this.db.settings.opened) return '账套已启用期初，无需重复启用';
+    if (this.hasBusinessData()) return '当前账套已存在业务数据（采购/销售/退货/已计算运营支出），无法启用期初，请先清空业务数据后再启用';
+    /* 期初库存并入 stocks（与采购同源，后续采购/销售逻辑无缝衔接） */
+    (this.db.openingStocks || []).forEach(o => {
+      const rec = this.stockRec(o.whId, o.goodsId, true);
+      rec.qty += Number(o.qty);
+      if (!rec.lastInTime) rec.lastInTime = U.now();
+    });
+    this.db.settings.opened = true;
+    this.db.settings.openTime = U.now();
+    return null;
+  },
+  reverseOpening() {
+    if (!this.db.settings.opened) return '账套尚未启用期初';
+    if (this.hasBusinessData()) return '当前账套已存在业务数据（采购/销售/退货/已计算运营支出），无法反初始化期初，请先清空业务数据';
+    /* 回滚期初库存 */
+    (this.db.openingStocks || []).forEach(o => {
+      const rec = this.stockRec(o.whId, o.goodsId, false);
+      if (rec) rec.qty -= Number(o.qty);
+    });
+    this.db.settings.opened = false;
+    this.db.settings.openTime = '';
+    return null;
+  },
+  custOpeningAr(custId) {
+    return U.round2((this.db.openingAr || []).filter(x => x.customerId === custId).reduce((a, x) => a + Number(x.amount), 0));
+  },
+  supplierOpeningAp(supplierId) {
+    return U.round2((this.db.openingAp || []).filter(x => x.supplierId === supplierId).reduce((a, x) => a + Number(x.amount), 0));
+  },
+  totalOpeningStockValue() {
+    return U.round2((this.db.openingStocks || []).reduce((a, o) => a + Number(o.qty) * Number(o.price || 0), 0));
+  },
+  totalOpeningAr() { return U.round2((this.db.openingAr || []).reduce((a, x) => a + Number(x.amount), 0)); },
+  totalOpeningAp() { return U.round2((this.db.openingAp || []).reduce((a, x) => a + Number(x.amount), 0)); },
+  totalOpeningFunds() { return U.round2((this.db.openingFunds || []).reduce((a, x) => a + Number(x.amount), 0)); },
+  totalCapitalInjected() { return U.round2((this.db.capitalInjections || []).reduce((a, x) => a + Number(x.amount), 0)); },
+  capitalByInvestor() {
+    const m = {};
+    (this.db.capitalInjections || []).forEach(x => {
+      const k = x.investor || '未命名股东';
+      m[k] = U.round2((m[k] || 0) + Number(x.amount));
+    });
+    return Object.entries(m).map(([investor, amount]) => ({ investor, amount })).sort((a, b) => b.amount - a.amount);
+  },
+  addCapitalInjection(x) {
+    const rec = {
+      id: this.genId(), no: this.genNo('CI'),
+      investor: x.investor || '', method: x.method || '',
+      amount: U.round2(Number(x.amount) || 0),
+      date: x.date || U.today(), remark: x.remark || '',
+      operator: Cloud.state.user ? Cloud.state.user.name : '', createTime: U.now()
+    };
+    this.db.capitalInjections.push(rec);
+    return rec;
+  },
+  delCapitalInjection(id) {
+    this.db.capitalInjections = (this.db.capitalInjections || []).filter(x => x.id !== id);
+  },
+  /* 某支付方式的手续费比例（取自 settings.feeRates，变更前已结算的单据不受影响） */
+  feeRateOf(method) {
+    const fr = (this.db.settings && this.db.settings.feeRates) || {};
+    return Number(fr[method] || 0);
   },
 
   /* ------- 销售 ------- */

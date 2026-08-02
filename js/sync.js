@@ -18,7 +18,8 @@ window.Sync = {
     'warehouses', 'purchases', 'stocks', 'stockChecks',
     'sales', 'returns', 'expenseCats', 'expenses',
     'complaintTypes', 'complaints',
-    'resourceRates', 'regionRates', 'commissionPayments'
+    'resourceRates', 'regionRates', 'commissionPayments',
+    'openingStocks', 'openingAr', 'openingAp', 'openingFunds', 'capitalInjections'
   ],
   /* 单对象集合（固定一行，rid = '_'） */
   SINGLETONS: ['meta', 'settings'],

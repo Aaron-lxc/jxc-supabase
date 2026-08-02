@@ -25,11 +25,8 @@ window.Demo = {
 
     const db = S.emptyDB ? S.emptyDB() : {};
     db.meta = { id: 1, seq };
-    db.settings = {
-      company: '清泉贸易有限公司',
-      fixedCosts: [],
-      dataDir: '', backupDir: '', backupKeep: 20, backupDays: 0
-    };
+    /* 继承自 emptyDB 的 settings 默认值（含 feeRates / opened 等嵌套字段），仅覆盖公司名 */
+    db.settings.company = '清泉贸易有限公司';
 
     /* ---- 字典 ---- */
     const mk = (arr, days) => arr.map((name, i) => ({ id: id(), name, createTime: ago(days - i * 2), status: EN }));

@@ -10,6 +10,8 @@ window.P = {
     { key: 'purchase',   label: '采购管理',  ico: '🛒' },
     { key: 'inventory',  label: '库存管理',  ico: '📋' },
     { key: 'sales',      label: '销售管理',  ico: '💰' },
+    { key: 'opening',    label: '期初管理',  ico: '🗓️' },
+    { key: 'capital',    label: '注资管理',  ico: '🏦' },
     { key: 'finance',    label: '财务管理',  ico: '💳' },
     { key: 'complaint',  label: '投诉管理',  ico: '📣' },
     { key: 'report',     label: '运营报表',  ico: '📈', readonly: true },
@@ -29,8 +31,9 @@ window.P = {
   /* 新成员默认权限：日常业务可编辑，钱与设置默认不开放 */
   defaultPermissions() {
     return {
-      dashboard: 'view', goods: 'edit', customers: 'edit', partners: 'view',
+      dashboard: 'view',       goods: 'edit', customers: 'edit', partners: 'view',
       warehouse: 'view', purchase: 'edit', inventory: 'edit', sales: 'edit',
+      opening: 'none', capital: 'none',
       finance: 'none', complaint: 'edit', report: 'view',
       commission: 'none', settings: 'none'
     };

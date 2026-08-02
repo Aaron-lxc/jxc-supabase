@@ -66,6 +66,17 @@ Pages['page-dashboard'] = {
         rentSum,
         totalSales, totalCost: U.round2(opCost + resComm + regComm + taxCost), opCost, resComm, regComm, taxCost,
         cmpTotal: db.complaints.length, cmpByType,
+        totalPurchase: U.round2(db.purchases.reduce((a, p) => a + Number(p.amount), 0)),
+        totalReceipts: U.round2(db.sales.filter(s => s.payStatus === '已支付').reduce((a, s) => a + (Number(s.actualPaid) || S.salePayable(s)), 0)),
+        receiptByMethod: (() => {
+          const m = {};
+          db.sales.filter(s => s.payStatus === '已支付').forEach(s => {
+            const k = s.payMethod || '未设置';
+            m[k] = U.round2((m[k] || 0) + (Number(s.actualPaid) || S.salePayable(s)));
+          });
+          return m;
+        })(),
+        totalCapital: S.totalCapitalInjected(),
         whTotal: en('warehouses').length
       };
     },
@@ -312,6 +323,14 @@ Pages['page-dashboard'] = {
         <div class="sub">日常运营 ￥{{fmtMoney(stats.opCost)}} ｜ 税点成本 ￥{{fmtMoney(stats.taxCost)}}<br>资源佣金 ￥{{fmtMoney(stats.resComm)}} ｜ 区域佣金 ￥{{fmtMoney(stats.regComm)}}</div></div>
       <div class="stat-card c3 clickable" @click="go('commission')"><div class="t">累计佣金</div><div class="v money">￥{{fmtMoney(stats.resComm + stats.regComm)}}</div>
         <div class="sub">资源 ￥{{fmtMoney(stats.resComm)}} ｜ 区域 ￥{{fmtMoney(stats.regComm)}}</div></div>
+      <div class="stat-card c2 clickable" @click="go('purchase')"><div class="t">累计采购金额</div><div class="v money">￥{{fmtMoney(stats.totalPurchase)}}</div>
+        <div class="sub">采购入库总成本（含税）</div></div>
+      <div class="stat-card c2 clickable" @click="go('sales')"><div class="t">累计收款（已支付）</div><div class="v money">￥{{fmtMoney(stats.totalReceipts)}}</div>
+        <div class="sub">已支付销售单实际收款合计</div></div>
+      <div class="stat-card c2 clickable" @click="go('sales')"><div class="t">分类型收款金额</div><div class="v" style="font-size:14px">{{subText(stats.receiptByMethod,' 元')}}</div>
+        <div class="sub">按支付方式汇总（实际收款）</div></div>
+      <div class="stat-card c2 clickable" @click="go('capital')"><div class="t">注资总额</div><div class="v money">￥{{fmtMoney(stats.totalCapital)}}</div>
+        <div class="sub">股东累计注入资金</div></div>
       <div class="stat-card c4 clickable" @click="go('complaint')"><div class="t">累计投诉</div><div class="v">{{stats.cmpTotal}}</div><div class="sub">{{subText(stats.cmpByType,' 件')}}</div></div>
       <div class="stat-card c4 clickable" @click="go('inventory')"><div class="t">库存预警</div><div class="v">{{stockAlerts.length}} <span style="font-size:12px;color:#64748b">项</span></div><div class="sub">低于最低库存的商品数</div></div>
       <div class="stat-card c4 clickable" @click="go('sales')"><div class="t">超期未支付客户</div><div class="v">{{payAlerts.length}} <span style="font-size:12px;color:#64748b">家</span></div><div class="sub">存在超期欠款的客户数</div></div>

@@ -82,3 +82,6 @@ window.U = {
 
   confirm(msg) { return window.confirm(msg); }
 };
+
+/* 统一收支方式（收款方式 = 付款方式共用）；已按需求去掉“银行转账” */
+window.PAY_METHODS = ['现金', '微信', '支付宝', '收款码', '对公', '银行卡', '其他'];

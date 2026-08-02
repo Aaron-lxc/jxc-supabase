@@ -10,6 +10,7 @@ Pages['page-settings'] = {
     st() { return S.db.settings; },
     P() { return window.P; },
     ro() { return !P.canEdit('settings'); },
+    feeMethods() { return window.PAY_METHODS || []; },
     cloud() { return Cloud.state; },
     sync() { return Sync.state; },
     cfg() { return CFG.read() || {}; },
@@ -134,6 +135,20 @@ Pages['page-settings'] = {
           <input type="text" disabled value="「每月固定成本」已并入日常运营，无需单独设置"></div>
       </div>
       <div class="form-hint" style="margin-top:8px">说明：原「每月固定成本」功能已去除，相关固定支出请直接在日常运营中登记并「计算」，即可纳入累计成本统计。</div>
+    </div>
+
+    <div class="card">
+      <h3>结算手续费比例设置</h3>
+      <div class="muted" style="margin-bottom:10px">
+        设置各类支付方式的手续费比例（%）。仅在销售收款结算时按当前比例计算手续费并计入成本；修改比例后，<b>已结算单据的手续费不受影响</b>，仅作用于后续新结算。
+      </div>
+      <div class="form-grid">
+        <div class="form-item" v-for="m in feeMethods" :key="m">
+          <label>{{m}}（%）</label>
+          <input type="number" min="0" max="100" step="0.1" v-model.number="st.feeRates[m]" :disabled="ro">
+        </div>
+      </div>
+      <div class="form-hint" style="margin-top:8px">计算规则：手续费 = 实际收款金额 × 该比例，结算时自动计入成本（手续费 = 成本项）。</div>
     </div>
 
     <div class="card">

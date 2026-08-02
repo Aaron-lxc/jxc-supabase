@@ -6,7 +6,7 @@ Pages['page-purchase'] = {
     return {
       q: { typeId: '', name: '', supplierId: '', d1: '', d2: '' },
       page: 1, pageSize: 10, showForm: false,
-      form: { typeId: '', goodsId: '', qty: null, price: null, whId: '' }
+      form: { typeId: '', goodsId: '', qty: null, price: null, whId: '', payMethod: '' }
     };
   },
   computed: {
@@ -16,6 +16,9 @@ Pages['page-purchase'] = {
     formTypeOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('goodsTypes').map(t => ({ value: t.id, label: t.name }))); },
     formGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.formGoods.map(g => ({ value: g.id, label: g.name + '（' + g.sku + '）' }))); },
     formWhOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('warehouses').map(w => ({ value: w.id, label: w.name }))); },
+    payMethodOpts() {
+      return [{ value: '', label: '请选择' }].concat((window.PAY_METHODS || []).map(m => ({ value: m, label: m })));
+    },
     rows() {
       return S.db.purchases.filter(p =>
         (!this.q.typeId || p.typeId === this.q.typeId) &&
@@ -43,7 +46,7 @@ Pages['page-purchase'] = {
   methods: {
     fmtMoney: U.fmtMoney,
     openNew() {
-      this.form = { typeId: '', goodsId: '', qty: null, price: null, whId: '' };
+      this.form = { typeId: '', goodsId: '', qty: null, price: null, whId: '', payMethod: '' };
       this.showForm = true;
     },
     save() {
@@ -55,7 +58,7 @@ Pages['page-purchase'] = {
       const g = S.byId('goods', f.goodsId);
       S.addPurchase({
         typeId: g.typeId, goodsId: g.id, supplierId: g.supplierId, unitId: g.unitId,
-        qty: Number(f.qty), price: Number(f.price), whId: f.whId
+        qty: Number(f.qty), price: Number(f.price), whId: f.whId, payMethod: f.payMethod || ''
       });
       this.showForm = false;
     },
@@ -81,7 +84,7 @@ Pages['page-purchase'] = {
       <table class="grid">
         <thead><tr>
           <th>序号</th><th>订单号</th><th>商品类型</th><th>商品名称</th><th>供应商</th><th>单位</th>
-          <th class="num">采购数量</th><th class="num">采购价</th><th class="num">金额</th><th>入库仓库</th><th>入库时间</th><th>操作</th>
+          <th class="num">采购数量</th><th class="num">采购价</th><th class="num">金额</th><th>入库仓库</th><th>支付方式</th><th>入库时间</th><th>操作</th>
         </tr></thead>
         <tbody>
           <tr v-for="(p,i) in paged" :key="p.id">
@@ -90,10 +93,10 @@ Pages['page-purchase'] = {
             <td>{{S.name('suppliers',p.supplierId)}}</td><td>{{S.name('units',p.unitId)}}</td>
             <td class="num">{{p.qty}}</td><td class="num money">{{fmtMoney(p.price)}}</td>
             <td class="num money">{{fmtMoney(p.amount)}}</td>
-            <td>{{S.name('warehouses',p.whId)}}</td><td>{{p.inTime}}</td>
+            <td>{{S.name('warehouses',p.whId)}}</td><td>{{p.payMethod||'—'}}</td><td>{{p.inTime}}</td>
             <td class="ops"><span class="link danger" @click="del(p)">删除</span></td>
           </tr>
-          <tr v-if="!paged.length"><td colspan="12" class="empty">暂无数据</td></tr>
+          <tr v-if="!paged.length"><td colspan="13" class="empty">暂无数据</td></tr>
         </tbody>
       </table>
       </div>
@@ -113,6 +116,8 @@ Pages['page-purchase'] = {
         <div class="form-item"><label>金额（自动计算）</label><input type="text" :value="fmtMoney(formAmount)" disabled></div>
         <div class="form-item"><label>入库仓库<b class="req">*</b></label>
           <x-combobox v-model="form.whId" :options="formWhOpts" style="width:100%"/></div>
+        <div class="form-item"><label>支付方式</label>
+          <x-combobox v-model="form.payMethod" :options="payMethodOpts" style="width:100%"/></div>
       </div>
       <div class="form-hint" style="margin-top:8px">入库时间自动记录为保存时刻（年月日时分秒），订单号自动生成（PO-年月日-xxxxx）。</div>
       <template #foot>
