@@ -128,7 +128,7 @@ const GoodsList = {
 
 /* ---------------- 供应商管理（富字段） ---------------- */
 const PAY_CYCLES = ['现结', '货到付款'];
-const PAY_METHODS = ['对公', '微信', '收款码', '银行卡'];
+const PAY_METHODS = window.PAY_METHODS || ['对公', '微信', '收款码', '银行卡'];
 
 const SupplierList = {
   data() {
@@ -153,7 +153,7 @@ const SupplierList = {
     methodOptsAll() { return [{ value: '', label: '全部支付方式' }].concat(PAY_METHODS.map(x => ({ value: x, label: x }))); },
     statusOptsAll() { return [{ value: '', label: '全部状态' }, { value: '已启用', label: '已启用' }, { value: '未启用', label: '未启用' }]; },
     cycleOpts() { return PAY_CYCLES.map(x => ({ value: x, label: x })); },
-    methodOpts() { return PAY_METHODS.map(x => ({ value: x, label: x })); }
+    methodOpts() { return [{ value: '', label: '请选择' }].concat(PAY_METHODS.map(x => ({ value: x, label: x }))); }
   },
   methods: {
     fmtMoney: U.fmtMoney,
@@ -260,7 +260,7 @@ const SupplierList = {
         <div class="form-item"><label>支付方式</label><x-combobox v-model="form.payMethod" :options="methodOpts" placeholder="请选择"/></div>
         <div class="form-item full"><label>备注</label><textarea rows="2" v-model="form.remark"></textarea></div>
       </div>
-      <div class="form-hint">支付周期：现结 / 货到付款；支付方式：对公 / 微信 / 收款码 / 银行卡；开票税点用于采购成本核算参考。</div>
+      <div class="form-hint">支付周期：现结 / 货到付款；支付方式与系统统一（现金 / 微信 / 支付宝 / 收款码 / 对公 / 银行卡 / 其他）；开票税点用于采购成本核算参考。</div>
       <template #foot>
         <button class="btn" @click="showForm=false">取消</button>
         <button class="btn btn-primary" @click="save">保存</button>

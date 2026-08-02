@@ -9,7 +9,7 @@ Pages['page-opening'] = {
       form: { whId: '', goodsId: '', qty: null, price: null, remark: '' },
       formAr: { customerId: '', amount: null, remark: '' },
       formAp: { supplierId: '', amount: null, remark: '' },
-      formFund: { name: '', type: '现金', amount: null, remark: '' }
+      formFund: { payMethod: '', amount: null, remark: '' }
     };
   },
   computed: {
@@ -28,7 +28,7 @@ Pages['page-opening'] = {
     goodsOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.name + '（' + g.sku + '）' }))); },
     custOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('customers').map(c => ({ value: c.id, label: c.name }))); },
     supOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('suppliers').map(s => ({ value: s.id, label: s.name }))); },
-    fundTypeOpts() { return ['现金', '银行'].map(t => ({ value: t, label: t })); },
+    fundMethodOpts() { return (window.PAY_METHODS || []).map(m => ({ value: m, label: m })); },
     /* 列表 */
     stockRows() { return S.db.openingStocks; },
     arRows() { return S.db.openingAr; },
@@ -78,10 +78,10 @@ Pages['page-opening'] = {
     /* ---- 期初资金 ---- */
     addFund() {
       const f = this.formFund;
-      if (!f.name) return alert('请填写账户名称');
+      if (!f.payMethod) return alert('请选择支付方式');
       if (!f.amount || f.amount <= 0) return alert('请填写金额');
-      S.db.openingFunds.push({ id: S.genId(), name: f.name, type: f.type, amount: U.round2(Number(f.amount)), remark: f.remark || '' });
-      this.formFund = { name: '', type: '现金', amount: null, remark: '' };
+      S.db.openingFunds.push({ id: S.genId(), payMethod: f.payMethod, amount: U.round2(Number(f.amount)), remark: f.remark || '' });
+      this.formFund = { payMethod: '', amount: null, remark: '' };
     },
     delFund(r) { S.db.openingFunds = S.db.openingFunds.filter(x => x.id !== r.id); },
     /* ---- 启用 / 反初始化 ---- */
@@ -182,22 +182,21 @@ Pages['page-opening'] = {
         </div>
       </template>
 
-      <!-- 期初资金 -->
+      <!-- 期初资金（按支付方式维度录入） -->
       <template v-else>
-        <div class="toolbar"><b>期初资金</b><div class="spacer"></div>
+        <div class="toolbar"><b>期初资金（按支付方式）</b><div class="spacer"></div>
           <span class="muted">合计 ￥{{fmtMoney(fundTotal)}}</span></div>
         <table class="grid">
-          <thead><tr><th>序号</th><th>账户名称</th><th>类型</th><th class="num">金额</th><th>备注</th><th v-if="!ro">操作</th></tr></thead>
+          <thead><tr><th>序号</th><th>支付方式</th><th class="num">金额</th><th>备注</th><th v-if="!ro">操作</th></tr></thead>
           <tbody>
-            <tr v-for="(r,i) in fundRows"><td>{{i+1}}</td><td>{{r.name}}</td><td>{{r.type}}</td>
+            <tr v-for="(r,i) in fundRows"><td>{{i+1}}</td><td>{{r.payMethod}}</td>
               <td class="num money">{{fmtMoney(r.amount)}}</td><td>{{r.remark||'-'}}</td>
               <td v-if="!ro" class="ops"><span class="link danger" @click="delFund(r)">删除</span></td></tr>
-            <tr v-if="!fundRows.length"><td colspan="6" class="empty">暂无期初资金</td></tr>
+            <tr v-if="!fundRows.length"><td colspan="5" class="empty">暂无期初资金</td></tr>
           </tbody>
         </table>
         <div v-if="!ro" class="form-grid" style="margin-top:12px">
-          <div class="form-item"><label>账户名称<b class="req">*</b></label><input type="text" v-model="formFund.name" placeholder="如：现金柜 / 工行基本户"></div>
-          <div class="form-item"><label>类型</label><x-combobox v-model="formFund.type" :options="fundTypeOpts" placeholder="现金"/></div>
+          <div class="form-item"><label>支付方式<b class="req">*</b></label><x-combobox v-model="formFund.payMethod" :options="fundMethodOpts" placeholder="请选择"/></div>
           <div class="form-item"><label>金额（元）<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="formFund.amount"></div>
           <div class="form-item full"><label>备注</label><input type="text" v-model="formFund.remark" placeholder="选填"></div>
           <div class="form-item"><button class="btn btn-primary" @click="addFund">添加期初资金</button></div>

@@ -549,6 +549,12 @@ const SettleList = {
       this.settleForm = { method: r.s.payMethod || '', actualPaid: S.salePayable(r.s) };
       this.showSettle = true;
     },
+    /* 已支付单据再次修改结算（重选支付方式 / 重录实际收款，并重新计算手续费） */
+    editSettle(r) {
+      this.cur = r;
+      this.settleForm = { method: r.s.payMethod || '', actualPaid: r.s.actualPaid || S.salePayable(r.s) };
+      this.showSettle = true;
+    },
     confirmSettle() {
       const r = this.cur; if (!r) return;
       if (!this.settleForm.method) return alert('请选择支付方式');
@@ -609,7 +615,10 @@ const SettleList = {
           <td><x-status :v="r.payStatus"/></td><td>{{r.payTime||'-'}}</td>
           <td class="ops">
             <span v-if="r.payStatus!=='已支付'" class="link green" @click="markPaid(r)">标记已支付</span>
-            <span v-else class="link warn" @click="unpay(r)">撤销支付</span>
+            <template v-else>
+              <span class="link" @click="editSettle(r)">修改结算</span>
+              <span class="link warn" @click="unpay(r)">撤销支付</span>
+            </template>
           </td>
         </tr>
         <tr v-if="!paged.length"><td colspan="16" class="empty">暂无已完成的销售单</td></tr>

@@ -5,7 +5,7 @@ Pages['page-purchase'] = {
   data() {
     return {
       q: { typeId: '', name: '', supplierId: '', d1: '', d2: '' },
-      page: 1, pageSize: 10, showForm: false,
+      page: 1, pageSize: 10, showForm: false, editing: null,
       form: { typeId: '', goodsId: '', qty: null, price: null, whId: '', payMethod: '' }
     };
   },
@@ -37,8 +37,9 @@ Pages['page-purchase'] = {
     }
   },
   watch: {
-    'form.typeId'() { this.form.goodsId = ''; this.form.price = null; },
+    'form.typeId'() { if (this.editing) return; this.form.goodsId = ''; this.form.price = null; },
     'form.goodsId'(v) {
+      if (this.editing) return;
       const g = v ? S.byId('goods', v) : null;
       this.form.price = g ? g.purchasePrice : null;
     }
@@ -46,7 +47,13 @@ Pages['page-purchase'] = {
   methods: {
     fmtMoney: U.fmtMoney,
     openNew() {
+      this.editing = null;
       this.form = { typeId: '', goodsId: '', qty: null, price: null, whId: '', payMethod: '' };
+      this.showForm = true;
+    },
+    openEdit(p) {
+      this.editing = p;
+      this.form = { typeId: p.typeId, goodsId: p.goodsId, qty: p.qty, price: p.price, whId: p.whId, payMethod: p.payMethod || '' };
       this.showForm = true;
     },
     save() {
@@ -56,11 +63,19 @@ Pages['page-purchase'] = {
       if (f.price == null || f.price < 0) return alert('请填写采购价');
       if (!f.whId) return alert('请选择入库仓库');
       const g = S.byId('goods', f.goodsId);
-      S.addPurchase({
-        typeId: g.typeId, goodsId: g.id, supplierId: g.supplierId, unitId: g.unitId,
-        qty: Number(f.qty), price: Number(f.price), whId: f.whId, payMethod: f.payMethod || ''
-      });
+      if (this.editing) {
+        const err = S.updatePurchase(this.editing.id, {
+          goodsId: g.id, qty: f.qty, price: f.price, whId: f.whId, payMethod: f.payMethod || ''
+        });
+        if (err) return alert(err);
+      } else {
+        S.addPurchase({
+          typeId: g.typeId, goodsId: g.id, supplierId: g.supplierId, unitId: g.unitId,
+          qty: Number(f.qty), price: Number(f.price), whId: f.whId, payMethod: f.payMethod || ''
+        });
+      }
       this.showForm = false;
+      this.editing = null;
     },
     del(p) {
       if (!U.confirm('删除采购单将回滚对应库存（' + S.name('goods', p.goodsId) + ' × ' + p.qty + '），确定删除吗？')) return;
@@ -94,7 +109,10 @@ Pages['page-purchase'] = {
             <td class="num">{{p.qty}}</td><td class="num money">{{fmtMoney(p.price)}}</td>
             <td class="num money">{{fmtMoney(p.amount)}}</td>
             <td>{{S.name('warehouses',p.whId)}}</td><td>{{p.payMethod||'—'}}</td><td>{{p.inTime}}</td>
-            <td class="ops"><span class="link danger" @click="del(p)">删除</span></td>
+            <td class="ops">
+              <span class="link" @click="openEdit(p)">修改</span>
+              <span class="link danger" @click="del(p)">删除</span>
+            </td>
           </tr>
           <tr v-if="!paged.length"><td colspan="13" class="empty">暂无数据</td></tr>
         </tbody>
@@ -103,7 +121,7 @@ Pages['page-purchase'] = {
       <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
     </div>
 
-    <x-modal v-if="showForm" title="新增采购单（保存后自动入库）" :width="640" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'修改采购单':'新增采购单（保存后自动入库）'" :width="640" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>商品类型<b class="req">*</b></label>
           <x-combobox v-model="form.typeId" :options="formTypeOpts" style="width:100%"/></div>

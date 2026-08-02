@@ -55,7 +55,7 @@ const g = db.goods[0], w = db.warehouses[0];
 db.openingStocks.push({ id: S.genId(), whId: w.id, goodsId: g.id, qty: 10, price: 5, remark: '期初' });
 db.openingAr.push({ id: S.genId(), customerId: db.customers[0].id, amount: 100, remark: '' });
 db.openingAp.push({ id: S.genId(), supplierId: db.suppliers[0].id, amount: 60, remark: '' });
-db.openingFunds.push({ id: S.genId(), name: '现金柜', type: '现金', amount: 500, remark: '' });
+db.openingFunds.push({ id: S.genId(), payMethod: '现金', amount: 500, remark: '' });
 ok(S.totalOpeningStockValue() === U.round2(10 * 5), '期初库存金额 = 数量×单价 = 50');
 ok(S.totalOpeningAr() === 100, '期初应收合计 = 100');
 ok(S.totalOpeningAp() === 60, '期初应付合计 = 60');
@@ -135,6 +135,49 @@ ok(totalPurchase > 0, '累计采购金额 > 0（' + totalPurchase + '）');
 ok(totalReceipts === 1000, '累计收款(已支付) = 1000');
 ok(receiptByMethod['微信'] === 1000, '分类型收款：微信 = 1000');
 ok(S.totalCapitalInjected() === 400, '仪表盘注资总额 = 400');
+
+/* ---------- 期初资金按支付方式录入 ---------- */
+console.log('\n[期初资金按支付方式]');
+db.openingFunds.length = 0;
+db.openingFunds.push({ id: S.genId(), payMethod: '现金', amount: 200, remark: '' });
+db.openingFunds.push({ id: S.genId(), payMethod: '微信', amount: 150, remark: '' });
+db.openingFunds.push({ id: S.genId(), payMethod: '对公', amount: 350, remark: '' });
+const byMethod = {};
+db.openingFunds.forEach(x => { byMethod[x.payMethod] = U.round2((byMethod[x.payMethod] || 0) + Number(x.amount)); });
+ok(S.totalOpeningFunds() === 700, '期初资金合计 = 200+150+350 = 700');
+ok(byMethod['现金'] === 200 && byMethod['微信'] === 150 && byMethod['对公'] === 350, '期初资金按支付方式分类汇总正确');
+/* 旧数据迁移：缺 payMethod 的旧记录应被 ensureSettings 补齐 */
+db.openingFunds.push({ id: S.genId(), type: '银行', amount: 80, remark: 'legacy' });
+S.ensureSettings(db);
+const legacy = db.openingFunds[db.openingFunds.length - 1];
+ok(legacy.payMethod === '现金', '旧期初资金(仅 type) 经 ensureSettings 补齐 payMethod=现金（type 不在统一清单）');
+
+/* ---------- 采购修改库存重算 ---------- */
+console.log('\n[采购修改 + 库存重算]');
+const gA = S.genId(), wA = S.genId(), gB = S.genId(), wB = S.genId();
+db.goods.push({ id: gA, typeId: 't1', name: '商品A', sku: 'A', supplierId: sId, unitId: 'u1', purchasePrice: 5, status: 'enabled' });
+db.warehouses.push({ id: wA, name: '仓A', status: 'enabled' });
+db.goods.push({ id: gB, typeId: 't1', name: '商品B', sku: 'B', supplierId: sId, unitId: 'u1', purchasePrice: 5, status: 'enabled' });
+db.warehouses.push({ id: wB, name: '仓B', status: 'enabled' });
+const pA = S.addPurchase({ typeId: 't1', goodsId: gA, supplierId: sId, unitId: 'u1', qty: 5, price: 10, whId: wA, payMethod: '现金' });
+ok(db.stocks.find(s => s.whId === wA && s.goodsId === gA).qty === 5, '采购后 仓A/商品A 库存 = 5');
+/* 改数量 5→8、改价 10→12（同仓同货） */
+let err = S.updatePurchase(pA.id, { goodsId: gA, qty: 8, price: 12, whId: wA, payMethod: '微信' });
+ok(err === null, 'updatePurchase 改数量/价格成功');
+ok(db.stocks.find(s => s.whId === wA && s.goodsId === gA).qty === 8, '改数量后库存 = 8');
+ok(Math.abs(pA.amount - 96) < 1e-6, '改价后采购金额 = 8×12 = 96');
+ok(pA.payMethod === '微信', '改支付方式生效');
+/* 改商品 + 仓库：A/仓A → B/仓B，数量 3 */
+err = S.updatePurchase(pA.id, { goodsId: gB, qty: 3, price: 7, whId: wB, payMethod: '对公' });
+ok(err === null, 'updatePurchase 改商品+仓库成功');
+ok(db.stocks.find(s => s.whId === wA && s.goodsId === gA).qty === 0, '旧仓A/商品A 库存回滚为 0');
+const stB = db.stocks.find(s => s.whId === wB && s.goodsId === gB);
+ok(stB && stB.qty === 3, '新仓B/商品B 库存 = 3');
+ok(Math.abs(pA.amount - 21) < 1e-6, '新金额 = 3×7 = 21');
+/* 库存不足拦截：人为制造“已售”后无法修改 */
+db.stocks.find(s => s.whId === wB && s.goodsId === gB).qty = 2;
+err = S.updatePurchase(pA.id, { goodsId: gB, qty: 5, price: 7, whId: wB, payMethod: '对公' });
+ok(typeof err === 'string' && err.indexOf('无法修改') >= 0, '库存不足时修改被拦截');
 
 console.log(`\n逻辑断言 ${asserts} 项，失败 ${failed} 项。`);
 process.exit(failed ? 1 : 0);

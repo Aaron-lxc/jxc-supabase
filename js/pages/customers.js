@@ -28,7 +28,7 @@ const CustomerList = {
     levelOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('custLevels').map(t => ({ value: t.id, label: t.name }))); },
     rpOpts() { return [{ value: null, label: '无' }].concat(S.enabled('resourcePartners').map(p => ({ value: p.id, label: p.name }))); },
     gpOpts() { return [{ value: null, label: '无' }].concat(S.enabled('regionPartners').map(p => ({ value: p.id, label: p.name }))); },
-    payMethodOpts() { return ['对公', '微信', '收款码', '银行卡'].map(x => ({ value: x, label: x })); },
+    payMethodOpts() { return (window.PAY_METHODS || ['对公', '微信', '收款码', '银行卡']).map(x => ({ value: x, label: x })); },
     payCycleOpts() { return ['现结', '当月结', '次月结'].map(x => ({ value: x, label: x })); },
     exemptOpts() { return ['否', '是'].map(x => ({ value: x, label: x })); }
   },

@@ -135,6 +135,10 @@ window.S = {
     }
     if (db.settings.opened === undefined) db.settings.opened = false;
     if (db.settings.openTime === undefined) db.settings.openTime = '';
+    /* 期初资金旧数据（仅有 type/name）补齐 payMethod，兼容历史 / 演示数据 */
+    (db.openingFunds || []).forEach(x => {
+      if (!x.payMethod) x.payMethod = (window.PAY_METHODS && window.PAY_METHODS.indexOf(x.type) >= 0) ? x.type : '现金';
+    });
   },
 
 
@@ -262,6 +266,30 @@ window.S = {
     if (!rec || rec.qty < p.qty) return '库存不足以回滚（该批货可能已售出），无法删除';
     rec.qty -= Number(p.qty);
     this.db.purchases = this.db.purchases.filter(x => x.id !== id);
+    return null;
+  },
+  /* 修改采购单：先回滚旧库存（同仓同货先减），再按新商品/仓库/数量重新入库，并重算金额。
+     允许改商品与仓库；若旧库存不足（已售出）则拦截返回错误文案。 */
+  updatePurchase(id, patch) {
+    const p = this.byId('purchases', id);
+    if (!p) return '单据不存在';
+    const oldWh = p.whId, oldGoods = p.goodsId, oldQty = Number(p.qty);
+    if (oldWh && oldGoods) {
+      const orec = this.stockRec(oldWh, oldGoods, false);
+      if (!orec || orec.qty < oldQty) return '原库存不足以回滚（该批货可能已售出），无法修改';
+      orec.qty -= oldQty;
+    }
+    const g = this.byId('goods', patch.goodsId);
+    if (!g) return '商品不存在';
+    const newQty = Number(patch.qty), newPrice = Number(patch.price);
+    if (!newQty || newQty <= 0) return '请填写采购数量';
+    if (newPrice == null || newPrice < 0) return '请填写采购价';
+    const nrec = this.stockRec(patch.whId, patch.goodsId, true);
+    nrec.qty += newQty;
+    nrec.lastInTime = U.now();
+    p.typeId = g.typeId; p.goodsId = g.id; p.supplierId = g.supplierId; p.unitId = g.unitId;
+    p.qty = newQty; p.price = newPrice; p.amount = U.round2(newQty * newPrice);
+    p.whId = patch.whId; p.payMethod = patch.payMethod || '';
     return null;
   },
 
