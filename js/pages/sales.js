@@ -8,12 +8,12 @@ const DEFAULT_TPL = {
   title: '销售单',
   head: { company: true, no: true, customer: true, custPhone: false, custAddress: false, wh: true, createTime: true, finishTime: false, status: true },
   cols: { sku: true, unit: true, priceType: true, price: true, amount: true },
-  foot: { total: true, returned: false, net: false, arrears: true, due: false, maker: true, deliver: true, sign: true, remark: false, tax: true, taxPayable: true }
+  foot: { total: true, returned: false, net: false, arrears: true, due: false, maker: true, deliver: true, sign: true, remark: false, tax: true, taxPayable: true, delivery: true }
 };
 const TPL_LABELS = {
   head: { company: '公司名称抬头', no: '销售单号', customer: '客户名称', custPhone: '客户联系电话', custAddress: '客户地址', wh: '发货仓库', createTime: '下单时间', finishTime: '完成时间', status: '单据状态' },
   cols: { sku: 'SKU', unit: '单位', priceType: '价格类型', price: '单价', amount: '金额' },
-  foot: { total: '本单合计', returned: '已退货金额', net: '本单净额', arrears: '客户累计欠款', due: '应付日期', maker: '制单人签名栏', deliver: '送货人签名栏', sign: '客户签收栏', remark: '客户备注', tax: '税点费用', taxPayable: '含税应付合计' }
+  foot: { total: '本单合计', returned: '已退货金额', net: '本单净额', arrears: '客户累计欠款', due: '应付日期', maker: '制单人签名栏', deliver: '送货人签名栏', sign: '客户签收栏', remark: '客户备注', tax: '税点费用', taxPayable: '含税应付合计', delivery: '配送费' }
 };
 
 /* ---------------- 销售单 ---------------- */
@@ -96,13 +96,13 @@ const SaleList = {
     qtySum(s) { return S.saleQty(s); },
     openNew() {
       this.editing = null;
-      this.form = { customerId: '', whId: '', taxRate: 0, taxExempt: '否', items: [this.blankItem()] };
+      this.form = { customerId: '', whId: '', taxRate: 0, taxExempt: '否', deliveryFee: null, items: [this.blankItem()] };
       this.showForm = true;
     },
     openEdit(s) {
       if (s.status === '已完成') return alert('已完成的销售单不能修改，如需调整请先退货');
       this.editing = s;
-      this.form = { customerId: s.customerId, whId: s.whId, taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', items: s.items.map(it => ({ ...it })) };
+      this.form = { customerId: s.customerId, whId: s.whId, taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', deliveryFee: s.deliveryFee || 0, items: s.items.map(it => ({ ...it })) };
       this.showForm = true;
     },
     /* 选定客户后自动带出该客户的税点/减免（可在单据上临时覆盖） */
@@ -147,13 +147,13 @@ const SaleList = {
       if (this.editing) {
         Object.assign(this.editing, {
           customerId: f.customerId, whId: f.whId, items, total, custRemark: cust ? cust.remark : '',
-          arrearsSnap: arrears, taxRate, taxExempt, taxManual
+          arrearsSnap: arrears, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0)
         });
       } else {
         S.db.sales.push({
           id: S.genId(), no: S.genNo('SO'), customerId: f.customerId, whId: f.whId,
           items, total, custRemark: cust ? cust.remark : '', arrearsSnap: arrears,
-          taxRate, taxExempt, taxManual,
+          taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0),
           status: '未完成', payStatus: '', payTime: '', createTime: U.now(), finishTime: ''
         });
       }
@@ -215,6 +215,7 @@ const SaleList = {
       if (t.foot.arrears) f2.push(`<span><b>客户累计欠款（含税应付）：￥${U.fmtMoney(S.custArrears(s.customerId))}</b></span>`);
       if (t.foot.tax) f2.push(`<span>税点费用（${s.taxRate || 0}%）：￥${U.fmtMoney(S.saleTaxCost(s))}</span>`);
       if (t.foot.taxPayable) f2.push(`<span><b>含税应付合计：￥${U.fmtMoney(S.salePayable(s))}</b></span>`);
+      if (t.foot.delivery) f2.push(`<span>配送费（不计入应收，计入成本）：￥${U.fmtMoney(S.saleDeliveryCost(s))}</span>`);
       if (t.foot.remark && s.custRemark) f2.push(`<span>客户备注：${s.custRemark}</span>`);
       if (f2.length) H.push(`<div class="p-info">${f2.join('')}</div>`);
 
@@ -250,7 +251,7 @@ const SaleList = {
     <table class="grid">
       <thead><tr>
         <th>序号</th><th>销售单号</th><th>客户名称</th><th>仓库名称</th><th>商品</th>
-        <th class="num">数量</th><th class="num">金额</th><th class="num">税点费用</th><th class="num">累计欠款</th><th>客户备注</th><th>状态</th><th>创建时间</th><th>操作</th>
+        <th class="num">数量</th><th class="num">金额</th><th class="num">税点费用</th><th class="num">累计欠款</th><th class="num">配送费</th><th>客户备注</th><th>状态</th><th>创建时间</th><th>操作</th>
       </tr></thead>
       <tbody>
         <tr v-for="(s,i) in paged" :key="s.id">
@@ -261,6 +262,7 @@ const SaleList = {
           <td class="num money" :class="{red:S.saleTaxCost(s)>0}">{{fmtMoney(S.saleTaxCost(s))}}
             <span v-if="s.taxManual===true && s.status!=='已完成'" class="tag tag-orange" title="本单税点为手工特调，不随客户档案税点变更">特调</span></td>
           <td class="num money" :class="{red:custArrears(s)>0}">{{fmtMoney(custArrears(s))}}</td>
+          <td class="num money">{{fmtMoney(S.saleDeliveryCost(s))}}</td>
           <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">{{s.custRemark||'-'}}</td>
           <td><x-status :v="s.status"/></td><td>{{s.createTime}}</td>
           <td class="ops">
@@ -274,7 +276,7 @@ const SaleList = {
             <span v-else class="link" @click="detail=s">详情</span>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="13" class="empty">暂无数据</td></tr>
+        <tr v-if="!paged.length"><td colspan="14" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
     </div>
@@ -293,6 +295,8 @@ const SaleList = {
           <input type="number" min="0" step="0.01" style="width:90px" v-model.number="form.taxRate"></div>
         <div class="form-item"><label>是否减免</label>
           <x-combobox v-model="form.taxExempt" :options="exemptOpts" placeholder="否" style="width:120px"/></div>
+        <div class="form-item"><label>配送费</label>
+          <input type="number" min="0" step="0.01" style="width:110px" v-model.number="form.deliveryFee" placeholder="0"></div>
         <div class="form-item full" v-if="formCust && formCust.remark"><label>客户备注（自动同步）</label>
           <div class="muted">{{formCust.remark}}</div></div>
       </div>
@@ -347,7 +351,8 @@ const SaleList = {
       <div class="total-bar">合计：<b class="money">￥{{fmtMoney(detail.total)}}</b>
         <span v-if="S.saleReturnedAmt(detail.id)>0" class="muted">（已退货 ￥{{fmtMoney(S.saleReturnedAmt(detail.id))}}，净额 ￥{{fmtMoney(S.saleNet(detail))}}）</span>
         <span>税点费用：￥{{fmtMoney(S.saleTaxCost(detail))}}</span>
-        <span>含税应付：<b class="money">￥{{fmtMoney(S.salePayable(detail))}}</b></span></div>
+        <span>含税应付：<b class="money">￥{{fmtMoney(S.salePayable(detail))}}</b></span>
+        <span>配送费成本：￥{{fmtMoney(S.saleDeliveryCost(detail))}}</span></div>
       <template #foot>
         <button class="btn" @click="openPreview(detail)">预览</button>
         <button class="btn" @click="print(detail)">打印销售单</button>
@@ -513,7 +518,7 @@ const ReturnList = {
 /* ---------------- 结算管理 ---------------- */
 const SettleList = {
   data() {
-    return { q: { cust: '', pay: '', overdue: false }, page: 1, pageSize: 10, showSettle: false, cur: null, settleForm: { method: '', actualPaid: null } };
+    return { q: { cust: '', pay: '', overdue: false }, page: 1, pageSize: 10, showSettle: false, cur: null, settleForm: { method: '', actualPaid: null, deliveryFee: 0 } };
   },
   computed: {
     S() { return window.S; },
@@ -527,6 +532,7 @@ const SettleList = {
         .map(s => ({
           s, no: s.no, cust: S.name('customers', s.customerId),
           total: s.total, returned: S.saleReturnedAmt(s.id), net: S.saleNet(s),
+          delivery: Number(s.deliveryFee || 0),
           due: S.saleDueDate(s), overdue: S.saleOverdueDays(s),
           payStatus: s.payStatus, payTime: s.payTime,
           cycle: (() => { const c = S.byId('customers', s.customerId); return c ? c.payCycle + (c.payDay ? '/' + c.payDay + '号' : '') : ''; })()
@@ -546,13 +552,13 @@ const SettleList = {
     fmtMoney: U.fmtMoney,
     markPaid(r) {
       this.cur = r;
-      this.settleForm = { method: r.s.payMethod || '', actualPaid: S.salePayable(r.s) };
+      this.settleForm = { method: r.s.payMethod || '', actualPaid: S.salePayable(r.s), deliveryFee: r.s.deliveryFee || 0 };
       this.showSettle = true;
     },
     /* 已支付单据再次修改结算（重选支付方式 / 重录实际收款，并重新计算手续费） */
     editSettle(r) {
       this.cur = r;
-      this.settleForm = { method: r.s.payMethod || '', actualPaid: r.s.actualPaid || S.salePayable(r.s) };
+      this.settleForm = { method: r.s.payMethod || '', actualPaid: r.s.actualPaid || S.salePayable(r.s), deliveryFee: r.s.deliveryFee || 0 };
       this.showSettle = true;
     },
     confirmSettle() {
@@ -562,6 +568,7 @@ const SettleList = {
       r.s.payMethod = this.settleForm.method;
       r.s.actualPaid = U.round2(Number(this.settleForm.actualPaid));
       r.s.fee = this.settleFee;
+      r.s.deliveryFee = U.round2(Number(this.settleForm.deliveryFee) || 0);
       r.s.payStatus = '已支付';
       r.s.payTime = U.now();
       this.showSettle = false; this.cur = null;
@@ -578,7 +585,7 @@ const SettleList = {
       U.exportExcel('结算明细.xlsx', this.rows.map((r, i) => ({
         '序号': i + 1, '销售单号': r.no, '客户名称': r.cust, '账期': r.cycle,
         '销售金额': r.total, '退货金额': r.returned, '税点费用': S.saleTaxCost(r.s), '应收净额(含税)': S.salePayable(r.s),
-        '支付方式': r.s.payMethod || '', '实际收款': r.s.actualPaid || '', '手续费': r.s.fee || '',
+        '支付方式': r.s.payMethod || '', '实际收款': r.s.actualPaid || '', '手续费': r.s.fee || '', '配送费': r.delivery || 0,
         '应付日期': r.due, '超期天数': r.overdue, '支付状态': r.payStatus, '支付时间': r.payTime || ''
       })));
     }
@@ -597,7 +604,7 @@ const SettleList = {
       <thead><tr>
         <th>序号</th><th>销售单号</th><th>客户名称</th><th>账期</th>
         <th class="num">销售金额</th><th class="num">退货金额</th><th class="num">税点费用</th><th class="num">应收净额(含税)</th>
-        <th>支付方式</th><th class="num">实际收款</th><th class="num">手续费</th>
+        <th>支付方式</th><th class="num">实际收款</th><th class="num">手续费</th><th class="num">配送费</th>
         <th>应付日期</th><th>超期</th><th>支付状态</th><th>支付时间</th><th>操作</th>
       </tr></thead>
       <tbody>
@@ -610,6 +617,7 @@ const SettleList = {
           <td>{{r.s.payMethod||'-'}}</td>
           <td class="num money">{{r.s.actualPaid?fmtMoney(r.s.actualPaid):'-'}}</td>
           <td class="num money" :class="{red:r.s.fee>0}">{{r.s.fee?fmtMoney(r.s.fee):'-'}}</td>
+          <td class="num money">{{r.delivery?fmtMoney(r.delivery):'-'}}</td>
           <td>{{r.due}}</td>
           <td><span v-if="r.overdue>0" class="tag tag-red">超期{{r.overdue}}天</span><span v-else class="muted">-</span></td>
           <td><x-status :v="r.payStatus"/></td><td>{{r.payTime||'-'}}</td>
@@ -621,7 +629,7 @@ const SettleList = {
             </template>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="16" class="empty">暂无已完成的销售单</td></tr>
+        <tr v-if="!paged.length"><td colspan="17" class="empty">暂无已完成的销售单</td></tr>
       </tbody>
     </table>
     </div>
@@ -634,6 +642,7 @@ const SettleList = {
         <div class="form-item"><label>应收净额(含税)</label><input type="text" :value="cur?fmtMoney(S.salePayable(cur.s)):''" disabled></div>
         <div class="form-item"><label>支付方式<b class="req">*</b></label><x-combobox v-model="settleForm.method" :options="methodOpts" placeholder="请选择"/></div>
         <div class="form-item"><label>实际支付金额<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="settleForm.actualPaid"></div>
+        <div class="form-item"><label>配送费（不计入应收）</label><input type="number" min="0" step="0.01" v-model.number="settleForm.deliveryFee" placeholder="0"></div>
         <div class="form-item full"><label>手续费（成本）</label>
           <input type="text" :value="fmtMoney(settleFee)" disabled>
           <span class="muted" style="font-size:12px">按「系统设置」中该支付方式手续费比例自动计算，结算后固定不变</span></div>

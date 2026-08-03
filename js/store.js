@@ -107,6 +107,7 @@ window.S = {
      未快照过税点的老单按客户值回退，判定为 false（跟随同步）。 */
   migrateTaxManual(db) {
     (db.sales || []).forEach(s => {
+      if (s.deliveryFee == null) s.deliveryFee = 0;
       if (s.taxManual !== undefined) return;
       if (s.status === '已完成') return;
       const c = (db.customers || []).find(x => x.id === s.customerId);
@@ -560,6 +561,16 @@ window.S = {
   totalTaxCost(d1, d2) {
     return U.round2(this.completedSalesIn(d1 || null, d2 || null)
       .reduce((a, s) => a + this.saleTaxCost(s), 0));
+  },
+
+  /* 配送费成本。每单配送费（不计入应收/欠款/佣金，仅计入成本侧冲减净利润），
+     与税点成本镜像：费用层、不进销售成本/毛利/佣金基数。 */
+  saleDeliveryCost(sale) {
+    return U.round2(Number(sale.deliveryFee || 0));
+  },
+  totalDeliveryCost(d1, d2) {
+    return U.round2(this.completedSalesIn(d1 || null, d2 || null)
+      .reduce((a, s) => a + this.saleDeliveryCost(s), 0));
   },
 
   /* ------- 佣金质押（绑定）：防退货 / 跑单导致佣金超额支付 -------

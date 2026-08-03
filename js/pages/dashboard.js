@@ -52,6 +52,7 @@ Pages['page-dashboard'] = {
       const resComm = S.totalResourceCommission(null, null);
       const regComm = S.totalRegionCommission(null, null);
       const taxCost = S.totalTaxCost(null, null);
+      const deliveryCost = S.totalDeliveryCost(null, null);
       /* 投诉 */
       const cmpByType = {};
       db.complaints.forEach(c => { const n = S.name('complaintTypes', c.typeId); cmpByType[n] = (cmpByType[n] || 0) + 1; });
@@ -64,7 +65,7 @@ Pages['page-dashboard'] = {
         rp, regionPartnerTotal: en('regionPartners').length,
         invQty, invCost: U.round2(invCost), invValue: U.round2(invValue), invProfit: U.round2(invValue - invCost), invByType,
         rentSum,
-        totalSales, totalCost: U.round2(opCost + resComm + regComm + taxCost), opCost, resComm, regComm, taxCost,
+        totalSales, totalCost: U.round2(opCost + resComm + regComm + taxCost + deliveryCost), opCost, resComm, regComm, taxCost, deliveryCost,
         cmpTotal: db.complaints.length, cmpByType,
         totalPurchase: U.round2(db.purchases.reduce((a, p) => a + Number(p.amount), 0)),
         totalReceipts: U.round2(db.sales.filter(s => s.payStatus === '已支付').reduce((a, s) => a + (Number(s.actualPaid) || S.salePayable(s)), 0)),
@@ -320,7 +321,7 @@ Pages['page-dashboard'] = {
       <div class="stat-card c2 clickable" @click="go('sales')"><div class="t">累计销售额（净额）</div><div class="v money">￥{{fmtMoney(stats.totalSales)}}</div>
         <div class="sub">已完成销售单扣除退货后的净额</div></div>
       <div class="stat-card c3 clickable" @click="go('finance')"><div class="t">累计成本</div><div class="v money">￥{{fmtMoney(stats.totalCost)}}</div>
-        <div class="sub">日常运营 ￥{{fmtMoney(stats.opCost)}} ｜ 税点成本 ￥{{fmtMoney(stats.taxCost)}}<br>资源佣金 ￥{{fmtMoney(stats.resComm)}} ｜ 区域佣金 ￥{{fmtMoney(stats.regComm)}}</div></div>
+        <div class="sub">日常运营 ￥{{fmtMoney(stats.opCost)}} ｜ 税点成本 ￥{{fmtMoney(stats.taxCost)}} ｜ 配送费成本 ￥{{fmtMoney(stats.deliveryCost)}}<br>资源佣金 ￥{{fmtMoney(stats.resComm)}} ｜ 区域佣金 ￥{{fmtMoney(stats.regComm)}}</div></div>
       <div class="stat-card c3 clickable" @click="go('commission')"><div class="t">累计佣金</div><div class="v money">￥{{fmtMoney(stats.resComm + stats.regComm)}}</div>
         <div class="sub">资源 ￥{{fmtMoney(stats.resComm)}} ｜ 区域 ￥{{fmtMoney(stats.regComm)}}</div></div>
       <div class="stat-card c2 clickable" @click="go('purchase')"><div class="t">累计采购金额</div><div class="v money">￥{{fmtMoney(stats.totalPurchase)}}</div>

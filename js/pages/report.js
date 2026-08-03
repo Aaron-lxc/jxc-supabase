@@ -16,7 +16,8 @@ Pages['page-report'] = {
       const cost = U.round2(sales.reduce((a, s) => a + S.saleCost(s), 0));
       /* 税点成本：仅计入成本侧，不影响销售额与佣金基数 */
       const taxCost = U.round2(sales.reduce((a, s) => a + S.saleTaxCost(s), 0));
-      const profit = U.round2(net - cost - taxCost);
+      const deliveryCost = U.round2(sales.reduce((a, s) => a + S.saleDeliveryCost(s), 0));
+      const profit = U.round2(net - cost - taxCost - deliveryCost);
       const purchases = S.db.purchases.filter(p => U.inRange(p.inTime, this.d1, this.d2));
       const purAmt = U.round2(purchases.reduce((a, p) => a + Number(p.amount), 0));
       const purQty = purchases.reduce((a, p) => a + Number(p.qty), 0);
@@ -24,7 +25,7 @@ Pages['page-report'] = {
       const resComm = S.totalResourceCommission(this.d1, this.d2);
       const regComm = S.totalRegionCommission(this.d1, this.d2);
       const netProfit = U.round2(profit - opCost - resComm - regComm);
-      return { orderCount: sales.length, gross, returned, net, cost, taxCost, profit, purQty, purAmt, opCost, resComm, regComm, netProfit };
+      return { orderCount: sales.length, gross, returned, net, cost, taxCost, deliveryCost, profit, purQty, purAmt, opCost, resComm, regComm, netProfit };
     },
     /* 佣金支付与质押总账（全期口径，含资源 + 区域合伙人） */
     payRows() {
