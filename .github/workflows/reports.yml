@@ -17,6 +17,11 @@ on:
     - cron: '0 7 * * 6'   # 每周六 北京15:00 → 本周经营
     - cron: '0 7 1 * *'   # 每月1号 北京15:00 → 上月经营
   workflow_dispatch:       # 允许手动触发调试
+    inputs:
+      type:
+        description: '报表类型：留空=按定时；all=全部；或指定 resource/region/arrears/stock/weekly/monthly'
+        required: false
+        default: ''
 
 jobs:
   report:
@@ -49,16 +54,31 @@ jobs:
         working-directory: scripts/wecom-reports
         run: |
           node --version
-          # 根据触发时间判断本次运行哪个报表
-          HOUR=$(date -u +%H); DOM=$(date -u +%d); DOW=$(date -u +%u)
-          if [ "$DOM" = "01" ] && [ "$HOUR" = "01" ]; then
-            node run.js resource && node run.js region
-          elif [ "$HOUR" = "00" ]; then
-            node run.js arrears && node run.js stock
-          elif [ "$DOW" = "6" ] && [ "$HOUR" = "07" ]; then
-            node run.js weekly
-          elif [ "$DOM" = "01" ] && [ "$HOUR" = "07" ]; then
-            node run.js monthly
+          TYPE="${{ github.event.inputs.type }}"
+          if [ -n "$TYPE" ]; then
+            # 手动触发：all=全部，或指定单个类型
+            if [ "$TYPE" = "all" ]; then
+              node run.js resource
+              node run.js region
+              node run.js arrears
+              node run.js stock
+              node run.js weekly
+              node run.js monthly
+            else
+              node run.js "$TYPE"
+            fi
           else
-            echo "非计划触发时间，跳过（手动触发请到下方步骤指定参数）"
+            # 根据触发时间判断本次运行哪个报表
+            HOUR=$(date -u +%H); DOM=$(date -u +%d); DOW=$(date -u +%u)
+            if [ "$DOM" = "01" ] && [ "$HOUR" = "01" ]; then
+              node run.js resource && node run.js region
+            elif [ "$HOUR" = "00" ]; then
+              node run.js arrears && node run.js stock
+            elif [ "$DOW" = "6" ] && [ "$HOUR" = "07" ]; then
+              node run.js weekly
+            elif [ "$DOM" = "01" ] && [ "$HOUR" = "07" ]; then
+              node run.js monthly
+            else
+              echo "非计划触发时间，跳过"
+            fi
           fi
