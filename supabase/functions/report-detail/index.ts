@@ -2,8 +2,10 @@
 // Supabase Edge Function: report-detail
 // 作用：校验明细链接 token，按合伙人裁剪数据后返回（不暴露 Service Key / 全量数据）。
 // 部署：supabase functions deploy report-detail --no-verify-jwt
-// 环境变量（Project Settings → Edge Functions）：
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE, DETAIL_SECRET
+// 环境变量（Supabase 自动注入，无需手动设）：
+//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+// 需手动设（deploy-detail.ps1 从 config.json 读取）：
+//   DETAIL_SECRET
 // ============================================================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -73,7 +75,7 @@ Deno.serve(async (req) => {
   const expect = await hmac(secret, `${type}:${pid}:${month}`);
   if (t !== expect) return new Response(JSON.stringify({ error: 'forbidden' }), { status: 403, headers });
 
-  const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE')!);
+  const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const { data: rows, error } = await sb.from('records').select('coll,rid,data').eq('workspace_id', ws);
   if (error) return new Response(JSON.stringify({ error: String(error.message) }), { status: 500, headers });
 

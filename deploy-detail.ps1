@@ -9,15 +9,13 @@
 # ============================================================================
 $root = "E:\workbuddy\2026-07-30-18-56-47\jxc-supabase"
 $cfg  = Get-Content "$root\scripts\wecom-reports\config.json" -Raw -Encoding UTF8 | ConvertFrom-Json
-$URL  = $cfg.supabaseUrl
-$SVC  = $cfg.supabaseServiceKey
 $SEC  = $cfg.detailSecret
 
 Write-Host "[1/4] Linking Supabase project rfyuxjaewsgjsespogyw ..."
 supabase link --project-ref rfyuxjaewsgjsespogyw
 
-Write-Host "[2/4] Setting Edge Function env vars (DETAIL_SECRET matches push side)..."
-supabase secrets set "SUPABASE_URL=$URL" "SUPABASE_SERVICE_ROLE=$SVC" "DETAIL_SECRET=$SEC"
+Write-Host "[2/4] Setting Edge Function secret DETAIL_SECRET (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY are auto-injected)..."
+supabase secrets set "DETAIL_SECRET=$SEC"
 
 Write-Host "[3/4] Deploying report-detail function (--no-verify-jwt: token-based access, no login)..."
 supabase functions deploy report-detail --no-verify-jwt
