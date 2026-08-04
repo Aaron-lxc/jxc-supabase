@@ -1,0 +1,12 @@
+{
+  "supabaseUrl": "https://rfyuxjaewsgjsespogyw.supabase.co",
+  "supabaseServiceKey": "YOUR_SUPABASE_SERVICE_ROLE_KEY",
+  "workspaceId": "YOUR_WORKSPACE_ID",
+  "wecom": {
+    "corpid": "YOUR_WECHAT_WORK_CORP_ID",
+    "agentSecret": "YOUR_SELF_BUILT_APP_SECRET",
+    "agentid": 1000002
+  },
+  "detailBaseUrl": "https://aaron-lxc.github.io/jxc-supabase/detail.html",
+  "detailSecret": "请用一段足够长的随机串，例如 openssl rand -hex 32 的输出"
+}

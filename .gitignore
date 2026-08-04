@@ -1,0 +1,3 @@
+# 含密钥的配置文件，切勿提交到仓库
+scripts/wecom-reports/config.json
+scripts/wecom-reports/recipients.json

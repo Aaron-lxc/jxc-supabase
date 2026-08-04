@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>佣金明细</title>
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; background: #f5f6f8; color: #222; }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 20px; margin: 8px 0 4px; }
+    .sub { color: #888; font-size: 13px; margin-bottom: 12px; }
+    .card { background: #fff; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px dashed #eee; font-size: 15px; }
+    .row:last-child { border-bottom: none; }
+    .row b { color: #c0392b; }
+    h2 { font-size: 16px; margin: 4px 0 8px; color: #2c3e50; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border: 1px solid #eee; padding: 6px 8px; text-align: left; }
+    th { background: #fafafa; color: #555; font-weight: 600; }
+    .err { color: #c0392b; padding: 20px; text-align: center; }
+    .ok { color: #27ae60; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="app"><div class="err">加载中…</div></div>
+  </div>
+
+  <!-- 与推送脚本共用的纯计算核心 -->
+  <script src="scripts/wecom-reports/compute-core.js"></script>
+  <script>
+    // 部署 Edge Function 后填入其 URL（supabase functions deploy 输出）
+    const EDGE_URL = 'https://rfyuxjaewsgjsespogyw.supabase.co/functions/v1/report-detail';
+
+    const { buildDB, makeCompute } = window.ComputeCore;
+    const money = n => '¥' + Number(n || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+
+    async function main() {
+      const q = new URLSearchParams(location.search);
+      const type = q.get('type'), pid = q.get('pid'), ws = q.get('ws'), t = q.get('t');
+      const app = document.getElementById('app');
+      if (!type || !pid || !ws || !t) { app.innerHTML = '<div class="err">链接参数不完整</div>'; return; }
+      let res;
+      try {
+        const r = await fetch(`${EDGE_URL}?type=${encodeURIComponent(type)}&pid=${encodeURIComponent(pid)}&ws=${encodeURIComponent(ws)}&t=${encodeURIComponent(t)}`);
+        res = await r.json();
+        if (!r.ok) throw new Error(res.error || '加载失败');
+      } catch (e) {
+        app.innerHTML = `<div class="err">无法加载明细：${esc(e.message)}</div>`;
+        return;
+      }
+      const S = makeCompute(res.partial);
+      const pname = res.partner ? res.partner.name : '合伙人';
+      const acc = S.partnerCommissionAccount(Number(pid), type);
+
+      let html = `<h1>${esc(pname)} · 佣金明细</h1><div class="sub">${type === '区域' ? '区域合伙人' : '资源合伙人'}</div>`;
+
+      html += `<div class="card">
+        <div class="row"><span>累计总佣金(含质押)</span><b>${money(acc.earned)}</b></div>
+        <div class="row"><span>累计已支付佣金</span><span>${money(acc.paid)}</span></div>
+        <div class="row"><span>待支付佣金</span><b>${money(acc.payable)}</b></div>
+        <div class="row"><span>质押佣金</span><span>${money(acc.pledge)}</span></div>
+      </div>`;
+
+      if (type === '资源') {
+        const lines = S.resourceCommission(null, null).filter(x => x.partnerId == pid);
+        html += `<div class="card"><h2>累计总佣金明细</h2><table>
+          <tr><th>序号</th><th>资源级别</th><th>累计佣金</th></tr>
+          ${lines.map((x, i) => `<tr><td>${i + 1}</td><td>${['一级', '二级', '三级'][x.level - 1]}</td><td>${money(x.commission)}</td></tr>`).join('')}
+        </table></div>`;
+        const cs = S.resourceCustomerLines(Number(pid));
+        html += `<div class="card"><h2>累计总客户数（${cs.length}）</h2><table>
+          <tr><th>序号</th><th>客户名称</th><th>资源级别</th></tr>
+          ${cs.map((c, i) => `<tr><td>${i + 1}</td><td>${esc(c.name)}</td><td>${['一级', '二级', '三级'][c.level - 1]}</td></tr>`).join('')}
+        </table></div>`;
+      } else {
+        const lines = S.regionCommissionByCustomer(Number(pid));
+        html += `<div class="card"><h2>累计总佣金明细</h2><table>
+          <tr><th>序号</th><th>客户名称</th><th>累计佣金</th></tr>
+          ${lines.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.name)}</td><td>${money(x.commission)}</td></tr>`).join('')}
+        </table></div>`;
+        const cids = S.partnerCustomerIds(Number(pid), '区域');
+        const cs = cids.map(id => S.byId('customers', id)).filter(Boolean);
+        html += `<div class="card"><h2>累计总客户数（${cs.length}）</h2><table>
+          <tr><th>序号</th><th>客户名称</th><th>客户类型</th></tr>
+          ${cs.map((c, i) => `<tr><td>${i + 1}</td><td>${esc(c.name)}</td><td>${esc(S.name('custTypes', c.typeId))}</td></tr>`).join('')}
+        </table></div>`;
+      }
+
+      const pl = S.pledgeList(Number(pid), type);
+      html += `<div class="card"><h2>质押佣金明细（${pl.length}）</h2><table>
+        <tr><th>序号</th><th>客户名称</th><th>销售净额</th><th>对应佣金</th><th>质押原因</th><th>完成时间</th></tr>
+        ${pl.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.custName)}</td><td>${money(x.net)}</td><td>${money(x.commission)}</td><td>${esc(x.reasons.join('、'))}</td><td>${esc(x.finishTime)}</td></tr>`).join('')}
+      </table></div>`;
+
+      app.innerHTML = html;
+    }
+    main();
+  </script>
+</body>
+</html>
