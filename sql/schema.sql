@@ -271,6 +271,11 @@ drop policy if exists p_inv_delete on public.invites;
 create policy p_inv_delete on public.invites for delete
   using (public.is_manager(workspace_id));
 
+drop policy if exists p_inv_update on public.invites;
+create policy p_inv_update on public.invites for update
+  using (public.is_manager(workspace_id))
+  with check (public.is_manager(workspace_id));
+
 -- ============================================================================
 -- 四、触发器
 -- ============================================================================

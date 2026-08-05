@@ -1,9 +1,25 @@
-/* 运营报表：经营总览 / 佣金统计 / 销售·采购·成本·应收明细，均支持时间范围与导出 */
+/* 运营报表：经营总览 / 佣金统计 / 销售·采购·成本·应收明细，均支持时间范围与导出
+   - 7 张明细表均支持「模糊查询导航窗 + 分页（与采购管理一致）」；缺合计的表补充合计行 */
 window.Pages = window.Pages || {};
 
 Pages['page-report'] = {
   data() {
-    return { d1: U.addDays(U.today(), -29), d2: U.today() };
+    return {
+      d1: U.addDays(U.today(), -29), d2: U.today(),
+      /* 查询导航窗（模糊） */
+      fResName: '', fRegName: '',
+      fPayName: '', fPayType: '',
+      fGoods: '', fGoodsType: '',
+      fSup: '', fExpCat: '', fCust: '',
+      /* 分页（与采购管理一致：page / pageSize） */
+      pageRes: 1, pageSizeRes: 10,
+      pageReg: 1, pageSizeReg: 10,
+      pagePay: 1, pageSizePay: 10,
+      pageGoods: 1, pageSizeGoods: 10,
+      pageSup: 1, pageSizeSup: 10,
+      pageExp: 1, pageSizeExp: 10,
+      pageAR: 1, pageSizeAR: 10
+    };
   },
   computed: {
     S() { return window.S; },
@@ -42,7 +58,7 @@ Pages['page-report'] = {
     },
     payTotal() {
       const t = { earned: 0, paid: 0, pledge: 0, payable: 0 };
-      this.payRows.forEach(r => { t.earned += r.earned; t.paid += r.paid; t.pledge += r.pledge; t.payable += r.payable; });
+      this.payRowsF.forEach(r => { t.earned += r.earned; t.paid += r.paid; t.pledge += r.pledge; t.payable += r.payable; });
       return { earned: U.round2(t.earned), paid: U.round2(t.paid), pledge: U.round2(t.pledge), payable: U.round2(t.payable) };
     },
     resRows() {
@@ -72,7 +88,7 @@ Pages['page-report'] = {
       }
       return out;
     },
-    resTotal() { return U.round2(this.resRows.filter(r => !r.isSub).reduce((a, r) => a + r.commission, 0)); },
+    resTotal() { return U.round2(this.resRowsF.filter(r => !r.isSub).reduce((a, r) => a + r.commission, 0)); },
     regRows() {
       return S.regionCommission(this.d1, this.d2).map(x => ({
         name: S.name('regionPartners', x.partnerId),
@@ -80,7 +96,7 @@ Pages['page-report'] = {
         custCount: x.custCount, sales: x.sales, rate: x.rate, commission: x.commission
       }));
     },
-    regTotal() { return U.round2(this.regRows.reduce((a, r) => a + r.commission, 0)); },
+    regTotal() { return U.round2(this.regRowsF.reduce((a, r) => a + r.commission, 0)); },
     goodsRows() {
       const acc = {};
       this.doneSales.forEach(s => (s.items || []).forEach((it, idx) => {
@@ -118,47 +134,140 @@ Pages['page-report'] = {
         .map(c => ({ name: c.name, arrears: S.custArrears(c.id), overdue: S.custOverdueArrears(c.id) }))
         .filter(r => r.arrears > 0)
         .sort((a, b) => b.arrears - a.arrears);
+    },
+
+    /* ---------- 过滤后的全集（供分页 / 导出 / 合计使用） ---------- */
+    resRowsF() {
+      const k = (this.fResName || '').trim().toLowerCase();
+      if (!k) return this.resRows;
+      return this.resRows.filter(r => (r.name || '').toLowerCase().includes(k));
+    },
+    regRowsF() {
+      const k = (this.fRegName || '').trim().toLowerCase();
+      if (!k) return this.regRows;
+      return this.regRows.filter(r => (r.name || '').toLowerCase().includes(k));
+    },
+    payRowsF() {
+      const k = (this.fPayName || '').trim().toLowerCase();
+      const t = this.fPayType;
+      return this.payRows.filter(r => {
+        if (k && !(r.name || '').toLowerCase().includes(k)) return false;
+        if (t && r.type !== t) return false;
+        return true;
+      });
+    },
+    goodsRowsF() {
+      const k = (this.fGoods || '').trim().toLowerCase();
+      const t = this.fGoodsType;
+      return this.goodsRows.filter(r => {
+        if (k && !(r.name || '').toLowerCase().includes(k)) return false;
+        if (t && r.type !== t) return false;
+        return true;
+      });
+    },
+    supplierRowsF() {
+      const k = (this.fSup || '').trim().toLowerCase();
+      if (!k) return this.supplierRows;
+      return this.supplierRows.filter(r => (r.name || '').toLowerCase().includes(k));
+    },
+    expenseRowsF() {
+      const t = this.fExpCat;
+      if (!t) return this.expenseRows;
+      return this.expenseRows.filter(r => r.name === t);
+    },
+    arRowsF() {
+      const k = (this.fCust || '').trim().toLowerCase();
+      if (!k) return this.arRows;
+      return this.arRows.filter(r => (r.name || '').toLowerCase().includes(k));
+    },
+
+    /* ---------- 分页切片 ---------- */
+    resRowsPaged() { return this.resRowsF.slice((this.pageRes - 1) * this.pageSizeRes, this.pageRes * this.pageSizeRes); },
+    regRowsPaged() { return this.regRowsF.slice((this.pageReg - 1) * this.pageSizeReg, this.pageReg * this.pageSizeReg); },
+    payRowsPaged() { return this.payRowsF.slice((this.pagePay - 1) * this.pageSizePay, this.pagePay * this.pageSizePay); },
+    goodsRowsPaged() { return this.goodsRowsF.slice((this.pageGoods - 1) * this.pageSizeGoods, this.pageGoods * this.pageSizeGoods); },
+    supplierRowsPaged() { return this.supplierRowsF.slice((this.pageSup - 1) * this.pageSizeSup, this.pageSup * this.pageSizeSup); },
+    expenseRowsPaged() { return this.expenseRowsF.slice((this.pageExp - 1) * this.pageSizeExp, this.pageExp * this.pageSizeExp); },
+    arRowsPaged() { return this.arRowsF.slice((this.pageAR - 1) * this.pageSizeAR, this.pageAR * this.pageSizeAR); },
+
+    /* ---------- 缺合计表的汇总 ---------- */
+    goodsTotal() {
+      const t = { qty: 0, amt: 0, profit: 0 };
+      this.goodsRowsF.forEach(r => { t.qty += r.qty; t.amt += r.amt; t.profit += r.profit; });
+      return { qty: t.qty, amt: U.round2(t.amt), profit: U.round2(t.profit) };
+    },
+    supTotal() {
+      const t = { count: 0, qty: 0, amt: 0 };
+      this.supplierRowsF.forEach(r => { t.count += r.count; t.qty += r.qty; t.amt += r.amt; });
+      return { count: t.count, qty: t.qty, amt: U.round2(t.amt) };
+    },
+    expTotal() {
+      const t = { count: 0, amt: 0 };
+      this.expenseRowsF.forEach(r => { t.count += r.count; t.amt += r.amt; });
+      return { count: t.count, amt: U.round2(t.amt) };
+    },
+    arTotal() {
+      const t = { arrears: 0, overdue: 0 };
+      this.arRowsF.forEach(r => { t.arrears += r.arrears; t.overdue += r.overdue; });
+      return { arrears: U.round2(t.arrears), overdue: U.round2(t.overdue) };
+    },
+
+    /* ---------- 下拉筛选选项（模糊选定） ---------- */
+    payTypeOpts() {
+      return [{ value: '', label: '全部类型' }, { value: '资源', label: '资源合伙人' }, { value: '区域', label: '区域合伙人' }];
+    },
+    goodsTypeOpts() {
+      return [{ value: '', label: '全部分类' }].concat((S.db.goodsTypes || []).map(t => ({ value: t.name, label: t.name })));
+    },
+    expCatOpts() {
+      return [{ value: '', label: '全部分类' }].concat((S.db.expenseCats || []).map(c => ({ value: c.name, label: c.name })));
     }
+  },
+  watch: {
+    fResName() { this.pageRes = 1; }, fRegName() { this.pageReg = 1; },
+    fPayName() { this.pagePay = 1; }, fPayType() { this.pagePay = 1; },
+    fGoods() { this.pageGoods = 1; }, fGoodsType() { this.pageGoods = 1; },
+    fSup() { this.pageSup = 1; }, fExpCat() { this.pageExp = 1; }, fCust() { this.pageAR = 1; }
   },
   methods: {
     fmtMoney: U.fmtMoney, fmtNum: U.fmtNum,
     exportRes() {
-      U.exportExcel('资源合伙人佣金表.xlsx', this.resRows.map((r, i) => ({
+      U.exportExcel('资源合伙人佣金表.xlsx', this.resRowsF.map((r, i) => ({
         '序号': i + 1, '资源合伙人': r.name, '级别': r.level, '客户数': r.custCount,
         '销售净额': r.sales, '佣金比例(%)': r.rate, '佣金': r.commission
       })));
     },
     exportReg() {
-      U.exportExcel('区域合伙人佣金表.xlsx', this.regRows.map((r, i) => ({
+      U.exportExcel('区域合伙人佣金表.xlsx', this.regRowsF.map((r, i) => ({
         '序号': i + 1, '区域合伙人': r.name, '负责区域': r.region, '客户数': r.custCount,
         '销售净额': r.sales, '佣金比例(%)': r.rate, '佣金': r.commission
       })));
     },
     exportGoods() {
-      U.exportExcel('商品销售汇总.xlsx', this.goodsRows.map((r, i) => ({
+      U.exportExcel('商品销售汇总.xlsx', this.goodsRowsF.map((r, i) => ({
         '序号': i + 1, '商品名称': r.name, '商品分类': r.type, '销量(净)': r.qty,
         '销售额(净)': r.amt, '销售成本': r.cost, '毛利': r.profit
       })));
     },
     exportSupplier() {
-      U.exportExcel('供应商采购汇总.xlsx', this.supplierRows.map((r, i) => ({
+      U.exportExcel('供应商采购汇总.xlsx', this.supplierRowsF.map((r, i) => ({
         '序号': i + 1, '供应商': r.name, '采购单数': r.count, '采购数量': r.qty, '采购金额': r.amt
       })));
     },
     exportExpense() {
-      U.exportExcel('运营成本汇总.xlsx', this.expenseRows.map((r, i) => ({
+      U.exportExcel('运营成本汇总.xlsx', this.expenseRowsF.map((r, i) => ({
         '序号': i + 1, '类目': r.name, '笔数': r.count, '金额': r.amt
       })));
     },
     exportPay() {
-      U.exportExcel('佣金支付与质押统计.xlsx', this.payRows.map((r, i) => ({
+      U.exportExcel('佣金支付与质押统计.xlsx', this.payRowsF.map((r, i) => ({
         '序号': i + 1, '类型': r.type + '合伙人', '姓名': r.name,
         '累计应得佣金': r.earned, '累计已支付': r.paid, '质押中(暂扣)': r.pledge,
         '质押单数': r.cnt, '当前可支付': r.payable, '未支付合计': r.unpaid
       })));
     },
     exportAR() {
-      U.exportExcel('应收账款表.xlsx', this.arRows.map((r, i) => ({
+      U.exportExcel('应收账款表.xlsx', this.arRowsF.map((r, i) => ({
         '序号': i + 1, '客户名称': r.name, '累计未支付金额': r.arrears, '其中超期金额': r.overdue
       })));
     }
@@ -188,50 +297,63 @@ Pages['page-report'] = {
 
     <!-- 资源合伙人佣金 -->
     <div class="card">
-      <h3>资源合伙人佣金统计 <span class="muted" style="font-weight:400">同一合伙人可同时担任一/二/三级，分级列示并小计</span>
-        <button class="btn btn-sm" @click="exportRes">导出</button></h3>
+      <h3>资源合伙人佣金统计 <span class="muted" style="font-weight:400">同一合伙人可同时担任一/二/三级，分级列示并小计</span></h3>
+      <div class="toolbar">
+        <input type="text" v-model="fResName" placeholder="资源合伙人（模糊）" style="width:200px">
+        <button class="btn btn-sm" @click="exportRes">导出</button>
+      </div>
       <table class="grid">
         <thead><tr><th>序号</th><th>资源合伙人</th><th>级别</th><th class="num">客户数</th><th class="num">销售净额</th><th class="num">佣金比例</th><th class="num">佣金</th></tr></thead>
         <tbody>
-          <tr v-for="(r,i) in resRows" :style="r.isSub?'background:#f8fafc;font-weight:700':''">
+          <tr v-for="(r,i) in resRowsPaged" :key="r.name+r.level+i" :style="r.isSub?'background:#f8fafc;font-weight:700':''">
             <td>{{r.isSub?'':i+1}}</td><td>{{r.name}}</td><td>{{r.level}}</td>
             <td class="num">{{r.custCount}}</td><td class="num money">{{fmtMoney(r.sales)}}</td>
             <td class="num">{{r.rate==='-'?'-':r.rate+'%'}}</td><td class="num money">{{fmtMoney(r.commission)}}</td>
           </tr>
-          <tr v-if="!resRows.length"><td colspan="7" class="empty">该时间范围内暂无资源佣金</td></tr>
-          <tr v-if="resRows.length" style="background:#eff6ff;font-weight:700">
+          <tr v-if="!resRowsPaged.length"><td colspan="7" class="empty">该时间范围内暂无资源佣金</td></tr>
+          <tr v-if="resRowsPaged.length" style="background:#eff6ff;font-weight:700">
             <td colspan="6" style="text-align:right">资源佣金总计</td><td class="num money red">￥{{fmtMoney(resTotal)}}</td></tr>
         </tbody>
       </table>
+      <x-pager :total="resRowsF.length" v-model:page="pageRes" v-model:size="pageSizeRes"/>
     </div>
 
     <!-- 区域合伙人佣金 -->
     <div class="card">
-      <h3>区域合伙人佣金统计 <button class="btn btn-sm" @click="exportReg">导出</button></h3>
+      <h3>区域合伙人佣金统计</h3>
+      <div class="toolbar">
+        <input type="text" v-model="fRegName" placeholder="区域合伙人（模糊）" style="width:200px">
+        <button class="btn btn-sm" @click="exportReg">导出</button>
+      </div>
       <table class="grid">
         <thead><tr><th>序号</th><th>区域合伙人</th><th>负责区域</th><th class="num">客户数</th><th class="num">销售净额</th><th class="num">佣金比例</th><th class="num">佣金</th></tr></thead>
         <tbody>
-          <tr v-for="(r,i) in regRows">
+          <tr v-for="(r,i) in regRowsPaged" :key="r.name+i">
             <td>{{i+1}}</td><td>{{r.name}}</td><td>{{r.region||'-'}}</td>
             <td class="num">{{r.custCount}}</td><td class="num money">{{fmtMoney(r.sales)}}</td>
             <td class="num">{{r.rate}}%</td><td class="num money">{{fmtMoney(r.commission)}}</td>
           </tr>
-          <tr v-if="!regRows.length"><td colspan="7" class="empty">该时间范围内暂无区域佣金</td></tr>
-          <tr v-if="regRows.length" style="background:#eff6ff;font-weight:700">
+          <tr v-if="!regRowsPaged.length"><td colspan="7" class="empty">该时间范围内暂无区域佣金</td></tr>
+          <tr v-if="regRowsPaged.length" style="background:#eff6ff;font-weight:700">
             <td colspan="6" style="text-align:right">区域佣金总计</td><td class="num money red">￥{{fmtMoney(regTotal)}}</td></tr>
         </tbody>
       </table>
+      <x-pager :total="regRowsF.length" v-model:page="pageReg" v-model:size="pageSizeReg"/>
     </div>
 
     <!-- 佣金支付与质押统计 -->
     <div class="card">
-      <h3>佣金支付与质押统计 <span class="muted" style="font-weight:400">全期口径；质押 = 每个客户最后一单佣金 + 未支付货款单佣金，防退货/跑单超额</span>
-        <button class="btn btn-sm" @click="exportPay">导出</button></h3>
+      <h3>佣金支付与质押统计 <span class="muted" style="font-weight:400">全期口径；质押 = 每个客户最后一单佣金 + 未支付货款单佣金，防退货/跑单超额</span></h3>
+      <div class="toolbar">
+        <input type="text" v-model="fPayName" placeholder="姓名（模糊）" style="width:180px">
+        <x-combobox v-model="fPayType" :options="payTypeOpts" placeholder="全部类型" style="width:160px"></x-combobox>
+        <button class="btn btn-sm" @click="exportPay">导出</button>
+      </div>
       <table class="grid">
         <thead><tr><th>序号</th><th>类型</th><th>姓名</th><th class="num">累计应得佣金</th><th class="num">累计已支付</th>
           <th class="num">质押中（暂扣）</th><th class="num">质押单数</th><th class="num">当前可支付</th></tr></thead>
         <tbody>
-          <tr v-for="(r,i) in payRows" :key="r.type+r.name">
+          <tr v-for="(r,i) in payRowsPaged" :key="r.type+r.name">
             <td>{{i+1}}</td>
             <td><span class="tag" :class="r.type==='资源'?'tag-blue':'tag-green'">{{r.type}}合伙人</span></td>
             <td>{{r.name}}</td>
@@ -241,8 +363,8 @@ Pages['page-report'] = {
             <td class="num">{{r.cnt}}</td>
             <td class="num money"><b>{{fmtMoney(r.payable)}}</b></td>
           </tr>
-          <tr v-if="!payRows.length"><td colspan="8" class="empty">暂无佣金数据</td></tr>
-          <tr v-if="payRows.length" style="background:#eff6ff;font-weight:700">
+          <tr v-if="!payRowsPaged.length"><td colspan="8" class="empty">暂无佣金数据</td></tr>
+          <tr v-if="payRowsPaged.length" style="background:#eff6ff;font-weight:700">
             <td colspan="3" style="text-align:right">合计</td>
             <td class="num money">￥{{fmtMoney(payTotal.earned)}}</td>
             <td class="num money green-t">￥{{fmtMoney(payTotal.paid)}}</td>
@@ -252,59 +374,103 @@ Pages['page-report'] = {
           </tr>
         </tbody>
       </table>
+      <x-pager :total="payRowsF.length" v-model:page="pagePay" v-model:size="pageSizePay"/>
       <div class="form-hint">佣金支付操作入口在「合伙人管理 - 详情」内，支持记录清单与累计已支付统计。</div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
       <!-- 商品销售汇总 -->
       <div class="card" style="margin-bottom:0">
-        <h3>商品销售汇总（净额口径）<button class="btn btn-sm" @click="exportGoods">导出</button></h3>
+        <h3>商品销售汇总（净额口径）</h3>
+        <div class="toolbar">
+          <input type="text" v-model="fGoods" placeholder="商品（模糊）" style="width:150px">
+          <x-combobox v-model="fGoodsType" :options="goodsTypeOpts" placeholder="全部分类" style="width:140px"></x-combobox>
+          <button class="btn btn-sm" @click="exportGoods">导出</button>
+        </div>
         <table class="grid">
           <thead><tr><th>商品</th><th>分类</th><th class="num">销量</th><th class="num">销售额</th><th class="num">毛利</th></tr></thead>
           <tbody>
-            <tr v-for="r in goodsRows"><td>{{r.name}}</td><td>{{r.type}}</td><td class="num">{{r.qty}}</td>
+            <tr v-for="(r,i) in goodsRowsPaged" :key="r.name+i"><td>{{r.name}}</td><td>{{r.type}}</td><td class="num">{{r.qty}}</td>
               <td class="num money">{{fmtMoney(r.amt)}}</td><td class="num money green-t">{{fmtMoney(r.profit)}}</td></tr>
-            <tr v-if="!goodsRows.length"><td colspan="5" class="empty">暂无数据</td></tr>
+            <tr v-if="!goodsRowsPaged.length"><td colspan="5" class="empty">暂无数据</td></tr>
+            <tr v-if="goodsRowsPaged.length" style="background:#eff6ff;font-weight:700">
+              <td colspan="2" style="text-align:right">合计</td>
+              <td class="num">{{goodsTotal.qty}}</td>
+              <td class="num money">{{fmtMoney(goodsTotal.amt)}}</td>
+              <td class="num money green-t">{{fmtMoney(goodsTotal.profit)}}</td>
+            </tr>
           </tbody>
         </table>
+        <x-pager :total="goodsRowsF.length" v-model:page="pageGoods" v-model:size="pageSizeGoods"/>
       </div>
       <!-- 供应商采购汇总 -->
       <div class="card" style="margin-bottom:0">
-        <h3>供应商采购汇总 <button class="btn btn-sm" @click="exportSupplier">导出</button></h3>
+        <h3>供应商采购汇总</h3>
+        <div class="toolbar">
+          <input type="text" v-model="fSup" placeholder="供应商（模糊）" style="width:180px">
+          <button class="btn btn-sm" @click="exportSupplier">导出</button>
+        </div>
         <table class="grid">
           <thead><tr><th>供应商</th><th class="num">采购单数</th><th class="num">采购数量</th><th class="num">采购金额</th></tr></thead>
           <tbody>
-            <tr v-for="r in supplierRows"><td>{{r.name}}</td><td class="num">{{r.count}}</td>
+            <tr v-for="(r,i) in supplierRowsPaged" :key="r.name+i"><td>{{r.name}}</td><td class="num">{{r.count}}</td>
               <td class="num">{{fmtNum(r.qty)}}</td><td class="num money">{{fmtMoney(r.amt)}}</td></tr>
-            <tr v-if="!supplierRows.length"><td colspan="4" class="empty">暂无数据</td></tr>
+            <tr v-if="!supplierRowsPaged.length"><td colspan="4" class="empty">暂无数据</td></tr>
+            <tr v-if="supplierRowsPaged.length" style="background:#eff6ff;font-weight:700">
+              <td style="text-align:right">合计</td>
+              <td class="num">{{supTotal.count}}</td>
+              <td class="num">{{fmtNum(supTotal.qty)}}</td>
+              <td class="num money">{{fmtMoney(supTotal.amt)}}</td>
+            </tr>
           </tbody>
         </table>
+        <x-pager :total="supplierRowsF.length" v-model:page="pageSup" v-model:size="pageSizeSup"/>
       </div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
       <!-- 运营成本 -->
       <div class="card" style="margin-bottom:0">
-        <h3>运营成本汇总（已计算）<button class="btn btn-sm" @click="exportExpense">导出</button></h3>
+        <h3>运营成本汇总（已计算）</h3>
+        <div class="toolbar">
+          <x-combobox v-model="fExpCat" :options="expCatOpts" placeholder="全部分类" style="width:180px"></x-combobox>
+          <button class="btn btn-sm" @click="exportExpense">导出</button>
+        </div>
         <table class="grid">
           <thead><tr><th>类目</th><th class="num">笔数</th><th class="num">金额</th></tr></thead>
           <tbody>
-            <tr v-for="r in expenseRows"><td>{{r.name}}</td><td class="num">{{r.count}}</td><td class="num money">{{fmtMoney(r.amt)}}</td></tr>
-            <tr v-if="!expenseRows.length"><td colspan="3" class="empty">暂无数据</td></tr>
+            <tr v-for="(r,i) in expenseRowsPaged" :key="r.name+i"><td>{{r.name}}</td><td class="num">{{r.count}}</td><td class="num money">{{fmtMoney(r.amt)}}</td></tr>
+            <tr v-if="!expenseRowsPaged.length"><td colspan="3" class="empty">暂无数据</td></tr>
+            <tr v-if="expenseRowsPaged.length" style="background:#eff6ff;font-weight:700">
+              <td style="text-align:right">合计</td>
+              <td class="num">{{expTotal.count}}</td>
+              <td class="num money">{{fmtMoney(expTotal.amt)}}</td>
+            </tr>
           </tbody>
         </table>
+        <x-pager :total="expenseRowsF.length" v-model:page="pageExp" v-model:size="pageSizeExp"/>
       </div>
       <!-- 应收账款 -->
       <div class="card" style="margin-bottom:0">
-        <h3>应收账款（全部未支付，不限时间）<button class="btn btn-sm" @click="exportAR">导出</button></h3>
+        <h3>应收账款（全部未支付，不限时间）</h3>
+        <div class="toolbar">
+          <input type="text" v-model="fCust" placeholder="客户（模糊）" style="width:180px">
+          <button class="btn btn-sm" @click="exportAR">导出</button>
+        </div>
         <table class="grid">
           <thead><tr><th>客户</th><th class="num">累计未支付</th><th class="num">其中超期</th></tr></thead>
           <tbody>
-            <tr v-for="r in arRows"><td>{{r.name}}</td><td class="num money">{{fmtMoney(r.arrears)}}</td>
+            <tr v-for="(r,i) in arRowsPaged" :key="r.name+i"><td>{{r.name}}</td><td class="num money">{{fmtMoney(r.arrears)}}</td>
               <td class="num money" :class="{red:r.overdue>0}">{{fmtMoney(r.overdue)}}</td></tr>
-            <tr v-if="!arRows.length"><td colspan="3" class="empty">暂无应收账款</td></tr>
+            <tr v-if="!arRowsPaged.length"><td colspan="3" class="empty">暂无应收账款</td></tr>
+            <tr v-if="arRowsPaged.length" style="background:#eff6ff;font-weight:700">
+              <td style="text-align:right">合计</td>
+              <td class="num money">{{fmtMoney(arTotal.arrears)}}</td>
+              <td class="num money" :class="{red:arTotal.overdue>0}">{{fmtMoney(arTotal.overdue)}}</td>
+            </tr>
           </tbody>
         </table>
+        <x-pager :total="arRowsF.length" v-model:page="pageAR" v-model:size="pageSizeAR"/>
       </div>
     </div>
   </div>`

@@ -143,7 +143,7 @@ Pages['page-members'] = {
     },
     async toggleStatus(m) {
       if (m.role === 'owner') return alert('创建者账号不可被停用 / 启用');
-      const next = m.status === '已停用' ? '已启用' : '已停用';
+      const next = (m.status === '未启用' || m.status === '已停用') ? '已启用' : '未启用';
       const err = await Cloud.updateMember(m.id, { status: next });
       if (err) return alert(err);
       await this.reload();
@@ -221,7 +221,7 @@ Pages['page-members'] = {
       return me ? me.id : null;
     },
     statusTag(status) {
-      if (status === '已停用') return 'tag tag-gray';
+      if (status === '未启用' || status === '已停用') return 'tag tag-gray';
       return 'tag tag-green';
     },
     roleTag(role) {
@@ -253,7 +253,7 @@ Pages['page-members'] = {
             <select v-model="filter.status">
               <option value="">全部</option>
               <option value="已启用">已启用</option>
-              <option value="已停用">已停用</option>
+              <option value="未启用">未启用</option>
             </select></div>
           <div class="form-item"><label>创建时间（起）</label><input type="date" v-model="filter.createdStart"></div>
           <div class="form-item"><label>创建时间（止）</label><input type="date" v-model="filter.createdEnd"></div>
@@ -290,9 +290,9 @@ Pages['page-members'] = {
                   <template v-else>
                     <button class="btn btn-sm" @click="openEdit(m)">修改</button>
                     <button class="btn btn-sm" @click="toggleStatus(m)">
-                      {{ m.status === '已停用' ? '启用' : '停用' }}
+                      {{ (m.status === '未启用' || m.status === '已停用') ? '启用' : '停用' }}
                     </button>
-                    <button class="btn btn-sm btn-danger" :disabled="m.status !== '已停用'" @click="remove(m)">删除</button>
+                    <button class="btn btn-sm btn-danger" :disabled="m.status !== '未启用'" @click="remove(m)">删除</button>
                   </template>
                 </td>
               </tr>
@@ -379,7 +379,7 @@ Pages['page-members'] = {
           <div class="form-item"><label>状态</label>
             <select v-model="edit.status">
               <option value="已启用">已启用</option>
-              <option value="已停用">已停用</option>
+              <option value="未启用">未启用</option>
             </select></div>
         </div>
         <div style="margin:6px 0;font-weight:600;color:#0f172a">模块权限</div>

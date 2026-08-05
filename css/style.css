@@ -74,11 +74,8 @@ table.grid th, table.grid td { border-bottom: 1px solid #e2e8f0; padding: 8px 10
 table.grid th { background: #f8fafc; color: #475569; font-weight: 600; position: sticky; top: 0; }
 table.grid tbody tr:hover { background: #f8fafc; }
 table.grid td.num, table.grid th.num { text-align: right; }
-/* 佣金报表两张表：固定列宽，确保字段列与值列严格对齐，长合伙人名截断显示 */
-table.grid.rc-comm { table-layout: fixed; }
-table.grid.rc-comm th:nth-child(1), table.grid.rc-comm td:nth-child(1) { width: 56px; }
-table.grid.rc-comm th:nth-child(2), table.grid.rc-comm td:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
-table.grid.rc-comm th:nth-child(n+3), table.grid.rc-comm td:nth-child(n+3) { width: 13%; }
+/* 佣金报表两张表：沿用全站 .grid 自然自动布局即可保证表头与值列对齐；
+   原先的 table-layout:fixed + 百分比列宽会让超长金额文字溢出单元格、视觉错位，已移除 */
 .empty { text-align: center; color: #94a3b8; padding: 28px 0; }
 .ops { display: flex; gap: 6px; flex-wrap: wrap; }
 .link { color: #1d4ed8; cursor: pointer; font-size: 12px; }
