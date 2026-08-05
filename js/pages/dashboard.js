@@ -230,11 +230,13 @@ Pages['page-dashboard'] = {
       if (kind === 'week') {
         const wd = (new Date(t + 'T00:00:00').getDay() + 6) % 7;
         const mon = U.addDays(t, -wd);
-        this[which + '1'] = mon; this[which + '2'] = U.addDays(mon, 6);
+        this[which + 'd1'] = mon; this[which + 'd2'] = U.addDays(mon, 6);
       } else {
         const [y, m] = t.split('-');
-        this[which + '1'] = y + '-' + m + '-01';
-        this[which + '2'] = U.ymd(new Date(Number(y), Number(m), 0));
+        this[which + 'd1'] = y + '-' + m + '-01';
+        const d = new Date(Number(y), Number(m), 0);
+        const p = n => (n < 10 ? '0' : '') + n;
+        this[which + 'd2'] = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
       }
     },
     exportRank() {

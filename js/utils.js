@@ -12,7 +12,13 @@ window.U = {
     return `${d.getFullYear()}-${U.pad(d.getMonth() + 1)}-${U.pad(d.getDate())}`;
   },
 
-  ymd(dateStr) { return (dateStr || '').slice(0, 10); },
+  ymd(dateStr) {
+    if (dateStr instanceof Date) {
+      const p = n => (n < 10 ? '0' : '') + n;
+      return `${dateStr.getFullYear()}-${p(dateStr.getMonth() + 1)}-${p(dateStr.getDate())}`;
+    }
+    return (dateStr || '').slice(0, 10);
+  },
 
   /* 偏移天数，返回 YYYY-MM-DD */
   addDays(dateStr, days) {
