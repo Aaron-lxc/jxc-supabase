@@ -59,6 +59,7 @@ Pages['page-members'] = {
       return this.invites.filter(iv => {
         if (kw && !String(iv.email || '').toLowerCase().includes(kw)) return false;
         if (f.role && iv.role !== f.role) return false;
+        if (f.status && iv.status !== f.status) return false;
         if (f.createdStart && this.dateOnly(iv.created_at) < f.createdStart) return false;
         if (f.createdEnd && this.dateOnly(iv.created_at) > f.createdEnd) return false;
         return true;
@@ -252,8 +253,10 @@ Pages['page-members'] = {
           <div class="form-item"><label>状态</label>
             <select v-model="filter.status">
               <option value="">全部</option>
-              <option value="已启用">已启用</option>
+              <option value="待接受">待接受</option>
+              <option value="已取消">已取消</option>
               <option value="未启用">未启用</option>
+              <option value="已启用">已启用</option>
             </select></div>
           <div class="form-item"><label>创建时间（起）</label><input type="date" v-model="filter.createdStart"></div>
           <div class="form-item"><label>创建时间（止）</label><input type="date" v-model="filter.createdEnd"></div>

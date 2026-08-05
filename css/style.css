@@ -76,6 +76,8 @@ table.grid tbody tr:hover { background: #f8fafc; }
 table.grid td.num, table.grid th.num { text-align: right; }
 /* 佣金报表两张表：沿用全站 .grid 自然自动布局即可保证表头与值列对齐；
    原先的 table-layout:fixed + 百分比列宽会让超长金额文字溢出单元格、视觉错位，已移除 */
+/* 佣金报表两张表：内容整体居中（覆盖 .num 默认右对齐，因本规则后出现、优先级相同取后者） */
+table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
 .empty { text-align: center; color: #94a3b8; padding: 28px 0; }
 .ops { display: flex; gap: 6px; flex-wrap: wrap; }
 .link { color: #1d4ed8; cursor: pointer; font-size: 12px; }
