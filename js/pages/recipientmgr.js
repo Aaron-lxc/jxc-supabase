@@ -9,7 +9,14 @@ Pages['page-recipientmgr'] = {
       recips: [],
       showSet: false,
       setForm: { user_id: '', email: '', role: 'none', partnerId: null },
-      setMsg: ''
+      setMsg: '',
+      // 筛选
+      fEmail: '',
+      fRole: 'all',
+      fRpRole: 'all',
+      fStatus: 'all',
+      fCreatedFrom: '',
+      fCreatedTo: ''
     };
   },
   computed: {
@@ -20,6 +27,22 @@ Pages['page-recipientmgr'] = {
       if (this.setForm.role !== 'resource' && this.setForm.role !== 'region') return [];
       const coll = this.setForm.role === 'region' ? 'regionPartners' : 'resourcePartners';
       return (this.S.db[coll] || []).map(p => ({ value: p.id, label: p.name }));
+    },
+    filteredMembers() {
+      const kw = (this.fEmail || '').trim().toLowerCase();
+      const cf = this.fCreatedFrom, ct = this.fCreatedTo;
+      return this.members.filter(m => {
+        const r = this.recipientOf(m);
+        if (kw) {
+          const hay = (m.email || m.name || '').toLowerCase();
+          if (!hay.includes(kw)) return false;
+        }
+        if (this.fRole !== 'all' && m.role !== this.fRole) return false;
+        if (this.fRpRole !== 'all' && (!r || r.role !== this.fRpRole)) return false;
+        if (this.fStatus !== 'all' && (!r || r.status !== this.fStatus)) return false;
+        if ((cf || ct) && (!r || !this.inCreatedRange(r.created_at))) return false;
+        return true;
+      });
     }
   },
   methods: {
@@ -29,9 +52,31 @@ Pages['page-recipientmgr'] = {
     },
     roleTag(role) {
       return role === 'owner' ? 'tag tag-blue'
-        : role === 'admin' ? 'tag tag-orange' : 'tag tag-gray';
+        : role === 'admin' ? 'tag tag-orange'
+        : role === '报表' ? 'tag tag-gray' : 'tag tag-gray';
     },
+    statusTag(s) { return s === '启用' ? 'tag tag-green' : 'tag tag-gray'; },
     roleLabel: P.roleLabel,
+    memberRoleLabel(r) { return { owner: '创建者', admin: '管理员', member: '成员', '报表': '报表' }[r] || r; },
+    fmt(ts) {
+      if (!ts) return '—';
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return '—';
+      const p = n => (n < 10 ? '0' : '') + n;
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    },
+    inCreatedRange(ts) {
+      if (!ts) return false;
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return false;
+      if (this.fCreatedFrom && d < new Date(this.fCreatedFrom + 'T00:00:00')) return false;
+      if (this.fCreatedTo && d > new Date(this.fCreatedTo + 'T23:59:59.999')) return false;
+      return true;
+    },
+    resetFilter() {
+      this.fEmail = ''; this.fRole = 'all'; this.fRpRole = 'all';
+      this.fStatus = 'all'; this.fCreatedFrom = ''; this.fCreatedTo = '';
+    },
     async reload() {
       if (!this.wsId) return;
       this.loading = true;
@@ -64,7 +109,7 @@ Pages['page-recipientmgr'] = {
         const e = await Cloud.updateMember(m.id, { role: '报表' });
         if (e) return alert(e);
       }
-      const payload = { role: f.role };
+      const payload = { role: f.role, status: '启用' };
       if (f.role === 'resource' || f.role === 'region') {
         const coll = f.role === 'region' ? 'regionPartners' : 'resourcePartners';
         const p = (this.S.db[coll] || []).find(x => x.id === f.partnerId);
@@ -80,8 +125,26 @@ Pages['page-recipientmgr'] = {
       this.showSet = false;
       await this.reload();
     },
-    async clearRecipient(m) {
-      if (!U.confirm('取消「' + (m.email || m.name) + '」的报表接收人身份吗？')) return;
+    /* 启用 / 停用：切换 recipient_profiles.status；普通成员启用时降级为「报表」锁数据，停用时恢复为「成员」 */
+    async toggleStatus(m) {
+      const r = this.recipientOf(m);
+      if (!r) return;
+      const next = r.status === '启用' ? '未启用' : '启用';
+      if (m.role === 'member') {
+        const target = next === '启用' ? '报表' : 'member';
+        if (m.role !== target) {
+          const e = await Cloud.updateMember(m.id, { role: target });
+          if (e) return alert(e);
+        }
+      }
+      const err = await Cloud.setRecipientStatus(this.wsId, m.user_id, next);
+      if (err) return alert(err);
+      alert(next === '启用' ? '已启用该接收人' : '已停用该接收人');
+      await this.reload();
+    },
+    /* 删除接收人档案；若其成员角色为「报表」则恢复为「成员」 */
+    async removeRecipient(m) {
+      if (!U.confirm('删除「' + (m.email || m.name) + '」的报表接收人档案吗？')) return;
       const err = await Cloud.deleteRecipient(this.wsId, m.user_id);
       if (err) return alert(err);
       const mm = this.members.find(x => x.user_id === m.user_id);
@@ -89,7 +152,7 @@ Pages['page-recipientmgr'] = {
         const e = await Cloud.updateMember(mm.id, { role: 'member' });
         if (e) return alert(e);
       }
-      alert('已取消');
+      alert('已删除');
       await this.reload();
     }
   },
@@ -108,20 +171,65 @@ Pages['page-recipientmgr'] = {
           创建者/管理员保留全部操作权限，设置后仅额外获得「报表中心」入口用于预览。
           选择合伙人角色时需指定具体合伙人；内部角色（对账人 / 库管 / 管理者）无需指定。
         </div>
+
+        <!-- 筛选栏 -->
+        <div class="filter-grid" style="margin-bottom:10px">
+          <div class="form-item"><label>邮箱 / 名称（模糊）</label>
+            <input v-model.trim="fEmail" placeholder="输入关键字" /></div>
+          <div class="form-item"><label>成员角色</label>
+            <select v-model="fRole">
+              <option value="all">全部</option>
+              <option value="owner">创建者</option>
+              <option value="admin">管理员</option>
+              <option value="member">成员</option>
+              <option value="报表">报表</option>
+            </select></div>
+          <div class="form-item"><label>报表角色</label>
+            <select v-model="fRpRole">
+              <option value="all">全部</option>
+              <option value="resource">资源合伙人</option>
+              <option value="region">区域合伙人</option>
+              <option value="arrears">对账人</option>
+              <option value="stock">库管</option>
+              <option value="manager">管理者</option>
+            </select></div>
+          <div class="form-item"><label>状态</label>
+            <select v-model="fStatus">
+              <option value="all">全部</option>
+              <option value="启用">启用</option>
+              <option value="未启用">未启用</option>
+            </select></div>
+          <div class="form-item"><label>创建时间（起）</label>
+            <input type="date" v-model="fCreatedFrom" /></div>
+          <div class="form-item"><label>创建时间（止）</label>
+            <input type="date" v-model="fCreatedTo" /></div>
+          <div class="form-item" style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-sm" @click="resetFilter">重置筛选</button>
+            <span class="muted">共 {{filteredMembers.length}} 条</span>
+          </div>
+        </div>
+
         <div class="table-wrap">
           <table class="grid">
-            <thead><tr><th>邮箱 / 名称</th><th>成员角色</th><th>报表角色</th><th>操作</th></tr></thead>
+            <thead><tr>
+              <th>邮箱 / 名称</th><th>成员角色</th><th>报表角色</th><th>状态</th><th>创建时间</th><th>操作</th>
+            </tr></thead>
             <tbody>
-              <tr v-for="m in members" :key="m.id">
+              <tr v-for="m in filteredMembers" :key="m.id">
                 <td>{{ m.email || m.name || '—' }}</td>
-                <td><span :class="roleTag(m.role)">{{ roleLabel(m.role) }}</span></td>
+                <td><span :class="roleTag(m.role)">{{ memberRoleLabel(m.role) }}</span></td>
                 <td>{{ recipientOf(m) ? rpLabel(recipientOf(m).role) : '—' }}</td>
+                <td><span v-if="recipientOf(m)" :class="statusTag(recipientOf(m).status)">{{ recipientOf(m).status }}</span><span v-else class="muted">—</span></td>
+                <td>{{ recipientOf(m) ? fmt(recipientOf(m).created_at) : '—' }}</td>
                 <td style="white-space:nowrap">
                   <button class="btn btn-sm" @click="openSet(m)">设置</button>
-                  <button class="btn btn-sm btn-danger" v-if="recipientOf(m)" @click="clearRecipient(m)">取消</button>
+                  <template v-if="recipientOf(m)">
+                    <button class="btn btn-sm" @click="toggleStatus(m)">{{ recipientOf(m).status === '启用' ? '停用' : '启用' }}</button>
+                    <button class="btn btn-sm btn-danger" @click="removeRecipient(m)">删除</button>
+                  </template>
                 </td>
               </tr>
-              <tr v-if="!members.length"><td colspan="4" class="muted" style="text-align:center;padding:18px">暂无成员</td></tr>
+              <tr v-if="!filteredMembers.length"><td colspan="6" class="muted" style="text-align:center;padding:18px">暂无匹配成员</td></tr>
             </tbody>
           </table>
         </div>
@@ -145,7 +253,7 @@ Pages['page-recipientmgr'] = {
               <option v-for="o in partnerOpts" :key="o.value" :value="o.value">{{ o.label }}</option>
             </select></div>
         </div>
-        <div class="form-hint">设为接收人后：普通成员的角色会调整为「报表」，仅可查看报表中心、无法访问业务数据；创建者/管理员保留原有全部权限，仅额外获得报表中心入口。报表中心显示内容由下方所选报表角色决定。</div>
+        <div class="form-hint">设为接收人后：普通成员的角色会调整为「报表」，仅可查看报表中心、无法访问业务数据；创建者/管理员保留原有全部权限，仅额外获得报表中心入口。报表中心显示内容由下方所选报表角色决定。新接收人默认为「启用」状态。</div>
         <template #foot>
           <button class="btn" @click="showSet=false">取消</button>
           <button class="btn btn-primary" @click="submitSet">保存</button>

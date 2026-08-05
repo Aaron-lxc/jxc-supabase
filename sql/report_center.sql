@@ -12,6 +12,7 @@ create table if not exists public.recipient_profiles (
   partner_id   bigint,                 -- 仅合伙人需要（对应 resourcePartners/regionPartners 的 id）
   partner_type text,                   -- '资源' / '区域'
   partner_name text,
+  status       text not null default '启用' check (status in ('启用','未启用')),
   created_at   timestamptz not null default now(),
   last_read_at timestamptz,
   unique (auth_uid, ws_id)

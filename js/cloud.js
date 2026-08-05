@@ -169,7 +169,7 @@ window.Cloud = {
     if (!this.sb || !this.state.user || !wsId) return null;
     const { data, error } = await this.sb
       .from('recipient_profiles').select('*')
-      .eq('ws_id', wsId).eq('auth_uid', this.state.user.id).maybeSingle();
+      .eq('ws_id', wsId).eq('auth_uid', this.state.user.id).eq('status', '启用').maybeSingle();
     if (error) return null;
     this.state.recipient = data || null;
     return this.state.recipient;
@@ -188,6 +188,10 @@ window.Cloud = {
   },
   async deleteRecipient(wsId, authUid) {
     const { error } = await this.sb.from('recipient_profiles').delete().eq('ws_id', wsId).eq('auth_uid', authUid);
+    return error ? this._dbErr(error) : null;
+  },
+  async setRecipientStatus(wsId, authUid, status) {
+    const { error } = await this.sb.from('recipient_profiles').update({ status }).eq('ws_id', wsId).eq('auth_uid', authUid);
     return error ? this._dbErr(error) : null;
   },
 

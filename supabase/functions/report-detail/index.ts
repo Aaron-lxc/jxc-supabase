@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
 
   const { data: prof, error: pe } = await sb
     .from('recipient_profiles').select('*')
-    .eq('auth_uid', uid).eq('ws_id', ws).maybeSingle();
+    .eq('auth_uid', uid).eq('ws_id', ws).eq('status', '启用').maybeSingle();
   if (pe || !prof) return new Response(JSON.stringify({ error: 'forbidden' }), { status: 403, headers });
 
   // 标记已读：打开报表即视为已查看，清除未读红点（last_read_at 用于 report-unread 比较）

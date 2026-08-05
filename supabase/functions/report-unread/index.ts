@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
 
   const { data: prof } = await sb
     .from('recipient_profiles').select('last_read_at')
-    .eq('auth_uid', uid).eq('ws_id', ws).maybeSingle();
+    .eq('auth_uid', uid).eq('ws_id', ws).eq('status', '启用').maybeSingle();
 
   const { data: mx } = await sb
     .from('records').select('updated_at')
