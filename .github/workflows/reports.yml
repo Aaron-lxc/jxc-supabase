@@ -11,11 +11,6 @@
 name: jxc-reports
 
 on:
-  schedule:
-    - cron: '0 1 1 * *'   # 每月1号 北京09:00 → 资源/区域合伙人月佣金
-    - cron: '0 0 * * *'   # 每天 北京08:00 → 欠款/库存预警
-    - cron: '0 7 * * 6'   # 每周六 北京15:00 → 本周经营
-    - cron: '0 7 1 * *'   # 每月1号 北京15:00 → 上月经营
   workflow_dispatch:       # 允许手动触发调试
     inputs:
       type:
@@ -51,34 +46,4 @@ jobs:
           EOF
 
       - name: 运行推送
-        working-directory: scripts/wecom-reports
-        run: |
-          node --version
-          TYPE="${{ github.event.inputs.type }}"
-          if [ -n "$TYPE" ]; then
-            # 手动触发：all=全部，或指定单个类型
-            if [ "$TYPE" = "all" ]; then
-              node run.js resource
-              node run.js region
-              node run.js arrears
-              node run.js stock
-              node run.js weekly
-              node run.js monthly
-            else
-              node run.js "$TYPE"
-            fi
-          else
-            # 根据触发时间判断本次运行哪个报表
-            HOUR=$(date -u +%H); DOM=$(date -u +%d); DOW=$(date -u +%u)
-            if [ "$DOM" = "01" ] && [ "$HOUR" = "01" ]; then
-              node run.js resource && node run.js region
-            elif [ "$HOUR" = "00" ]; then
-              node run.js arrears && node run.js stock
-            elif [ "$DOW" = "6" ] && [ "$HOUR" = "07" ]; then
-              node run.js weekly
-            elif [ "$DOM" = "01" ] && [ "$HOUR" = "07" ]; then
-              node run.js monthly
-            else
-              echo "非计划触发时间，跳过"
-            fi
-          fi
+        run: echo "此 GitHub Actions 已弃用：企微强制可信IP且GitHub出口IP轮换，定时推送改由本机Windows任务计划程序执行。请勿在此手动触发。"
