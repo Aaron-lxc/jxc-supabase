@@ -75,6 +75,9 @@ Deno.serve(async (req) => {
     .eq('auth_uid', uid).eq('ws_id', ws).maybeSingle();
   if (pe || !prof) return new Response(JSON.stringify({ error: 'forbidden' }), { status: 403, headers });
 
+  // 标记已读：打开报表即视为已查看，清除未读红点（last_read_at 用于 report-unread 比较）
+  await sb.from('recipient_profiles').update({ last_read_at: new Date().toISOString() }).eq('id', prof.id).catch(() => {});
+
   const { data: rows, error } = await sb.from('records').select('coll,rid,data').eq('workspace_id', ws);
   if (error) return new Response(JSON.stringify({ error: String(error.message) }), { status: 500, headers });
   const db = buildDB(rows as any[]);

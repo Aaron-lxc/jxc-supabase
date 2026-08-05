@@ -22,6 +22,10 @@ aside.sidebar {
 .menu-item:hover { background: #1e293b; color: #fff; }
 .menu-item.active { background: #1d4ed8; color: #fff; border-left-color: #60a5fa; }
 .menu-item .ico { width: 18px; text-align: center; }
+.menu-item .badge {
+  margin-left: auto; background: #e53935; color: #fff; font-size: 11px; line-height: 16px;
+  min-width: 16px; height: 16px; border-radius: 8px; padding: 0 5px; text-align: center;
+}
 
 main.content { flex: 1; overflow-y: auto; padding: 16px 20px; }
 

@@ -175,6 +175,22 @@ window.Cloud = {
     return this.state.recipient;
   },
 
+  /* ---------- 报表接收人档案 ---------- */
+  async listRecipients(wsId) {
+    const { data, error } = await this.sb.from('recipient_profiles').select('*').eq('ws_id', wsId);
+    if (error) return [];
+    return data || [];
+  },
+  async upsertRecipient(wsId, authUid, payload) {
+    const row = Object.assign({ ws_id: wsId, auth_uid: authUid }, payload);
+    const { error } = await this.sb.from('recipient_profiles').upsert(row, { onConflict: 'auth_uid,ws_id' });
+    return error ? this._dbErr(error) : null;
+  },
+  async deleteRecipient(wsId, authUid) {
+    const { error } = await this.sb.from('recipient_profiles').delete().eq('ws_id', wsId).eq('auth_uid', authUid);
+    return error ? this._dbErr(error) : null;
+  },
+
   /* ---------- 成员 ---------- */
   async listMembers(wsId) {
     const { data, error } = await this.sb.rpc('workspace_members_view', { ws: wsId });

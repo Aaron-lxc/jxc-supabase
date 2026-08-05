@@ -22,6 +22,7 @@ window.P = {
 
   /* 账户管理：仅 owner / admin 可见，不参与逐项授权 */
   MEMBER_MENU: { key: 'members', label: '账户管理', ico: '🔑' },
+  RECIPIENT_MENU: { key: 'recipientmgr', label: '报表接收人', ico: '📨' },
 
   LEVELS: [
     { v: 'none', label: '无权限' },
@@ -72,11 +73,11 @@ window.P = {
   },
 
   /* 侧边栏菜单（按权限过滤） */
-  menus() {
+    menus() {
     if (this.isRecipient()) return [{ key: 'reportcenter', label: '报表中心', ico: '📊' }];
     const list = this.MODULES.filter(m => this.canView(m.key))
       .map(m => ({ key: m.key, label: m.label, ico: m.ico }));
-    if (this.isManager()) list.push({ ...this.MEMBER_MENU });
+    if (this.isManager()) { list.push({ ...this.MEMBER_MENU }); list.push({ ...this.RECIPIENT_MENU }); }
     return list;
   },
 

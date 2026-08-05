@@ -13,6 +13,7 @@ create table if not exists public.recipient_profiles (
   partner_type text,                   -- '资源' / '区域'
   partner_name text,
   created_at   timestamptz not null default now(),
+  last_read_at timestamptz,
   unique (auth_uid, ws_id)
 );
 create index if not exists idx_rp_ws on public.recipient_profiles(ws_id);

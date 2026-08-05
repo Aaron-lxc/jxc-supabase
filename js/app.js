@@ -53,7 +53,8 @@
         wsName: '',
         /* 主界面 */
         cur: 'dashboard',
-        navOpen: false
+        navOpen: false,
+        unread: false
       };
     },
 
@@ -139,6 +140,7 @@
         await Cloud.loadRecipient(Cloud.state.ws.id).catch(() => {});
         if (Cloud.state.recipient) {
           this.cur = 'reportcenter';
+          await this.checkUnread().catch(() => {});
           this.step = 'app';
           return;
         }
@@ -228,7 +230,8 @@
 
       /* ===== 主界面 ===== */
       go(key) {
-        if (!P.canView(key) && key !== 'members') key = P.firstMenu();
+        if (!P.canView(key) && key !== 'members' && key !== 'recipientmgr') key = P.firstMenu();
+        if (key === 'reportcenter') this.unread = false;
         this.cur = key;
         this.navOpen = false;
       },
@@ -237,6 +240,21 @@
         if (this.step !== 'app') return;
         const ok = this.menu.some(m => m.key === this.cur);
         if (!ok) this.cur = P.firstMenu();
+      },
+      async checkUnread() {
+        try {
+          const ws = Cloud.state.ws && Cloud.state.ws.id;
+          if (!ws) return;
+          const { data } = await Cloud.sb.auth.getSession();
+          const token = data.session && data.session.access_token;
+          if (!token) return;
+          const base = (CFG.read() && CFG.read().url) || '';
+          const res = await fetch(base + '/functions/v1/report-unread?ws=' + encodeURIComponent(ws), {
+            headers: { Authorization: 'Bearer ' + token }
+          });
+          const j = await res.json().catch(() => ({}));
+          this.unread = !!(j && j.unread);
+        } catch (e) { this.unread = false; }
       },
       async forceSync() {
         try { await Sync.push(); await Sync.reload(); }
@@ -380,6 +398,7 @@
           <div class="logo">进销存管理系统<small>{{company || '云端版'}}</small></div>
           <div class="menu-item" v-for="m in menu" :key="m.key" :class="{active:cur===m.key}" @click="go(m.key)">
             <span class="ico">{{m.ico}}</span>{{m.label}}
+            <span class="badge" v-if="m.key==='reportcenter' && unread">新</span>
           </div>
         </aside>
         <div class="nav-overlay" @click="navOpen=false"></div>
