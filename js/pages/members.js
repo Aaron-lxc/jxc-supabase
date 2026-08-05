@@ -7,14 +7,24 @@ Pages['page-members'] = {
       loading: false,
       members: [],
       invites: [],
+      /* 检索条件 */
+      filter: {
+        email: '', role: '', status: '',
+        createdStart: '', createdEnd: '',
+        loginStart: '', loginEnd: ''
+      },
       /* 添加 */
       showAdd: false,
       add: { email: '', role: 'member', permissions: {} },
       addMsg: '',
-      /* 编辑 */
+      /* 编辑成员 */
       showEdit: false,
       edit: null,        // { id, email, role, status, permissions }
       editMsg: '',
+      /* 编辑邀请 */
+      showInviteEdit: false,
+      inviteEdit: null,   // { id, email, role, permissions }
+      inviteEditMsg: '',
       /* 转让 */
       showTransfer: false,
       transferId: ''
@@ -24,9 +34,57 @@ Pages['page-members'] = {
     S() { return window.S; },
     P() { return window.P; },
     wsId() { return Cloud.state.ws ? Cloud.state.ws.id : null; },
-    meId() { return Cloud.state.user ? Cloud.state.user.id : null; }
+    meId() { return Cloud.state.user ? Cloud.state.user.id : null; },
+
+    /* 成员筛选结果 */
+    filteredMembers() {
+      const f = this.filter;
+      const kw = (f.email || '').trim().toLowerCase();
+      return this.members.filter(m => {
+        if (kw && !String(m.email || '').toLowerCase().includes(kw)) return false;
+        if (f.role && m.role !== f.role) return false;
+        if (f.status && (m.status || '已启用') !== f.status) return false;
+        if (f.createdStart && this.dateOnly(m.created_at) < f.createdStart) return false;
+        if (f.createdEnd && this.dateOnly(m.created_at) > f.createdEnd) return false;
+        if (f.loginStart && (!m.last_sign_in_at || this.dateOnly(m.last_sign_in_at) < f.loginStart)) return false;
+        if (f.loginEnd && (!m.last_sign_in_at || this.dateOnly(m.last_sign_in_at) > f.loginEnd)) return false;
+        return true;
+      });
+    },
+
+    /* 邀请筛选结果（无登录时间，按邮箱/角色/创建时间） */
+    filteredInvites() {
+      const f = this.filter;
+      const kw = (f.email || '').trim().toLowerCase();
+      return this.invites.filter(iv => {
+        if (kw && !String(iv.email || '').toLowerCase().includes(kw)) return false;
+        if (f.role && iv.role !== f.role) return false;
+        if (f.createdStart && this.dateOnly(iv.created_at) < f.createdStart) return false;
+        if (f.createdEnd && this.dateOnly(iv.created_at) > f.createdEnd) return false;
+        return true;
+      });
+    }
   },
   methods: {
+    /* ---- 工具 ---- */
+    fmt(ts) {
+      if (!ts) return '—';
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return '—';
+      const p = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    },
+    dateOnly(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return '';
+      const p = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    },
+    resetFilter() {
+      this.filter = { email: '', role: '', status: '', createdStart: '', createdEnd: '', loginStart: '', loginEnd: '' };
+    },
+
     /* ---- 数据 ---- */
     async reload() {
       if (!this.wsId) return;
@@ -84,6 +142,7 @@ Pages['page-members'] = {
       await this.reload();
     },
     async toggleStatus(m) {
+      if (m.role === 'owner') return alert('创建者账号不可被停用 / 启用');
       const next = m.status === '已停用' ? '已启用' : '已停用';
       const err = await Cloud.updateMember(m.id, { status: next });
       if (err) return alert(err);
@@ -94,6 +153,38 @@ Pages['page-members'] = {
       if (!U.confirm(`确定将「${m.email || m.name}」移出本账套吗？`)) return;
       const err = await Cloud.removeMember(m.id);
       if (err) return alert(err);
+      await this.reload();
+    },
+
+    /* ---- 邀请：删除 / 修改 / 启用 ---- */
+    async cancelInvite(iv) {
+      if (!U.confirm(`确定取消向「${iv.email}」的邀请吗？`)) return;
+      const err = await Cloud.cancelInvite(iv.id);
+      if (err) return alert(err);
+      await this.reload();
+    },
+    openInviteEdit(iv) {
+      this.inviteEditMsg = '';
+      this.inviteEdit = {
+        id: iv.id, email: iv.email,
+        role: iv.role || 'member',
+        permissions: P.normalize(iv.permissions || {})
+      };
+      this.showInviteEdit = true;
+    },
+    setInvitePerm(key, val) { this.inviteEdit.permissions[key] = val; },
+    async submitInviteEdit() {
+      const patch = { role: this.inviteEdit.role, permissions: P.normalize(this.inviteEdit.permissions) };
+      const err = await Cloud.updateInvite(this.inviteEdit.id, patch);
+      if (err) return alert(err);
+      alert('邀请已更新');
+      this.showInviteEdit = false;
+      await this.reload();
+    },
+    async enableInvite(iv) {
+      const err = await Cloud.updateInvite(iv.id, { created_at: new Date().toISOString(), status: '待接受' });
+      if (err) return alert(err);
+      alert('已重新发起邀请（邀请时间已刷新）');
       await this.reload();
     },
 
@@ -114,7 +205,7 @@ Pages['page-members'] = {
       await this.reload();
     },
 
-    /* ---- 工具 ---- */
+    /* ---- 公共 ---- */
     roleLabel: P.roleLabel,
     summary(perms, role) { return P.summary(perms, role); },
     canRemove(m) { return m.role !== 'owner'; },
@@ -141,9 +232,34 @@ Pages['page-members'] = {
     </div>
 
     <template v-if="P.isManager()">
+      <!-- 检索栏 -->
+      <div class="card">
+        <div class="filter-grid">
+          <div class="form-item"><label>邮箱（模糊）</label><input type="text" v-model="filter.email" placeholder="含关键词即可"></div>
+          <div class="form-item"><label>角色</label>
+            <select v-model="filter.role">
+              <option value="">全部</option>
+              <option value="owner">创建者</option>
+              <option value="admin">管理员</option>
+              <option value="member">成员</option>
+            </select></div>
+          <div class="form-item"><label>状态</label>
+            <select v-model="filter.status">
+              <option value="">全部</option>
+              <option value="已启用">已启用</option>
+              <option value="已停用">已停用</option>
+            </select></div>
+          <div class="form-item"><label>创建时间（起）</label><input type="date" v-model="filter.createdStart"></div>
+          <div class="form-item"><label>创建时间（止）</label><input type="date" v-model="filter.createdEnd"></div>
+          <div class="form-item"><label>最新登录（起）</label><input type="date" v-model="filter.loginStart"></div>
+          <div class="form-item"><label>最新登录（止）</label><input type="date" v-model="filter.loginEnd"></div>
+          <div class="form-item filter-actions"><button class="btn btn-sm" @click="resetFilter">重置筛选</button></div>
+        </div>
+      </div>
+
       <!-- 成员列表 -->
       <div class="card">
-        <h3>成员（{{members.length}}）
+        <h3>成员（{{filteredMembers.length}}）
           <button class="btn btn-primary btn-sm" @click="openAdd">+ 添加成员</button>
           <button class="btn btn-sm" @click="reload" :disabled="loading">刷新</button>
         </h3>
@@ -151,24 +267,27 @@ Pages['page-members'] = {
           <table class="grid">
             <thead>
               <tr>
-                <th>邮箱 / 名称</th><th>角色</th><th>权限</th><th>状态</th><th>操作</th>
+                <th>邮箱 / 名称</th><th>角色</th><th>权限</th><th>状态</th>
+                <th>创建时间</th><th>最新登录时间</th><th>操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="m in members" :key="m.id">
+              <tr v-for="m in filteredMembers" :key="m.id">
                 <td>{{ m.email || '—' }} <span class="muted" v-if="isSelf(m)">（我）</span></td>
                 <td><span :class="roleTag(m.role)">{{ roleLabel(m.role) }}</span></td>
                 <td class="muted">{{ summary(m.permissions, m.role) }}</td>
                 <td><span :class="statusTag(m.status)">{{ m.status || '已启用' }}</span></td>
+                <td class="col-created muted">{{ fmt(m.created_at) }}</td>
+                <td class="col-login muted">{{ fmt(m.last_sign_in_at) }}</td>
                 <td style="white-space:nowrap">
-                  <button class="btn btn-sm" @click="openEdit(m)">编辑</button>
+                  <button class="btn btn-sm" @click="openEdit(m)">修改</button>
                   <button class="btn btn-sm" @click="toggleStatus(m)">
                     {{ m.status === '已停用' ? '启用' : '停用' }}
                   </button>
-                  <button class="btn btn-sm btn-danger" v-if="canRemove(m)" @click="remove(m)">移除</button>
+                  <button class="btn btn-sm btn-danger" v-if="canRemove(m)" @click="remove(m)">删除</button>
                 </td>
               </tr>
-              <tr v-if="!members.length"><td colspan="5" class="muted" style="text-align:center;padding:18px">暂无成员</td></tr>
+              <tr v-if="!filteredMembers.length"><td colspan="7" class="muted" style="text-align:center;padding:18px">暂无匹配成员</td></tr>
             </tbody>
           </table>
         </div>
@@ -179,17 +298,23 @@ Pages['page-members'] = {
 
       <!-- 邀请中 -->
       <div class="card" v-if="invites.length">
-        <h3>待接受的邀请（{{invites.length}}）</h3>
+        <h3>待接受的邀请（{{filteredInvites.length}}）</h3>
         <div class="table-wrap">
           <table class="grid">
-            <thead><tr><th>邮箱</th><th>角色</th><th>状态</th><th>操作</th></tr></thead>
+            <thead><tr><th>邮箱</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
             <tbody>
-              <tr v-for="iv in invites" :key="iv.id">
+              <tr v-for="iv in filteredInvites" :key="iv.id">
                 <td>{{ iv.email }}</td>
                 <td><span :class="roleTag(iv.role)">{{ roleLabel(iv.role) }}</span></td>
                 <td><span class="tag tag-orange">{{ iv.status }}</span></td>
-                <td><button class="btn btn-sm btn-danger" @click="remove({id: iv.id, role: 'member'})">取消邀请</button></td>
+                <td class="col-created muted">{{ fmt(iv.created_at) }}</td>
+                <td style="white-space:nowrap">
+                  <button class="btn btn-sm btn-danger" @click="cancelInvite(iv)">删除</button>
+                  <button class="btn btn-sm" @click="openInviteEdit(iv)">修改</button>
+                  <button class="btn btn-sm" @click="enableInvite(iv)">启用</button>
+                </td>
               </tr>
+              <tr v-if="!filteredInvites.length"><td colspan="5" class="muted" style="text-align:center;padding:18px">暂无匹配邀请</td></tr>
             </tbody>
           </table>
         </div>
@@ -229,8 +354,8 @@ Pages['page-members'] = {
       </template>
     </x-modal>
 
-    <!-- 编辑弹窗 -->
-    <x-modal v-if="showEdit" title="编辑成员权限" width="640" @close="showEdit=false">
+    <!-- 编辑成员弹窗 -->
+    <x-modal v-if="showEdit" title="修改成员权限" width="640" @close="showEdit=false">
       <div class="muted" style="margin-bottom:8px">邮箱：{{ edit.email }} ｜ 当前角色：<b>{{ roleLabel(edit.role) }}</b></div>
       <div v-if="edit.role === 'owner'" class="form-hint">创建者拥有全部权限，无需单独设置。</div>
       <template v-else>
@@ -264,6 +389,36 @@ Pages['page-members'] = {
         <button class="btn" @click="showEdit=false">取消</button>
         <button class="btn btn-primary" @click="submitEdit">保存</button>
         <span class="muted" v-if="editMsg">{{ editMsg }}</span>
+      </template>
+    </x-modal>
+
+    <!-- 编辑邀请弹窗 -->
+    <x-modal v-if="showInviteEdit" title="修改邀请" width="640" @close="showInviteEdit=false">
+      <div class="muted" style="margin-bottom:8px">邀请邮箱：{{ inviteEdit.email }}</div>
+      <div class="form-grid" style="margin-bottom:10px">
+        <div class="form-item"><label>角色</label>
+          <select v-model="inviteEdit.role">
+            <option value="member">成员</option>
+            <option value="admin">管理员</option>
+          </select></div>
+      </div>
+      <div style="margin:6px 0;font-weight:600;color:#0f172a">模块权限</div>
+      <div class="perm-grid">
+        <div class="perm-row" v-for="m in P.MODULES" :key="m.key">
+          <span class="perm-name">{{ m.ico }} {{ m.label }}<em v-if="m.readonly" class="muted">（只读）</em></span>
+          <select :value="inviteEdit.permissions[m.key]" @change="setInvitePerm(m.key, $event.target.value)">
+            <option v-if="m.readonly" value="none">无权限</option>
+            <option v-if="m.readonly" value="view">仅查看</option>
+            <option v-if="!m.readonly" value="none">无权限</option>
+            <option v-if="!m.readonly" value="view">仅查看</option>
+            <option v-if="!m.readonly" value="edit">可编辑</option>
+          </select>
+        </div>
+      </div>
+      <template #foot>
+        <button class="btn" @click="showInviteEdit=false">取消</button>
+        <button class="btn btn-primary" @click="submitInviteEdit">保存</button>
+        <span class="muted" v-if="inviteEditMsg">{{ inviteEditMsg }}</span>
       </template>
     </x-modal>
 

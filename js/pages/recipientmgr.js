@@ -58,10 +58,9 @@ Pages['page-recipientmgr'] = {
       if (f.role === 'none') return alert('请选择报表角色');
       if ((f.role === 'resource' || f.role === 'region') && !f.partnerId) return alert('请选择对应的合伙人');
       const m = this.members.find(x => x.user_id === f.user_id);
-      if (m && (m.role === 'owner' || m.role === 'admin'))
-        return alert('创建者/管理员不可直接设为报表接收人，请先将其角色调整为「成员」。');
-      /* 成员角色置为「报表」：保障 RLS 禁止其直读业务原始数据（安全核心） */
-      if (m && m.role !== '报表') {
+      /* 仅普通成员设为接收人时降级为「报表」(RLS 禁读核心)；创建者/管理员保留原角色，
+         仅写 recipient_profiles 以获得报表中心预览，不影响其全部操作权限 */
+      if (m && m.role === 'member') {
         const e = await Cloud.updateMember(m.id, { role: '报表' });
         if (e) return alert(e);
       }
@@ -105,7 +104,8 @@ Pages['page-recipientmgr'] = {
       <div class="card">
         <h3>成员报表角色（{{members.length}}）</h3>
         <div class="form-hint" style="margin:0 0 10px">
-          在此把成员设为「报表接收人」：对方登录后只能看到「报表中心」，且被 RLS 禁止直接读取业务原始数据（安全）。
+          在此把成员设为「报表接收人」：普通成员登录后只能看到「报表中心」，且被 RLS 禁止直接读取业务原始数据（安全）。
+          创建者/管理员保留全部操作权限，设置后仅额外获得「报表中心」入口用于预览。
           选择合伙人角色时需指定具体合伙人；内部角色（对账人 / 库管 / 管理者）无需指定。
         </div>
         <div class="table-wrap">
@@ -145,7 +145,7 @@ Pages['page-recipientmgr'] = {
               <option v-for="o in partnerOpts" :key="o.value" :value="o.value">{{ o.label }}</option>
             </select></div>
         </div>
-        <div class="form-hint">设为接收人后，该成员的角色会被调整为「报表」，仅可查看报表中心，无法访问业务数据。</div>
+        <div class="form-hint">设为接收人后：普通成员的角色会调整为「报表」，仅可查看报表中心、无法访问业务数据；创建者/管理员保留原有全部权限，仅额外获得报表中心入口。报表中心显示内容由下方所选报表角色决定。</div>
         <template #foot>
           <button class="btn" @click="showSet=false">取消</button>
           <button class="btn btn-primary" @click="submitSet">保存</button>

@@ -136,9 +136,9 @@
       async loadWs() {
         this.tip = '正在加载「' + (Cloud.state.ws ? Cloud.state.ws.name : '') + '」的数据…';
         this.step = 'boot';
-        // 报表接收人：RLS 禁止其读取 records，跳过业务数据加载，直接进报表中心
+        // 报表接收人：RLS 禁止其读取 records，纯接收人(非管理者)跳过业务数据加载，直接进报表中心
         await Cloud.loadRecipient(Cloud.state.ws.id).catch(() => {});
-        if (Cloud.state.recipient) {
+        if (Cloud.state.recipient && !P.isManager()) {
           this.cur = 'reportcenter';
           await this.checkUnread().catch(() => {});
           this.step = 'app';
@@ -412,7 +412,7 @@
             <div class="tb-right">
               <span class="sync-dot" :class="sync.status"></span>
               <span class="muted">{{syncText()}} {{remoteHint()}}</span>
-              <button class="btn btn-sm" v-if="!P.isRecipient()" @click="forceSync">同步</button>
+              <button class="btn btn-sm" v-if="!(P.isRecipient() && !P.isManager())" @click="forceSync">同步</button>
               <button class="btn btn-sm" @click="switchWs">切换账套</button>
               <button class="btn btn-sm" @click="logout">退出</button>
             </div>

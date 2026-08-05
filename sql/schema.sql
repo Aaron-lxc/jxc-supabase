@@ -401,16 +401,21 @@ language sql security definer stable set search_path = public as $$
    order by w.created_at;
 $$;
 
--- 账套成员清单（含邮箱）
+-- 账套成员清单（含邮箱与最新登录时间）
+-- 注意：返回列变更时必须先 DROP 再 CREATE（Postgres 不允许 create or replace 改返回类型）
+drop function if exists public.workspace_members_view(uuid);
 create or replace function public.workspace_members_view(ws uuid)
 returns table (
   id uuid, user_id uuid, email text, name text,
-  role text, permissions jsonb, status text, created_at timestamptz
+  role text, permissions jsonb, status text, created_at timestamptz,
+  last_sign_in_at timestamptz
 )
 language sql security definer stable set search_path = public as $$
-  select m.id, m.user_id, p.email, p.name, m.role, m.permissions, m.status, m.created_at
+  select m.id, m.user_id, p.email, p.name, m.role, m.permissions, m.status, m.created_at,
+         u.last_sign_in_at
     from public.workspace_members m
     left join public.profiles p on p.id = m.user_id
+    left join auth.users u on u.id = m.user_id
    where m.workspace_id = ws and public.is_member(ws)
    order by case m.role when 'owner' then 0 when 'admin' then 1 else 2 end, m.created_at;
 $$;

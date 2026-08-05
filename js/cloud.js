@@ -229,6 +229,11 @@ window.Cloud = {
     return error ? this._dbErr(error) : null;
   },
 
+  async updateInvite(id, patch) {
+    const { error } = await this.sb.from('invites').update(patch).eq('id', id);
+    return error ? this._dbErr(error) : null;
+  },
+
   async transferOwnership(wsId, newOwnerId) {
     const { error } = await this.sb.rpc('transfer_ownership', { ws: wsId, new_owner: newOwnerId });
     if (error) return this._dbErr(error);

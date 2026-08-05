@@ -5,12 +5,13 @@ const ASSETS = [
   './vendor/vue.global.prod.js', './vendor/echarts.min.js', './vendor/xlsx.full.min.js', './vendor/supabase.js',
   './js/utils.js', './js/config.js', './js/cloud.js', './js/perm.js', './js/sync.js',
   './js/store.js', './js/demo-data.js', './js/components.js', './js/app.js',
+  './js/compute-core.js',
   './js/pages/dashboard.js', './js/pages/goods.js', './js/pages/customers.js',
   './js/pages/partners.js', './js/pages/warehouse.js', './js/pages/purchase.js',
   './js/pages/inventory.js', './js/pages/sales.js', './js/pages/finance.js',
   './js/pages/complaint.js', './js/pages/report.js', './js/pages/commission.js',
   './js/pages/members.js', './js/pages/settings.js', './js/pages/opening.js',
-  './js/pages/capital.js'
+  './js/pages/capital.js', './js/pages/report-center.js', './js/pages/recipientmgr.js'
 ];
 
 self.addEventListener('install', e => {

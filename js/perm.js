@@ -60,7 +60,7 @@ window.P = {
   },
 
   canView(mod) {
-    if (mod === 'reportcenter') return this.isRecipient();
+    if (mod === 'reportcenter') return this.isRecipient() || this.isManager();
     const m = this.MODULES.find(x => x.key === mod);
     if (m && m.readonly) return this.level(mod) !== 'none';
     return this.level(mod) !== 'none';
@@ -73,17 +73,22 @@ window.P = {
   },
 
   /* 侧边栏菜单（按权限过滤） */
-    menus() {
-    if (this.isRecipient()) return [{ key: 'reportcenter', label: '报表中心', ico: '📊' }];
+  menus() {
+    // 纯接收人（非管理者）独占报表中心；管理者保留全部菜单并额外带报表中心入口
+    if (this.isRecipient() && !this.isManager()) return [{ key: 'reportcenter', label: '报表中心', ico: '📊' }];
     const list = this.MODULES.filter(m => this.canView(m.key))
       .map(m => ({ key: m.key, label: m.label, ico: m.ico }));
-    if (this.isManager()) { list.push({ ...this.MEMBER_MENU }); list.push({ ...this.RECIPIENT_MENU }); }
+    if (this.isManager()) {
+      list.push({ ...this.MEMBER_MENU });
+      list.push({ ...this.RECIPIENT_MENU });
+      list.push({ key: 'reportcenter', label: '报表中心', ico: '📊' });
+    }
     return list;
   },
 
   /* 无权访问时的首个可用页面 */
   firstMenu() {
-    if (this.isRecipient()) return 'reportcenter';
+    if (this.isRecipient() && !this.isManager()) return 'reportcenter';
     const list = this.menus();
     return list.length ? list[0].key : 'members';
   },
