@@ -49,6 +49,7 @@
         /* 认证 */
         authTab: 'login',        // login | signup
         aName: '', aEmail: '', aPwd: '',
+        showPwd: false,          // 密码框明文切换
         /* 账套 */
         wsName: '',
         /* 主界面 */
@@ -330,7 +331,14 @@
             <div class="form-item"><label>邮箱</label>
               <input type="text" v-model="aEmail" placeholder="登录邮箱"></div>
             <div class="form-item"><label>密码</label>
-              <input type="password" v-model="aPwd" placeholder="密码" @keyup.enter="doLogin"></div>
+              <div class="pwd-wrap">
+                <input :type="showPwd ? 'text' : 'password'" v-model="aPwd" placeholder="密码" @keyup.enter="doLogin">
+                <button type="button" class="pwd-eye" @click="showPwd=!showPwd" :title="showPwd ? '隐藏密码' : '显示明文'">
+                  <svg v-if="!showPwd" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+              </div>
+            </div>
             <div class="gate-err" v-if="err" style="white-space:pre-line">{{err}}</div>
             <div style="display:flex;gap:10px;margin-top:14px">
               <button class="btn btn-primary" :disabled="busy" @click="doLogin">{{ busy ? '登录中…' : '登录' }}</button>
@@ -344,7 +352,14 @@
             <div class="form-item"><label>邮箱</label>
               <input type="text" v-model="aEmail" placeholder="注册邮箱"></div>
             <div class="form-item"><label>密码（至少 6 位）</label>
-              <input type="password" v-model="aPwd" placeholder="设置密码" @keyup.enter="doSignup"></div>
+              <div class="pwd-wrap">
+                <input :type="showPwd ? 'text' : 'password'" v-model="aPwd" placeholder="设置密码" @keyup.enter="doSignup">
+                <button type="button" class="pwd-eye" @click="showPwd=!showPwd" :title="showPwd ? '隐藏密码' : '显示明文'">
+                  <svg v-if="!showPwd" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-7-11-7a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 7 11 7a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+              </div>
+            </div>
             <div class="gate-err" v-if="err" style="white-space:pre-line">{{err}}</div>
             <div style="display:flex;gap:10px;margin-top:14px">
               <button class="btn btn-primary" :disabled="busy" @click="doSignup">{{ busy ? '注册中…' : '注册并进入' }}</button>
