@@ -16,7 +16,8 @@ window.P = {
     { key: 'complaint',  label: '投诉管理',  ico: '📣' },
     { key: 'report',     label: '运营报表',  ico: '📈', readonly: true },
     { key: 'commission', label: '佣金管理',  ico: '🎯' },
-    { key: 'settings',   label: '系统设置',  ico: '⚙️' }
+    { key: 'settings',   label: '系统设置',  ico: '⚙️' },
+    { key: 'reportcenter', label: '报表中心', ico: '📊', readonly: true }
   ],
 
   /* 账户管理：仅 owner / admin 可见，不参与逐项授权 */
@@ -40,6 +41,7 @@ window.P = {
   },
 
   role() { return (Cloud.state.ws && Cloud.state.ws.role) || 'member'; },
+  isRecipient() { return !!(Cloud.state && Cloud.state.recipient); },
   isOwner() { return this.role() === 'owner'; },
   isManager() { return ['owner', 'admin'].includes(this.role()); },
 
@@ -57,6 +59,7 @@ window.P = {
   },
 
   canView(mod) {
+    if (mod === 'reportcenter') return this.isRecipient();
     const m = this.MODULES.find(x => x.key === mod);
     if (m && m.readonly) return this.level(mod) !== 'none';
     return this.level(mod) !== 'none';
@@ -70,6 +73,7 @@ window.P = {
 
   /* 侧边栏菜单（按权限过滤） */
   menus() {
+    if (this.isRecipient()) return [{ key: 'reportcenter', label: '报表中心', ico: '📊' }];
     const list = this.MODULES.filter(m => this.canView(m.key))
       .map(m => ({ key: m.key, label: m.label, ico: m.ico }));
     if (this.isManager()) list.push({ ...this.MEMBER_MENU });
@@ -78,6 +82,7 @@ window.P = {
 
   /* 无权访问时的首个可用页面 */
   firstMenu() {
+    if (this.isRecipient()) return 'reportcenter';
     const list = this.menus();
     return list.length ? list[0].key : 'members';
   },

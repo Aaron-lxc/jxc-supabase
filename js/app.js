@@ -52,7 +52,8 @@
         /* 账套 */
         wsName: '',
         /* 主界面 */
-        cur: 'dashboard'
+        cur: 'dashboard',
+        navOpen: false
       };
     },
 
@@ -134,6 +135,13 @@
       async loadWs() {
         this.tip = '正在加载「' + (Cloud.state.ws ? Cloud.state.ws.name : '') + '」的数据…';
         this.step = 'boot';
+        // 报表接收人：RLS 禁止其读取 records，跳过业务数据加载，直接进报表中心
+        await Cloud.loadRecipient(Cloud.state.ws.id).catch(() => {});
+        if (Cloud.state.recipient) {
+          this.cur = 'reportcenter';
+          this.step = 'app';
+          return;
+        }
         await S.init({ demo: true });
         this.cur = P.firstMenu();
         this.step = 'app';
@@ -222,7 +230,9 @@
       go(key) {
         if (!P.canView(key) && key !== 'members') key = P.firstMenu();
         this.cur = key;
+        this.navOpen = false;
       },
+      toggleNav() { this.navOpen = !this.navOpen; },
       ensureCur() {
         if (this.step !== 'app') return;
         const ok = this.menu.some(m => m.key === this.cur);
@@ -365,23 +375,25 @@
       </div>
 
       <!-- ④ 主界面 -->
-      <div class="layout" v-else-if="step==='app'">
+      <div class="layout" v-else-if="step==='app'" :class="{'nav-open': navOpen}">
         <aside class="sidebar">
           <div class="logo">进销存管理系统<small>{{company || '云端版'}}</small></div>
           <div class="menu-item" v-for="m in menu" :key="m.key" :class="{active:cur===m.key}" @click="go(m.key)">
             <span class="ico">{{m.ico}}</span>{{m.label}}
           </div>
         </aside>
+        <div class="nav-overlay" @click="navOpen=false"></div>
         <main class="content">
           <div class="topbar">
             <div class="tb-left">
+              <button class="hamburger" @click="toggleNav" aria-label="菜单">☰</button>
               <span class="tag tag-blue">{{wsName2}}</span>
               <span class="muted">{{meEmail}} · {{myRole}}</span>
             </div>
             <div class="tb-right">
               <span class="sync-dot" :class="sync.status"></span>
               <span class="muted">{{syncText()}} {{remoteHint()}}</span>
-              <button class="btn btn-sm" @click="forceSync">同步</button>
+              <button class="btn btn-sm" v-if="!P.isRecipient()" @click="forceSync">同步</button>
               <button class="btn btn-sm" @click="switchWs">切换账套</button>
               <button class="btn btn-sm" @click="logout">退出</button>
             </div>
@@ -435,5 +447,10 @@
 
   Object.entries(AppComponents).forEach(([n, c]) => app.component(n, c));
   Object.entries(Pages).forEach(([n, c]) => app.component(n, c));
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
   app.mount('#app');
 })();

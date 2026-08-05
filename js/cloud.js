@@ -5,6 +5,7 @@ window.Cloud = {
     user: null,          // { id, email, name }
     workspaces: [],      // [{id,name,owner_id,role,permissions,member_count}]
     ws: null,            // 当前账套
+    recipient: null,     // 当前用户在所选账套的报表接收人档案（null=非接收人）
     online: true,
     lastError: '',
     globalHasWs: false   // 全局是否已有账套（建账套权限判断用）
@@ -160,6 +161,18 @@ window.Cloud = {
     this.state.ws = w;
     CFG.setLastWs(id);
     return true;
+  },
+
+  /* 读取当前用户在所选账套的报表接收人档案（null 表示不是接收人） */
+  async loadRecipient(wsId) {
+    this.state.recipient = null;
+    if (!this.sb || !this.state.user || !wsId) return null;
+    const { data, error } = await this.sb
+      .from('recipient_profiles').select('*')
+      .eq('ws_id', wsId).eq('auth_uid', this.state.user.id).maybeSingle();
+    if (error) return null;
+    this.state.recipient = data || null;
+    return this.state.recipient;
   },
 
   /* ---------- 成员 ---------- */

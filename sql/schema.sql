@@ -238,11 +238,12 @@ create policy p_mem_delete on public.workspace_members for delete
   using (public.is_manager(workspace_id) and role <> 'owner');
 
 -- ---- records ----
--- 读：账套内成员皆可读（跨模块统计、报表、下拉引用需要完整数据）
+-- 读：账套内「非报表成员」皆可读（跨模块统计、报表、下拉引用需要完整数据）
+--     报表接收人(role='报表')被本策略排除，改由 report-detail 函数(service_role)按 profile 裁剪返回
 --     菜单级可见性由前端按 permissions 控制，写入权限由下方策略强制
 drop policy if exists p_rec_select on public.records;
 create policy p_rec_select on public.records for select
-  using (public.is_member(workspace_id));
+  using (public.is_member(workspace_id) and public.my_role(workspace_id) <> '报表');
 
 drop policy if exists p_rec_insert on public.records;
 create policy p_rec_insert on public.records for insert
