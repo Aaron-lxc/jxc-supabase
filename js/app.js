@@ -36,6 +36,40 @@
     fatalBar((r && (r.stack || r.message)) || r);
   });
 
+  /* ---------- 页面懒加载 ---------- */
+  // 业务页面不再于首屏全部同步加载，改为点击菜单 / 进入主界面时才按需注入。
+  window.Pages = window.Pages || {};
+  const PAGE_FILES = {
+    dashboard: 'js/pages/dashboard.js', goods: 'js/pages/goods.js',
+    customers: 'js/pages/customers.js', partners: 'js/pages/partners.js',
+    warehouse: 'js/pages/warehouse.js', purchase: 'js/pages/purchase.js',
+    inventory: 'js/pages/inventory.js', sales: 'js/pages/sales.js',
+    finance: 'js/pages/finance.js', complaint: 'js/pages/complaint.js',
+    report: 'js/pages/report.js', commission: 'js/pages/commission.js',
+    members: 'js/pages/members.js', settings: 'js/pages/settings.js',
+    opening: 'js/pages/opening.js', capital: 'js/pages/capital.js',
+    reportcenter: 'js/pages/report-center.js', recipientmgr: 'js/pages/recipientmgr.js'
+  };
+  const _pagePromises = {};
+  function loadPage(key) {
+    const file = PAGE_FILES[key];
+    if (!file) return Promise.reject(new Error('未知页面: ' + key));
+    const name = 'page-' + key;
+    if (window.Pages[name]) { app.component(name, window.Pages[name]); return Promise.resolve(); }
+    if (_pagePromises[key]) return _pagePromises[key];
+    _pagePromises[key] = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = file;
+      s.onload = () => {
+        if (window.Pages[name]) { app.component(name, window.Pages[name]); resolve(); }
+        else reject(new Error('页面脚本未注册组件: ' + key));
+      };
+      s.onerror = () => reject(new Error('页面脚本加载失败: ' + key));
+      document.head.appendChild(s);
+    });
+    return _pagePromises[key];
+  }
+
   const app = Vue.createApp({
     data() {
       return {
@@ -55,6 +89,7 @@
         /* 主界面 */
         cur: 'dashboard',
         navOpen: false,
+        loadingPage: false,     // 页面懒加载时的加载态
         unread: false
       };
     },
@@ -142,12 +177,16 @@
         if (Cloud.state.recipient && !P.isManager()) {
           this.cur = 'reportcenter';
           await this.checkUnread().catch(() => {});
+          this.loadingPage = true;
           this.step = 'app';
+          this.ensurePage();
           return;
         }
         await S.init({ demo: true });
         this.cur = P.firstMenu();
+        this.loadingPage = true;
         this.step = 'app';
+        this.ensurePage();
       },
 
       /* ===== 连接配置 ===== */
@@ -233,8 +272,21 @@
       go(key) {
         if (!P.canView(key) && key !== 'members' && key !== 'recipientmgr') key = P.firstMenu();
         if (key === 'reportcenter') this.unread = false;
-        this.cur = key;
         this.navOpen = false;
+        return this.ensurePage(key);
+      },
+      /* 懒加载目标页面脚本并注册组件，再切换 cur；加载中显示加载态 */
+      ensurePage(key) {
+        key = (key != null) ? key : this.cur;
+        this.loadingPage = true;
+        return loadPage(key).then(() => {
+          this.cur = key;
+          this.loadingPage = false;
+        }).catch(e => {
+          this.loadingPage = false;
+          this.fatal = '页面加载失败：' + ((e && e.message) || e);
+          this.step = 'error';
+        });
       },
       toggleNav() { this.navOpen = !this.navOpen; },
       ensureCur() {
@@ -432,7 +484,8 @@
               <button class="btn btn-sm" @click="logout">退出</button>
             </div>
           </div>
-          <component :is="'page-'+cur" :key="cur"></component>
+          <div v-if="loadingPage" class="page-loading"><div class="spinner"></div><span>页面加载中…</span></div>
+          <component v-else :is="'page-'+cur" :key="cur"></component>
         </main>
       </div>
 
@@ -480,7 +533,7 @@
   };
 
   Object.entries(AppComponents).forEach(([n, c]) => app.component(n, c));
-  Object.entries(Pages).forEach(([n, c]) => app.component(n, c));
+  Object.entries(window.Pages || {}).forEach(([n, c]) => app.component(n, c));
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js').catch(() => {});

@@ -1,17 +1,15 @@
-/* 进销存管理系统 Service Worker：缓存静态资源，支持离线/添加到主屏幕 */
-const CACHE = 'jxc-v1';
+/* 进销存管理系统 Service Worker：缓存静态资源，支持离线/添加到主屏幕
+   注意：业务页面(js/pages/*)与体积较大的 echarts/xlsx 改为按需加载，
+   不在此处预拉取（否则安装时会一次性下载，抵消懒加载收益）；
+   它们会在首次被请求时由 fetch 处理器自动缓存。 */
+const CACHE = 'jxc-v2';
 const ASSETS = [
-  './', './index.html', './css/style.css', './manifest.webmanifest', './icon.svg',
-  './vendor/vue.global.prod.js', './vendor/echarts.min.js', './vendor/xlsx.full.min.js', './vendor/supabase.js',
+  './', './index.html', './css/style.css', './manifest.json', './icon.svg',
+  './icon-192.png', './icon-512.png',
+  './vendor/vue.global.prod.js', './vendor/supabase.js',
   './js/utils.js', './js/config.js', './js/cloud.js', './js/perm.js', './js/sync.js',
   './js/store.js', './js/demo-data.js', './js/components.js', './js/app.js',
-  './js/compute-core.js',
-  './js/pages/dashboard.js', './js/pages/goods.js', './js/pages/customers.js',
-  './js/pages/partners.js', './js/pages/warehouse.js', './js/pages/purchase.js',
-  './js/pages/inventory.js', './js/pages/sales.js', './js/pages/finance.js',
-  './js/pages/complaint.js', './js/pages/report.js', './js/pages/commission.js',
-  './js/pages/members.js', './js/pages/settings.js', './js/pages/opening.js',
-  './js/pages/capital.js', './js/pages/report-center.js', './js/pages/recipientmgr.js'
+  './js/compute-core.js'
 ];
 
 self.addEventListener('install', e => {

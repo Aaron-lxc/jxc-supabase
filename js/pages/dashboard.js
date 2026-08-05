@@ -275,7 +275,12 @@ Pages['page-dashboard'] = {
     renderChart() {
       const el = this.$refs.chart;
       if (!el) return;
-      if (!this._chart) this._chart = echarts.init(el);
+      if (!window.echarts) {
+        // 大库按需加载：echarts 未就绪时先注入，加载完成且组件仍在视图内再重绘
+        U.ensureECharts().then(() => { if (this._alive) this.renderChart(); }).catch(() => {});
+        return;
+      }
+      if (!this._chart) this._chart = window.echarts.init(el);
       const days = [];
       let d = this.hd1;
       const end = this.hd2;
@@ -371,11 +376,13 @@ Pages['page-dashboard'] = {
     hd1() { this.renderChart(); }, hd2() { this.renderChart(); }, metric() { this.renderChart(); }
   },
   mounted() {
+    this._alive = true;
     this.renderChart();
     this._onResize = () => this._chart && this._chart.resize();
     window.addEventListener('resize', this._onResize);
   },
   beforeUnmount() {
+    this._alive = false;
     window.removeEventListener('resize', this._onResize);
     if (this._chart) { this._chart.dispose(); this._chart = null; }
   },

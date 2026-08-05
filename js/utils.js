@@ -71,6 +71,7 @@ window.U = {
 
   async exportExcel(filename, rows, sheetName) {
     if (!rows || !rows.length) { alert('没有可导出的数据'); return; }
+    await U.ensureXLSX();
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName || 'Sheet1');
@@ -79,6 +80,23 @@ window.U = {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     }));
   },
+
+  /* 按需加载第三方库：首屏不再同步下载 echarts / xlsx 等大体积脚本，
+     仅在对应功能（图表 / 导出 Excel）首次用到时才动态注入并缓存。 */
+  _scripts: {},
+  loadScript(src) {
+    if (this._scripts[src]) return this._scripts[src];
+    this._scripts[src] = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error('脚本加载失败: ' + src));
+      document.head.appendChild(s);
+    });
+    return this._scripts[src];
+  },
+  ensureXLSX() { return window.XLSX ? Promise.resolve() : this.loadScript('vendor/xlsx.full.min.js'); },
+  ensureECharts() { return window.echarts ? Promise.resolve() : this.loadScript('vendor/echarts.min.js'); },
 
   printHTML(html) {
     const area = document.getElementById('print-area');

@@ -7,13 +7,12 @@
 <meta name="theme-color" content="#0f172a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="manifest" href="manifest.json" type="application/manifest+json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="css/style.css">
 <!-- 第三方库（vendor，已本地化，可离线运行） -->
 <script src="vendor/vue.global.prod.js"></script>
-<script src="vendor/echarts.min.js"></script>
-<script src="vendor/xlsx.full.min.js"></script>
 <script src="vendor/supabase.js"></script>
 <script src="js/compute-core.js"></script>
 </head>
@@ -27,7 +26,7 @@
 </div>
 <div id="print-area"></div>
 
-<!-- 工具与基础层 -->
+<!-- 工具与基础层（应用入口 app.js 依赖这些，必须同步加载） -->
 <script src="js/utils.js"></script>
 <script src="js/config.js"></script>
 <script src="js/cloud.js"></script>
@@ -36,26 +35,7 @@
 <script src="js/store.js"></script>
 <script src="js/demo-data.js"></script>
 <script src="js/components.js"></script>
-<!-- 业务页面 -->
-<script src="js/pages/dashboard.js"></script>
-<script src="js/pages/goods.js"></script>
-<script src="js/pages/customers.js"></script>
-<script src="js/pages/partners.js"></script>
-<script src="js/pages/warehouse.js"></script>
-<script src="js/pages/purchase.js"></script>
-<script src="js/pages/inventory.js"></script>
-<script src="js/pages/sales.js"></script>
-<script src="js/pages/finance.js"></script>
-<script src="js/pages/complaint.js"></script>
-<script src="js/pages/report.js"></script>
-<script src="js/pages/commission.js"></script>
-<script src="js/pages/members.js"></script>
-<script src="js/pages/settings.js"></script>
-<script src="js/pages/opening.js"></script>
-<script src="js/pages/capital.js"></script>
-<script src="js/pages/report-center.js"></script>
-    <!-- 应用入口（含启动门禁） -->
-<script src="js/pages/recipientmgr.js"></script>
+<!-- 业务页面（按需懒加载，不再首屏同步加载；由 app.js 在切换菜单时动态注入） -->
 <script src="js/app.js"></script>
 </body>
 </html>
