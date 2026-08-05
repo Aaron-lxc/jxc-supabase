@@ -48,7 +48,7 @@ Pages['page-recipientmgr'] = {
   methods: {
     recipientOf(m) { return this.recips.find(r => r.auth_uid === m.user_id) || null; },
     rpLabel(role) {
-      return { resource: '资源合伙人', region: '区域合伙人', arrears: '对账人', stock: '库管', manager: '管理者' }[role] || '—';
+      return { resource: '资源合伙人', region: '区域合伙人' }[role] || '—';
     },
     roleTag(role) {
       return role === 'owner' ? 'tag tag-blue'
@@ -189,9 +189,6 @@ Pages['page-recipientmgr'] = {
               <option value="all">全部</option>
               <option value="resource">资源合伙人</option>
               <option value="region">区域合伙人</option>
-              <option value="arrears">对账人</option>
-              <option value="stock">库管</option>
-              <option value="manager">管理者</option>
             </select></div>
           <div class="form-item"><label>状态</label>
             <select v-model="fStatus">
@@ -243,9 +240,6 @@ Pages['page-recipientmgr'] = {
               <option value="none">— 不设为接收人 —</option>
               <option value="resource">资源合伙人</option>
               <option value="region">区域合伙人</option>
-              <option value="arrears">对账人</option>
-              <option value="stock">库管</option>
-              <option value="manager">管理者</option>
             </select></div>
           <div class="form-item" v-if="setForm.role==='resource' || setForm.role==='region'"><label>对应合伙人</label>
             <select v-model="setForm.partnerId">

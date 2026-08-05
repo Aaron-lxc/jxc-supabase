@@ -8,7 +8,7 @@ create table if not exists public.recipient_profiles (
   id           bigint generated always as identity primary key,
   auth_uid     uuid not null references auth.users(id) on delete cascade,
   ws_id        uuid not null references public.workspaces(id) on delete cascade,
-  role         text not null check (role in ('resource','region','arrears','stock','manager')),
+  role         text not null check (role in ('resource','region')),
   partner_id   bigint,                 -- 仅合伙人需要（对应 resourcePartners/regionPartners 的 id）
   partner_type text,                   -- '资源' / '区域'
   partner_name text,

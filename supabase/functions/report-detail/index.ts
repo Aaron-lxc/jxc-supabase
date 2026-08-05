@@ -3,7 +3,8 @@
 // 作用：接收人登录后，按 recipient_profiles 的角色返回其专属报表。
 //   - 合伙人(resource/region)：服务端按合伙人裁剪 customers/sales 后返回
 //     （客户端用 ComputeCore 算佣金，拿不到其他合伙人的数据）
-//   - 内部角色(arrears/stock/manager)：返回完整 db，客户端用 ComputeCore 计算
+//   - 仅支持合伙人(resource/region)；对账人/库管/管理者三种报表角色已从系统移除，
+//     else 分支仅作为历史数据清理前的安全兜底，返回完整 db。
 // 安全：用 service_role 读 records（绕过 RLS）；报表成员(role='报表')在 RLS 层被禁止直读原始数据。
 // 部署：supabase functions deploy report-detail --no-verify-jwt
 // 环境变量（Supabase 自动注入）：SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -91,6 +92,6 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ role: prof.role, type, partner, partial }), { headers });
   }
 
-  // 内部角色：返回完整 db，由前端用 ComputeCore 计算
+  // 安全兜底：正常只会是 resource/region；其余情况按完整 db 返回（历史数据清理前兼容）
   return new Response(JSON.stringify({ role: prof.role, db }), { headers });
 });

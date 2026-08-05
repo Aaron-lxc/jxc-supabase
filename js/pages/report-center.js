@@ -114,9 +114,6 @@ Pages['page-reportcenter'] = {
               <option value="overview">总览（全部）</option>
               <option value="resource">资源合伙人</option>
               <option value="region">区域合伙人</option>
-              <option value="arrears">对账人（欠款）</option>
-              <option value="stock">库管（库存）</option>
-              <option value="manager">管理者（经营概况）</option>
             </select>
           </div>
           <div class="form-item" v-if="view==='resource' || view==='region'"><label>选择合伙人</label>
@@ -230,67 +227,6 @@ Pages['page-reportcenter'] = {
         </div>
         <div class="empty" v-if="!activePartner">请在上方选择合伙人</div>
         <div class="empty" v-else-if="!custLines.length && !pledges.length">暂无佣金数据</div>
-      </template>
-
-      <!-- 对账人：欠款 -->
-      <template v-else-if="renderRole==='arrears'">
-        <div class="card" v-if="arrears.length">
-          <h3>欠款预警（{{arrears.length}} 户）</h3>
-          <div class="table-wrap"><table class="grid">
-            <thead><tr><th>序号</th><th>客户名</th><th>账期</th><th>应付日期</th><th>超期天数</th><th>超期未付</th><th>累计未付</th><th>备注</th></tr></thead>
-            <tbody>
-              <tr v-for="(a,i) in arrears"><td>{{i+1}}</td><td>{{a.name}}</td><td>{{a.period}}</td><td>{{a.due}}</td><td class="num">{{a.days}}</td><td class="num money red">{{fmt(a.amt)}}</td><td class="num money">{{fmt(a.total)}}</td><td>{{a.remark}}</td></tr>
-            </tbody>
-          </table></div>
-        </div>
-        <div class="empty" v-else>暂无超期欠款</div>
-      </template>
-
-      <!-- 库管：库存 -->
-      <template v-else-if="renderRole==='stock'">
-        <div class="card" v-if="stock.length">
-          <h3>库存预警（{{stock.length}} 个）</h3>
-          <div class="table-wrap"><table class="grid">
-            <thead><tr><th>序号</th><th>商品名</th><th>库存</th><th>最低</th><th>缺口</th></tr></thead>
-            <tbody>
-              <tr v-for="(s,i) in stock"><td>{{i+1}}</td><td>{{s.name}}</td><td class="num">{{s.qty}}</td><td class="num">{{s.min}}</td><td class="num money red">{{s.min - s.qty}}</td></tr>
-            </tbody>
-          </table></div>
-        </div>
-        <div class="empty" v-else>库存均充足</div>
-      </template>
-
-      <!-- 管理者：经营 -->
-      <template v-else-if="renderRole==='manager'">
-        <div class="card" v-if="stats">
-          <h3>经营概况</h3>
-          <div class="stat-grid">
-            <div class="stat-card"><div class="t">客户总数</div><div class="v">{{stats.custTotal}}</div></div>
-            <div class="stat-card c2"><div class="t">库存货值</div><div class="v money">{{fmt(stats.invValue)}}</div></div>
-            <div class="stat-card c3"><div class="t">累计销售额</div><div class="v money">{{fmt(stats.totalSales)}}</div></div>
-            <div class="stat-card c4"><div class="t">累计收款</div><div class="v money">{{fmt(stats.totalReceipts)}}</div></div>
-          </div>
-          <div class="stat-grid" style="margin-top:10px">
-            <div class="stat-card"><div class="t">资源佣金</div><div class="v money">{{fmt(stats.resComm)}}</div></div>
-            <div class="stat-card c2"><div class="t">区域佣金</div><div class="v money">{{fmt(stats.regComm)}}</div></div>
-            <div class="stat-card c3"><div class="t">税费成本</div><div class="v money">{{fmt(stats.taxCost)}}</div></div>
-            <div class="stat-card c4"><div class="t">配送费成本</div><div class="v money">{{fmt(stats.deliveryCost)}}</div></div>
-          </div>
-        </div>
-        <div class="card" v-if="arrears.length">
-          <h3>欠款预警（{{arrears.length}} 户）</h3>
-          <div class="table-wrap"><table class="grid">
-            <thead><tr><th>客户名</th><th>超期天数</th><th>超期未付</th><th>累计未付</th></tr></thead>
-            <tbody><tr v-for="a in arrears"><td>{{a.name}}</td><td class="num">{{a.days}}</td><td class="num money red">{{fmt(a.amt)}}</td><td class="num money">{{fmt(a.total)}}</td></tr></tbody>
-          </table></div>
-        </div>
-        <div class="card" v-if="stock.length">
-          <h3>库存预警（{{stock.length}} 个）</h3>
-          <div class="table-wrap"><table class="grid">
-            <thead><tr><th>商品名</th><th>库存</th><th>最低</th><th>缺口</th></tr></thead>
-            <tbody><tr v-for="s in stock"><td>{{s.name}}</td><td class="num">{{s.qty}}</td><td class="num">{{s.min}}</td><td class="num money red">{{s.min - s.qty}}</td></tr></tbody>
-          </table></div>
-        </div>
       </template>
 
       <div class="empty" v-else>未知报表类型：{{renderRole}}</div>

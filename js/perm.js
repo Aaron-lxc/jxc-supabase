@@ -81,7 +81,7 @@ window.P = {
     if (this.isManager()) {
       list.push({ ...this.MEMBER_MENU });
       list.push({ ...this.RECIPIENT_MENU });
-      list.push({ key: 'reportcenter', label: '报表中心', ico: '📊' });
+      // 报表中心入口已由 MODULES 内的 reportcenter 提供，此处不再重复 push（避免重复）
     }
     return list;
   },
