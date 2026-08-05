@@ -222,13 +222,19 @@ window.Cloud = {
 
   async listInvites(wsId) {
     const { data, error } = await this.sb.from('invites')
-      .select('*').eq('workspace_id', wsId).eq('status', '待接受')
+      .select('*').eq('workspace_id', wsId)
       .order('created_at', { ascending: false });
     if (error) return [];
     return data || [];
   },
 
   async cancelInvite(id) {
+    // 软取消：置为已取消（行保留，该邮箱不能再注册入伙），需再点删除才彻底移除
+    const { error } = await this.sb.from('invites').update({ status: '已取消' }).eq('id', id);
+    return error ? this._dbErr(error) : null;
+  },
+
+  async deleteInvite(id) {
     const { error } = await this.sb.from('invites').delete().eq('id', id);
     return error ? this._dbErr(error) : null;
   },

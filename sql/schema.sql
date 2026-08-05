@@ -63,7 +63,7 @@ create table if not exists public.invites (
   email        text not null,
   role         text not null default 'member',
   permissions  jsonb not null default '{}'::jsonb,
-  status       text not null default '待接受',
+  status       text not null default '待接受' check (status in ('待接受', '已接受', '已取消')),
   created_by   uuid,
   created_at   timestamptz not null default now()
 );

@@ -17,7 +17,7 @@ window.P = {
     { key: 'report',     label: '运营报表',  ico: '📈', readonly: true },
     { key: 'commission', label: '佣金管理',  ico: '🎯' },
     { key: 'settings',   label: '系统设置',  ico: '⚙️' },
-    { key: 'reportcenter', label: '报表中心', ico: '📊', readonly: true }
+    { key: 'reportcenter', label: '佣金报表', ico: '📊', readonly: true }
   ],
 
   /* 账户管理：仅 owner / admin 可见，不参与逐项授权 */
@@ -75,7 +75,7 @@ window.P = {
   /* 侧边栏菜单（按权限过滤） */
   menus() {
     // 纯接收人（非管理者）独占报表中心；管理者保留全部菜单并额外带报表中心入口
-    if (this.isRecipient() && !this.isManager()) return [{ key: 'reportcenter', label: '报表中心', ico: '📊' }];
+    if (this.isRecipient() && !this.isManager()) return [{ key: 'reportcenter', label: '佣金报表', ico: '📊' }];
     const list = this.MODULES.filter(m => this.canView(m.key))
       .map(m => ({ key: m.key, label: m.label, ico: m.ico }));
     if (this.isManager()) {

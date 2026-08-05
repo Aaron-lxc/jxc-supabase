@@ -1,4 +1,4 @@
-/* 报表中心：
+/* 佣金报表（原报表中心）：
    - 报表接收人(非管理者)：服务端按 recipient_profiles 裁剪，客户端只渲染其专属报表
    - 创建者/管理员：拥有全量数据权限，直接用本地 S.db 渲染「总览」并可在页内自由切换任意报表/合伙人 */
 window.Pages = window.Pages || {};
@@ -8,8 +8,10 @@ Pages['page-reportcenter'] = {
     return {
       loading: true, err: '', role: '', type: '', partner: null,
       db: null, partial: null, generatedAt: '',
-      view: 'overview',     // 管理者视图：overview | resource | region | arrears | stock | manager
-      selPid: null          // 自由切换选中的合伙人 id（资源/区域）
+      view: 'overview',     // 管理者视图：overview | resource | region
+      selPid: null,         // 自由切换选中的合伙人 id（资源/区域）
+      fResName: '', fRegName: '',
+      pageRes: 1, pageSizeRes: 10, pageReg: 1, pageSizeReg: 10
     };
   },
   async created() {
@@ -78,12 +80,23 @@ Pages['page-reportcenter'] = {
       if (!this.S || !this.pid) return [];
       try { return this.S.resourceCustomerLines(this.pid); } catch (e) { return []; }
     },
-    arrears() { return this.S ? this.S.payAlerts() : []; },
-    stock() { return this.S ? this.S.stockAlerts() : []; },
-    stats() { return this.S ? this.S.stats() : null },
     /* 总览：全部资源/区域合伙人佣金一览 */
     ovRes() { return this._partners('resourcePartners', '资源'); },
-    ovReg() { return this._partners('regionPartners', '区域'); }
+    ovReg() { return this._partners('regionPartners', '区域'); },
+    ovResRows() {
+      const k = this.fResName.trim();
+      return this.ovRes.filter(r => !k || (r.p.name || '').toLowerCase().includes(k.toLowerCase()));
+    },
+    ovRegRows() {
+      const k = this.fRegName.trim();
+      return this.ovReg.filter(r => !k || (r.p.name || '').toLowerCase().includes(k.toLowerCase()));
+    },
+    ovResPaged() { return this.ovResRows.slice((this.pageRes - 1) * this.pageSizeRes, this.pageRes * this.pageSizeRes); },
+    ovRegPaged() { return this.ovRegRows.slice((this.pageReg - 1) * this.pageSizeReg, this.pageReg * this.pageSizeReg); }
+  },
+  watch: {
+    fResName() { this.pageRes = 1; },
+    fRegName() { this.pageReg = 1; }
   },
   methods: {
     fmt(n) {
@@ -95,11 +108,20 @@ Pages['page-reportcenter'] = {
       if (!this.S || !this.db) return [];
       return (this.db[coll] || []).map(p => ({ p, c: this._safe(() => this.S.partnerCommissionAccount(p.id, type)) }));
     },
-    _safe(fn) { try { return fn() || null; } catch (e) { return null; } }
+    _safe(fn) { try { return fn() || null; } catch (e) { return null; } },
+    exportOv(kind) {
+      const rows = kind === 'res' ? this.ovResRows : this.ovRegRows;
+      const name = kind === 'res' ? '资源合伙人佣金一览' : '区域合伙人佣金一览';
+      U.exportExcel(name + '.xlsx', rows.map((r, i) => ({
+        '序号': i + 1, '合伙人': r.p.name,
+        '累计总佣金': this.fmt(r.c && r.c.earned), '已支付': this.fmt(r.c && r.c.paid),
+        '质押': this.fmt(r.c && r.c.pledge), '待支付': this.fmt(r.c && r.c.payable)
+      })));
+    }
   },
   template: `
   <div>
-    <div class="page-title">报表中心</div>
+    <div class="page-title">佣金报表</div>
     <div v-if="loading" class="muted" style="padding:20px 0">正在加载报表…</div>
     <div v-else-if="err" class="gate-err" style="white-space:pre-line">{{err}}</div>
     <template v-else>
@@ -107,7 +129,7 @@ Pages['page-reportcenter'] = {
 
       <!-- 管理者控制条：总览 + 自由切换 -->
       <div class="card" v-if="isMgr">
-        <h3>报表中心（管理者总览）</h3>
+        <h3>佣金报表（管理者总览）</h3>
         <div class="form-grid">
           <div class="form-item"><label>视图</label>
             <select v-model="view">
@@ -126,72 +148,50 @@ Pages['page-reportcenter'] = {
         <div class="muted" style="margin-top:6px">管理者拥有全量数据权限，可在此总览全部报表并自由切换查看任意合伙人明细。</div>
       </div>
 
-      <!-- 总览 -->
+      <!-- 总览：仅保留两张佣金一览 -->
       <template v-if="renderRole==='overview'">
-        <div class="card" v-if="stats">
-          <h3>经营概况</h3>
-          <div class="stat-grid">
-            <div class="stat-card"><div class="t">客户总数</div><div class="v">{{stats.custTotal}}</div></div>
-            <div class="stat-card c2"><div class="t">库存货值</div><div class="v money">{{fmt(stats.invValue)}}</div></div>
-            <div class="stat-card c3"><div class="t">累计销售额</div><div class="v money">{{fmt(stats.totalSales)}}</div></div>
-            <div class="stat-card c4"><div class="t">累计收款</div><div class="v money">{{fmt(stats.totalReceipts)}}</div></div>
-          </div>
-          <div class="stat-grid" style="margin-top:10px">
-            <div class="stat-card"><div class="t">资源佣金</div><div class="v money">{{fmt(stats.resComm)}}</div></div>
-            <div class="stat-card c2"><div class="t">区域佣金</div><div class="v money">{{fmt(stats.regComm)}}</div></div>
-            <div class="stat-card c3"><div class="t">税费成本</div><div class="v money">{{fmt(stats.taxCost)}}</div></div>
-            <div class="stat-card c4"><div class="t">配送费成本</div><div class="v money">{{fmt(stats.deliveryCost)}}</div></div>
-          </div>
-        </div>
-
         <div class="card" v-if="ovRes.length">
-          <h3>资源合伙人佣金一览（{{ovRes.length}} 人）</h3>
-          <div class="table-wrap"><table class="grid">
-            <thead><tr><th>序号</th><th>合伙人</th><th>累计总佣金</th><th>已支付</th><th>质押</th><th>待支付</th></tr></thead>
+          <h3>资源合伙人佣金一览（{{ovResRows.length}} 人）
+            <span style="float:right;font-weight:400;display:flex;gap:8px;align-items:center">
+              <input type="text" v-model="fResName" placeholder="搜索合伙人" style="width:150px">
+              <button class="btn btn-sm" @click="exportOv('res')">导出</button>
+            </span>
+          </h3>
+          <div class="table-wrap"><table class="grid rc-comm">
+            <thead><tr><th style="width:56px">序号</th><th>合伙人</th><th>累计总佣金</th><th>已支付</th><th>质押</th><th>待支付</th></tr></thead>
             <tbody>
-              <tr v-for="(r,i) in ovRes"><td>{{i+1}}</td><td>{{r.p.name}}</td>
+              <tr v-for="(r,i) in ovResPaged" :key="r.p.id"><td>{{(pageRes-1)*pageSizeRes+i+1}}</td><td>{{r.p.name}}</td>
                 <td class="num money">{{fmt(r.c && r.c.earned)}}</td>
                 <td class="num money">{{fmt(r.c && r.c.paid)}}</td>
                 <td class="num money">{{fmt(r.c && r.c.pledge)}}</td>
                 <td class="num money red">{{fmt(r.c && r.c.payable)}}</td></tr>
+              <tr v-if="!ovResPaged.length"><td colspan="6" class="empty">{{ovResRows.length?'无匹配结果':'暂无数据'}}</td></tr>
             </tbody>
           </table></div>
+          <x-pager :total="ovResRows.length" v-model:page="pageRes" v-model:size="pageSizeRes"/>
         </div>
 
         <div class="card" v-if="ovReg.length">
-          <h3>区域合伙人佣金一览（{{ovReg.length}} 人）</h3>
-          <div class="table-wrap"><table class="grid">
-            <thead><tr><th>序号</th><th>合伙人</th><th>累计总佣金</th><th>已支付</th><th>质押</th><th>待支付</th></tr></thead>
+          <h3>区域合伙人佣金一览（{{ovRegRows.length}} 人）
+            <span style="float:right;font-weight:400;display:flex;gap:8px;align-items:center">
+              <input type="text" v-model="fRegName" placeholder="搜索合伙人" style="width:150px">
+              <button class="btn btn-sm" @click="exportOv('reg')">导出</button>
+            </span>
+          </h3>
+          <div class="table-wrap"><table class="grid rc-comm">
+            <thead><tr><th style="width:56px">序号</th><th>合伙人</th><th>累计总佣金</th><th>已支付</th><th>质押</th><th>待支付</th></tr></thead>
             <tbody>
-              <tr v-for="(r,i) in ovReg"><td>{{i+1}}</td><td>{{r.p.name}}</td>
+              <tr v-for="(r,i) in ovRegPaged" :key="r.p.id"><td>{{(pageReg-1)*pageSizeReg+i+1}}</td><td>{{r.p.name}}</td>
                 <td class="num money">{{fmt(r.c && r.c.earned)}}</td>
                 <td class="num money">{{fmt(r.c && r.c.paid)}}</td>
                 <td class="num money">{{fmt(r.c && r.c.pledge)}}</td>
                 <td class="num money red">{{fmt(r.c && r.c.payable)}}</td></tr>
+              <tr v-if="!ovRegPaged.length"><td colspan="6" class="empty">{{ovRegRows.length?'无匹配结果':'暂无数据'}}</td></tr>
             </tbody>
           </table></div>
+          <x-pager :total="ovRegRows.length" v-model:page="pageReg" v-model:size="pageSizeReg"/>
         </div>
-
-        <div class="card" v-if="arrears.length">
-          <h3>欠款预警（{{arrears.length}} 户）</h3>
-          <div class="table-wrap"><table class="grid">
-            <thead><tr><th>序号</th><th>客户名</th><th>账期</th><th>应付日期</th><th>超期天数</th><th>超期未付</th><th>累计未付</th><th>备注</th></tr></thead>
-            <tbody>
-              <tr v-for="(a,i) in arrears"><td>{{i+1}}</td><td>{{a.name}}</td><td>{{a.period}}</td><td>{{a.due}}</td><td class="num">{{a.days}}</td><td class="num money red">{{fmt(a.amt)}}</td><td class="num money">{{fmt(a.total)}}</td><td>{{a.remark}}</td></tr>
-            </tbody>
-          </table></div>
-        </div>
-
-        <div class="card" v-if="stock.length">
-          <h3>库存预警（{{stock.length}} 个）</h3>
-          <div class="table-wrap"><table class="grid">
-            <thead><tr><th>序号</th><th>商品名</th><th>库存</th><th>最低</th><th>缺口</th></tr></thead>
-            <tbody>
-              <tr v-for="(s,i) in stock"><td>{{i+1}}</td><td>{{s.name}}</td><td class="num">{{s.qty}}</td><td class="num">{{s.min}}</td><td class="num money red">{{s.min - s.qty}}</td></tr>
-            </tbody>
-          </table></div>
-        </div>
-        <div class="empty" v-if="!stats && !ovRes.length && !ovReg.length && !arrears.length && !stock.length">暂无数据</div>
+        <div class="empty" v-if="!ovRes.length && !ovReg.length">暂无合伙人佣金数据</div>
       </template>
 
       <!-- 合伙人：佣金账户（接收人或管理者自由切换） -->

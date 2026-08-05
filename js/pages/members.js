@@ -187,6 +187,12 @@ Pages['page-members'] = {
       alert('已重新发起邀请（邀请时间已刷新）');
       await this.reload();
     },
+    async deleteInvite(iv) {
+      if (!U.confirm(`确定彻底删除「${iv.email}」的邀请吗？此操作不可恢复。`)) return;
+      const err = await Cloud.deleteInvite(iv.id);
+      if (err) return alert(err);
+      await this.reload();
+    },
 
     /* ---- 转让所有权（仅 owner） ---- */
     openTransfer() {
@@ -280,11 +286,14 @@ Pages['page-members'] = {
                 <td class="col-created muted">{{ fmt(m.created_at) }}</td>
                 <td class="col-login muted">{{ fmt(m.last_sign_in_at) }}</td>
                 <td style="white-space:nowrap">
-                  <button class="btn btn-sm" @click="openEdit(m)">修改</button>
-                  <button class="btn btn-sm" @click="toggleStatus(m)">
-                    {{ m.status === '已停用' ? '启用' : '停用' }}
-                  </button>
-                  <button class="btn btn-sm btn-danger" v-if="canRemove(m)" @click="remove(m)">删除</button>
+                  <template v-if="m.role === 'owner'"><span class="muted">—</span></template>
+                  <template v-else>
+                    <button class="btn btn-sm" @click="openEdit(m)">修改</button>
+                    <button class="btn btn-sm" @click="toggleStatus(m)">
+                      {{ m.status === '已停用' ? '启用' : '停用' }}
+                    </button>
+                    <button class="btn btn-sm btn-danger" :disabled="m.status !== '已停用'" @click="remove(m)">删除</button>
+                  </template>
                 </td>
               </tr>
               <tr v-if="!filteredMembers.length"><td colspan="7" class="muted" style="text-align:center;padding:18px">暂无匹配成员</td></tr>
@@ -309,9 +318,11 @@ Pages['page-members'] = {
                 <td><span class="tag tag-orange">{{ iv.status }}</span></td>
                 <td class="col-created muted">{{ fmt(iv.created_at) }}</td>
                 <td style="white-space:nowrap">
-                  <button class="btn btn-sm btn-danger" @click="cancelInvite(iv)">删除</button>
+                  <button class="btn btn-sm" @click="iv.status === '已取消' ? enableInvite(iv) : cancelInvite(iv)">
+                    {{ iv.status === '已取消' ? '重新邀请' : '取消邀请' }}
+                  </button>
                   <button class="btn btn-sm" @click="openInviteEdit(iv)">修改</button>
-                  <button class="btn btn-sm" @click="enableInvite(iv)">启用</button>
+                  <button class="btn btn-sm btn-danger" :disabled="iv.status !== '已取消'" @click="deleteInvite(iv)">删除</button>
                 </td>
               </tr>
               <tr v-if="!filteredInvites.length"><td colspan="5" class="muted" style="text-align:center;padding:18px">暂无匹配邀请</td></tr>

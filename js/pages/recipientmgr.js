@@ -144,6 +144,7 @@ Pages['page-recipientmgr'] = {
     },
     /* 删除接收人档案；若其成员角色为「报表」则恢复为「成员」 */
     async removeRecipient(m) {
+      if (!this.recipientOf(m)) return;
       if (!U.confirm('删除「' + (m.email || m.name) + '」的报表接收人档案吗？')) return;
       const err = await Cloud.deleteRecipient(this.wsId, m.user_id);
       if (err) return alert(err);
@@ -169,13 +170,13 @@ Pages['page-recipientmgr'] = {
         <div class="form-hint" style="margin:0 0 10px">
           在此把成员设为「报表接收人」：普通成员登录后只能看到「报表中心」，且被 RLS 禁止直接读取业务原始数据（安全）。
           创建者/管理员保留全部操作权限，设置后仅额外获得「报表中心」入口用于预览。
-          选择合伙人角色时需指定具体合伙人；内部角色（对账人 / 库管 / 管理者）无需指定。
+          选择合伙人角色时需指定具体合伙人。
         </div>
 
         <!-- 筛选栏 -->
         <div class="filter-grid" style="margin-bottom:10px">
           <div class="form-item"><label>邮箱 / 名称（模糊）</label>
-            <input v-model.trim="fEmail" placeholder="输入关键字" /></div>
+            <input type="text" v-model="fEmail" placeholder="含关键词即可" /></div>
           <div class="form-item"><label>成员角色</label>
             <select v-model="fRole">
               <option value="all">全部</option>
@@ -219,10 +220,13 @@ Pages['page-recipientmgr'] = {
                 <td><span v-if="recipientOf(m)" :class="statusTag(recipientOf(m).status)">{{ recipientOf(m).status }}</span><span v-else class="muted">—</span></td>
                 <td>{{ recipientOf(m) ? fmt(recipientOf(m).created_at) : '—' }}</td>
                 <td style="white-space:nowrap">
-                  <button class="btn btn-sm" @click="openSet(m)">设置</button>
-                  <template v-if="recipientOf(m)">
-                    <button class="btn btn-sm" @click="toggleStatus(m)">{{ recipientOf(m).status === '启用' ? '停用' : '启用' }}</button>
-                    <button class="btn btn-sm btn-danger" @click="removeRecipient(m)">删除</button>
+                  <template v-if="m.role === 'owner'"><span class="muted">—</span></template>
+                  <template v-else>
+                    <button class="btn btn-sm" @click="openSet(m)">设置</button>
+                    <button class="btn btn-sm" :disabled="!recipientOf(m)" @click="toggleStatus(m)">
+                      {{ recipientOf(m) && recipientOf(m).status === '启用' ? '停用' : '启用' }}
+                    </button>
+                    <button class="btn btn-sm btn-danger" :disabled="!recipientOf(m)" @click="removeRecipient(m)">删除</button>
                   </template>
                 </td>
               </tr>
