@@ -197,7 +197,13 @@ AppComponents['x-combobox'] = {
       const el = this.$el && this.$el.querySelector ? this.$el.querySelector('.cb-input') : null;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      this.pos = { top: Math.round(r.bottom) + 2, left: Math.round(r.left), width: Math.round(r.width) };
+      const width = Math.round(r.width);
+      let left = Math.round(r.left);
+      // 防止面板右侧溢出视口
+      const vw = window.innerWidth || document.documentElement.clientWidth;
+      const maxW = Math.max(width, vw - 16);
+      if (left + width > vw - 8) left = Math.max(8, vw - width - 8);
+      this.pos = { top: Math.round(r.bottom) + 2, left, width, maxW };
     },
     onScroll() { if (this.open) this.updatePos(); },
     onResize() { if (this.open) this.updatePos(); },
@@ -229,7 +235,7 @@ AppComponents['x-combobox'] = {
       <span class="cb-arrow" @mousedown.prevent="toggle">▾</span>
     </div>
     <teleport to="body">
-    <div class="cb-panel" v-if="open" :style="{top:pos.top+'px',left:pos.left+'px',minWidth:pos.width+'px'}">
+    <div class="cb-panel" v-if="open" :style="{top:pos.top+'px',left:pos.left+'px',width:pos.width+'px',maxWidth:pos.maxW+'px'}">
       <div class="cb-opt" v-for="o in filtered" :key="(o.value===null||o.value==='')?'_all':o.value"
         :class="{sel:o.value===modelValue}" @mousedown.prevent="pick(o)">{{o.label}}</div>
       <div class="cb-empty" v-if="!filtered.length">无匹配项</div>
