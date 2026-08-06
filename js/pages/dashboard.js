@@ -473,8 +473,8 @@ Pages['page-dashboard'] = {
     <!-- 预警事项 -->
     <div class="card">
       <h3>预警事项</h3>
-      <div style="display:grid;grid-template-columns:1fr;gap:16px">
-        <div>
+      <div class="alert-slides">
+        <div class="alert-slide">
           <div class="section-title">库存预警 <span class="muted">（按缺口从大到小）</span>
             <span style="float:right;font-weight:400">
               <button class="btn btn-sm" @click="expanded.stock=!expanded.stock">{{expanded.stock?'收起':'更多'}}</button>
@@ -490,7 +490,7 @@ Pages['page-dashboard'] = {
             </tbody>
           </table>
         </div>
-        <div>
+        <div class="alert-slide">
           <div class="section-title">超期未支付预警 <span class="muted">（按超期欠款从大到小）</span>
             <span style="float:right;font-weight:400">
               <button class="btn btn-sm" @click="expanded.pay=!expanded.pay">{{expanded.pay?'收起':'更多'}}</button>
@@ -508,24 +508,24 @@ Pages['page-dashboard'] = {
             </tbody>
           </table>
         </div>
-      </div>
-      <div style="margin-top:14px">
-        <div class="section-title">仓库预警 <span class="muted">（按到期时间从近到远）</span>
-          <span style="float:right;font-weight:400">
-            <button class="btn btn-sm" @click="expanded.wh=!expanded.wh">{{expanded.wh?'收起':'更多'}}</button>
-            <button class="btn btn-sm" @click="exportAlert('wh')">导出</button>
-          </span>
+        <div class="alert-slide">
+          <div class="section-title">仓库预警 <span class="muted">（按到期时间从近到远）</span>
+            <span style="float:right;font-weight:400">
+              <button class="btn btn-sm" @click="expanded.wh=!expanded.wh">{{expanded.wh?'收起':'更多'}}</button>
+              <button class="btn btn-sm" @click="exportAlert('wh')">导出</button>
+            </span>
+          </div>
+          <table class="grid">
+            <thead><tr><th>序号</th><th>仓库名称</th><th>仓库地址</th><th>负责人</th><th>联系电话</th><th class="num">每月租金</th><th>到期时间</th><th>剩余天数</th><th>房东/联系电话</th></tr></thead>
+            <tbody>
+              <tr v-for="(w,i) in alertRows('wh',expanded.wh)"><td data-label="序号">{{i+1}}</td><td data-label="仓库名称">{{w.name}}</td><td data-label="仓库地址">{{w.address}}</td><td data-label="负责人">{{w.manager}}</td><td data-label="联系电话">{{w.phone}}</td>
+                <td class="num money" data-label="每月租金">{{fmtMoney(w.rent)}}</td><td data-label="到期时间">{{w.expireDate}}</td>
+                <td data-label="剩余天数"><span class="tag" :class="w.days<=30?'tag-red':(w.days<=60?'tag-orange':'tag-green')">{{w.days<0?'已到期':w.days+' 天'}}</span></td>
+                <td data-label="房东/联系电话">{{w.landlord||'-'}}</td></tr>
+              <tr v-if="!whAlerts.length"><td colspan="9" class="empty">暂无仓库信息</td></tr>
+            </tbody>
+          </table>
         </div>
-        <table class="grid">
-          <thead><tr><th>序号</th><th>仓库名称</th><th>仓库地址</th><th>负责人</th><th>联系电话</th><th class="num">每月租金</th><th>到期时间</th><th>剩余天数</th><th>房东/联系电话</th></tr></thead>
-          <tbody>
-            <tr v-for="(w,i) in alertRows('wh',expanded.wh)"><td data-label="序号">{{i+1}}</td><td data-label="仓库名称">{{w.name}}</td><td data-label="仓库地址">{{w.address}}</td><td data-label="负责人">{{w.manager}}</td><td data-label="联系电话">{{w.phone}}</td>
-              <td class="num money" data-label="每月租金">{{fmtMoney(w.rent)}}</td><td data-label="到期时间">{{w.expireDate}}</td>
-              <td data-label="剩余天数"><span class="tag" :class="w.days<=30?'tag-red':(w.days<=60?'tag-orange':'tag-green')">{{w.days<0?'已到期':w.days+' 天'}}</span></td>
-              <td data-label="房东/联系电话">{{w.landlord||'-'}}</td></tr>
-            <tr v-if="!whAlerts.length"><td colspan="9" class="empty">暂无仓库信息</td></tr>
-          </tbody>
-        </table>
       </div>
     </div>
 

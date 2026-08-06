@@ -283,11 +283,13 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
 .x-combobox .cb-arrow { padding: 0 8px; color: #64748b; cursor: pointer; user-select: none; }
 .x-combobox.disabled { opacity: .5; }
 .x-combobox.disabled .cb-control { cursor: not-allowed; }
-.x-combobox .cb-panel { position: fixed; top: 0; left: 0; z-index: 3000; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; margin-top: 2px; max-height: 280px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
-.x-combobox .cb-opt { padding: 6px 10px; cursor: pointer; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.x-combobox .cb-opt:hover { background: #eff6ff; }
-.x-combobox .cb-opt.sel { background: #dbeafe; color: #1d4ed8; }
-.x-combobox .cb-empty { padding: 10px; color: #94a3b8; text-align: center; font-size: 12px; }
+/* 注意：下拉面板经 <teleport to="body"> 渲染在 body 下，已脱离 .x-combobox，
+   故此处用独立类选择器 .cb-panel/.cb-opt/.cb-empty，不再用 .x-combobox 后代选择器 */
+.cb-panel { position: fixed; top: 0; left: 0; z-index: 3000; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; margin-top: 2px; max-height: 280px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.cb-opt { padding: 6px 10px; cursor: pointer; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cb-opt:hover { background: #eff6ff; }
+.cb-opt.sel { background: #dbeafe; color: #1d4ed8; }
+.cb-empty { padding: 10px; color: #94a3b8; text-align: center; font-size: 12px; }
 .toolbar .x-combobox { width: 130px; }
 .form-item .x-combobox { width: 100%; }
 .item-rows .x-combobox { width: 100%; }
@@ -385,4 +387,15 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
 /* 脚本未就绪时的静态占位 */
 .boot-holder { min-height: 100vh; display: flex; align-items: center; justify-content: center;
   flex-direction: column; gap: 10px; color: #64748b; font-size: 13px; background: #f1f5f9; }
+
+/* ---------- 仪表盘预警事项：手机端横滑卡片 ---------- */
+.alert-slides { display: grid; grid-template-columns: 1fr; gap: 16px; }
+.alert-slide { min-width: 0; }
+@media (max-width: 820px) {
+  .alert-slides { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px;
+    padding: 4px 4px 10px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+  .alert-slide { flex: 0 0 86%; min-width: 86%; scroll-snap-align: start;
+    background: #fff; border-radius: 8px; padding: 4px 6px 10px; }
+  .alert-slide .grid { margin: 0; }
+}
 .boot-holder .bh-title { font-size: 18px; font-weight: 800; color: #0f172a; }
