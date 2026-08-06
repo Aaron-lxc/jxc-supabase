@@ -138,11 +138,11 @@ AppComponents['dict-page'] = {
       <thead><tr><th>序号</th><th>{{label}}</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
       <tbody>
         <tr v-for="(r,i) in paged" :key="r.id">
-          <td><span class="cell-label">序号</span>{{(page-1)*pageSize+i+1}}</td>
-          <td><span class="cell-label">{{label}}</span>{{r.name}}</td>
-          <td><span class="cell-label">创建时间</span>{{r.createTime}}</td>
-          <td><span class="cell-label">状态</span><x-status :v="r.status"/></td>
-          <td class="ops">
+          <td data-label="序号">{{(page-1)*pageSize+i+1}}</td>
+          <td :data-label="label">{{r.name}}</td>
+          <td data-label="创建时间">{{r.createTime}}</td>
+          <td data-label="状态"><x-status :v="r.status"/></td>
+          <td class="ops" data-label="操作">
             <span class="link" @click="openEdit(r)">修改</span>
             <span class="link danger" @click="del(r)">删除</span>
             <span class="link" :class="r.status==='已启用'?'warn':'green'" @click="toggle(r)">{{r.status==='已启用'?'停用':'启用'}}</span>

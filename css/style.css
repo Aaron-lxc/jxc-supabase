@@ -87,7 +87,7 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
 .link.green { color: #059669; }
 
 /* 标签 */
-.tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; white-space: nowrap; }
 .tag-green { background: #dcfce7; color: #15803d; }
 .tag-red { background: #fee2e2; color: #b91c1c; }
 .tag-orange { background: #ffedd5; color: #c2410c; }
@@ -141,8 +141,7 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
 .spinner { width: 34px; height: 34px; border: 3px solid #e2e8f0; border-top-color: #1d4ed8; border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* 移动端专用标记：桌面隐藏（cell-label 用于字典页卡片化的列名，tabbar 为底部导航） */
-.cell-label { display: none; }
+/* 底部导航栏：桌面隐藏 */
 .tabbar { display: none; }
 
 /* ---------- 手机端适配（≤820px） ---------- */
@@ -179,11 +178,9 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
   table.grid:not(.wide-table) { background: transparent; }
   table.grid:not(.wide-table) > thead { display: none; }
   table.grid:not(.wide-table) tr { display: block; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
-  table.grid:not(.wide-table) td { display: flex; justify-content: space-between; gap: 12px; padding: 7px 12px; border: none; white-space: normal; text-align: right; }
-  table.grid:not(.wide-table) td::before { content: attr(data-label); color: #64748b; font-weight: 600; flex: 0 0 40%; text-align: left; }
+  table.grid:not(.wide-table) td { display: flex; justify-content: space-between; gap: 12px; padding: 7px 12px; border: none; white-space: normal; text-align: right; word-break: keep-all; }
+  table.grid:not(.wide-table) td::before { content: attr(data-label); color: #64748b; font-weight: 600; flex: 0 0 auto; max-width: 35%; text-align: left; }
   table.grid:not(.wide-table) td.num { text-align: right; }
-  table.grid:not(.wide-table) td .cell-label,
-  table.grid:not(.wide-table) td .cell-label { display: inline; color: #64748b; font-weight: 600; flex: 0 0 40%; text-align: left; }
   .table-wrap { margin-bottom: 4px; }
 
   /* ===== 底部 Tab 栏（APP 化导航） ===== */
