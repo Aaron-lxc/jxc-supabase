@@ -8,13 +8,17 @@ AppComponents['x-modal'] = {
   computed: {
     boxStyle() {
       if (this.fullscreen) return {};
-      if (this.position === 'bottom') return { width: '100%', maxWidth: '100%' };
+      var m = this.$root && this.$root.isMobile;
+      if (this.position === 'bottom') {
+        if (m) return { width: '100%', maxWidth: '100%' };   /* 手机端：底部全屏弹层 */
+        return { width: (this.width || 520) + 'px' };          /* 电脑端：按 width 居中，不再铺满 */
+      }
       return { width: (this.width || 640) + 'px' };
     }
   },
   template: `
   <div class="modal-mask" @mousedown.self="$emit('close')">
-    <div class="modal-box" :class="[{'fs':fullscreen,'sheet':position==='bottom'}]" :style="boxStyle">
+    <div class="modal-box" :class="[{'fs':fullscreen,'sheet':position==='bottom' && $root.isMobile}]" :style="boxStyle">
       <div class="modal-head"><span>{{title}}</span><button class="btn-x" @click="$emit('close')">×</button></div>
       <div class="modal-body"><slot></slot></div>
       <div class="modal-foot"><slot name="foot"></slot></div>

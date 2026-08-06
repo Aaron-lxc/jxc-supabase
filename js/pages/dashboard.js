@@ -450,7 +450,8 @@ Pages['page-dashboard'] = {
           <button class="btn btn-sm" @click="exportRank">导出</button>
         </span>
       </h3>
-      <table class="grid">
+      <div class="tbl-scroll">
+      <table class="grid keep-table">
         <thead><tr><th style="width:60px">排名</th><th v-for="c in ranking.cols" :class="{num:c.num}">{{c.label}}</th></tr></thead>
         <tbody>
           <tr v-for="(r,i) in top10" :key="r.name">
@@ -468,6 +469,7 @@ Pages['page-dashboard'] = {
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- 预警事项 -->
