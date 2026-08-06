@@ -143,10 +143,13 @@ Pages['page-inventory'] = {
         <thead><tr><th>仓库</th><th>商品</th><th>SKU</th><th>单位</th><th class="num">账面库存</th><th class="num" style="width:110px">实际库存</th><th class="num">差异</th></tr></thead>
         <tbody>
           <tr v-for="cr in checkRows">
-            <td>{{cr.whName}}</td><td>{{cr.goodsName}}</td><td>{{cr.sku}}</td><td>{{cr.unitName}}</td>
-            <td class="num">{{cr.qty}}</td>
-            <td class="num"><input type="number" min="0" style="width:90px" v-model.number="cr.actual"></td>
-            <td class="num" :class="{red: cr.actual-cr.qty<0, 'green-t': cr.actual-cr.qty>0}">{{(cr.actual||0)-cr.qty}}</td>
+            <td data-label="仓库">{{cr.whName}}</td>
+            <td data-label="商品">{{cr.goodsName}}</td>
+            <td data-label="SKU">{{cr.sku}}</td>
+            <td data-label="单位">{{cr.unitName}}</td>
+            <td class="num" data-label="账面库存">{{cr.qty}}</td>
+            <td class="num" data-label="实际库存"><input type="number" min="0" style="width:90px" v-model.number="cr.actual"></td>
+            <td class="num" data-label="差异" :class="{red: cr.actual-cr.qty<0, 'green-t': cr.actual-cr.qty>0}">{{(cr.actual||0)-cr.qty}}</td>
           </tr>
         </tbody>
       </table>

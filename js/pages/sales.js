@@ -319,18 +319,18 @@ const SaleList = {
       <div class="section-title" style="margin-top:12px">商品明细 <span class="muted">（仅显示所选仓库有库存的商品）</span></div>
       <div class="item-rows table-wrap">
       <table class="grid">
-        <thead><tr><th style="min-width:180px">商品名称</th><th>SKU</th><th class="num">可用库存</th><th style="width:90px">数量</th><th>单位</th><th style="width:100px">价格类型</th><th style="width:100px">销售价格</th><th class="num">金额</th><th></th></tr></thead>
+        <thead><tr><th style="min-width:180px">商品名称</th><th>SKU</th><th class="num">可用库存</th><th style="width:90px">数量</th><th>单位</th><th style="width:100px">价格类型</th><th style="width:100px">销售价格</th><th class="num">金额</th><th>操作</th></tr></thead>
         <tbody>
           <tr v-for="(it,i) in form.items" :key="i">
-            <td><x-combobox v-model="it.goodsId" :options="whGoodsOpts" placeholder="请选择（可输入检索）" @update:modelValue="$nextTick(()=>onGoodsChange(it))"/></td>
-            <td>{{it.sku}}</td>
-            <td class="num">{{stockOf(it)}}</td>
-            <td><input type="number" min="1" style="width:80px" v-model.number="it.qty"></td>
-            <td>{{it.unitId ? S.name('units',it.unitId) : ''}}</td>
-            <td><x-combobox v-model="it.priceType" :options="priceTypeOpts" @update:modelValue="$nextTick(()=>onPriceTypeChange(it))"/></td>
-            <td><input type="number" min="0" step="0.01" style="width:90px" v-model.number="it.price"></td>
-            <td class="num money">{{fmtMoney((it.qty||0)*(it.price||0))}}</td>
-            <td><span class="link danger" @click="rmItem(i)">删</span></td>
+            <td data-label="商品名称"><x-combobox v-model="it.goodsId" :options="whGoodsOpts" placeholder="请选择（可输入检索）" @update:modelValue="$nextTick(()=>onGoodsChange(it))"/></td>
+            <td data-label="SKU">{{it.sku}}</td>
+            <td class="num" data-label="可用库存">{{stockOf(it)}}</td>
+            <td data-label="数量"><input type="number" min="1" style="width:80px" v-model.number="it.qty"></td>
+            <td data-label="单位">{{it.unitId ? S.name('units',it.unitId) : ''}}</td>
+            <td data-label="价格类型"><x-combobox v-model="it.priceType" :options="priceTypeOpts" @update:modelValue="$nextTick(()=>onPriceTypeChange(it))"/></td>
+            <td data-label="销售价格"><input type="number" min="0" step="0.01" style="width:90px" v-model.number="it.price"></td>
+            <td class="num money" data-label="金额">{{fmtMoney((it.qty||0)*(it.price||0))}}</td>
+            <td data-label="操作"><span class="link danger" @click="rmItem(i)">删</span></td>
           </tr>
         </tbody>
       </table>
@@ -358,9 +358,13 @@ const SaleList = {
         <thead><tr><th>商品</th><th>SKU</th><th class="num">数量</th><th>单位</th><th>价格类型</th><th class="num">单价</th><th class="num">金额</th></tr></thead>
         <tbody>
           <tr v-for="it in detail.items">
-            <td>{{S.name('goods',it.goodsId)}}</td><td>{{it.sku}}</td><td class="num">{{it.qty}}</td>
-            <td>{{S.name('units',it.unitId)}}</td><td>{{it.priceType}}</td>
-            <td class="num money">{{fmtMoney(it.price)}}</td><td class="num money">{{fmtMoney(it.amount)}}</td>
+            <td data-label="商品">{{S.name('goods',it.goodsId)}}</td>
+            <td data-label="SKU">{{it.sku}}</td>
+            <td class="num" data-label="数量">{{it.qty}}</td>
+            <td data-label="单位">{{S.name('units',it.unitId)}}</td>
+            <td data-label="价格类型">{{it.priceType}}</td>
+            <td class="num money" data-label="单价">{{fmtMoney(it.price)}}</td>
+            <td class="num money" data-label="金额">{{fmtMoney(it.amount)}}</td>
           </tr>
         </tbody>
       </table>
@@ -526,9 +530,12 @@ const ReturnList = {
           <thead><tr><th>商品</th><th>SKU</th><th class="num">销售数量</th><th class="num">已退数量</th><th class="num">单价</th><th style="width:100px">本次退货数量</th></tr></thead>
           <tbody>
             <tr v-for="r in retItems">
-              <td>{{r.goodsName}}</td><td>{{r.sku}}</td><td class="num">{{r.soldQty}}</td>
-              <td class="num">{{r.returned}}</td><td class="num money">{{fmtMoney(r.price)}}</td>
-              <td><input type="number" min="0" :max="r.soldQty-r.returned" style="width:90px" v-model.number="r.qty" placeholder="0"></td>
+              <td data-label="商品">{{r.goodsName}}</td>
+              <td data-label="SKU">{{r.sku}}</td>
+              <td class="num" data-label="销售数量">{{r.soldQty}}</td>
+              <td class="num" data-label="已退数量">{{r.returned}}</td>
+              <td class="num money" data-label="单价">{{fmtMoney(r.price)}}</td>
+              <td data-label="本次退货数量"><input type="number" min="0" :max="r.soldQty-r.returned" style="width:90px" v-model.number="r.qty" placeholder="0"></td>
             </tr>
           </tbody>
         </table>
