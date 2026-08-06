@@ -148,8 +148,7 @@ const CustomerList = {
       <button class="btn btn-primary" @click="openNew">+ 新增客户</button>
     </div>
     <div class="table-wrap">
-    <template v-if="!$root.isMobile">
-    <table class="grid wide-table">
+    <table class="grid">
       <thead><tr>
         <th>客户编号</th><th>客户名称</th><th>区域</th><th>类型</th><th>级别</th>
         <th>支付方式</th><th>支付周期</th><th class="num">税点</th><th>减免</th><th>一级资源</th><th>二级资源</th><th>三级资源</th><th>区域合伙人</th>
@@ -157,18 +156,18 @@ const CustomerList = {
       </tr></thead>
       <tbody>
         <tr v-for="c in paged" :key="c.id">
-          <td>{{c.code}}</td><td>{{c.name}}</td>
-          <td>{{S.name('regions',c.regionId)}}</td><td>{{S.name('custTypes',c.typeId)}}</td><td>{{S.name('custLevels',c.levelId)}}</td>
-          <td>{{c.payMethod}}</td>
-          <td>{{c.payCycle}}<span v-if="c.payDay">/{{c.payDay}}号</span></td>
-          <td class="num">{{c.taxRate||0}}%</td>
-          <td><span class="tag" :class="(c.taxExempt==='是')?'tag-green':'tag-gray'">{{c.taxExempt||'否'}}</span></td>
-          <td>{{rpName(c.r1)}}</td><td>{{rpName(c.r2)}}</td><td>{{rpName(c.r3)}}</td>
-          <td>{{c.regionPartnerId ? S.name('regionPartners',c.regionPartnerId) : '-'}}</td>
-          <td class="num money" :class="{red: arrears(c)>0}">{{fmtMoney(arrears(c))}}</td>
-          <td>{{c.createTime}}</td>
-          <td><x-status :v="c.status"/></td>
-          <td class="ops">
+          <td data-label="客户编号">{{c.code}}</td><td data-label="客户名称">{{c.name}}</td>
+          <td data-label="区域">{{S.name('regions',c.regionId)}}</td><td data-label="类型">{{S.name('custTypes',c.typeId)}}</td><td data-label="级别">{{S.name('custLevels',c.levelId)}}</td>
+          <td data-label="支付方式">{{c.payMethod}}</td>
+          <td data-label="支付周期">{{c.payCycle}}<span v-if="c.payDay">/{{c.payDay}}号</span></td>
+          <td class="num" data-label="税点">{{c.taxRate||0}}%</td>
+          <td data-label="减免"><span class="tag" :class="(c.taxExempt==='是')?'tag-green':'tag-gray'">{{c.taxExempt||'否'}}</span></td>
+          <td data-label="一级资源">{{rpName(c.r1)}}</td><td data-label="二级资源">{{rpName(c.r2)}}</td><td data-label="三级资源">{{rpName(c.r3)}}</td>
+          <td data-label="区域合伙人">{{c.regionPartnerId ? S.name('regionPartners',c.regionPartnerId) : '-'}}</td>
+          <td class="num money" :class="{red: arrears(c)>0}" data-label="累计欠款">{{fmtMoney(arrears(c))}}</td>
+          <td data-label="创建时间">{{c.createTime}}</td>
+          <td data-label="状态"><x-status :v="c.status"/></td>
+          <td class="ops" data-label="操作">
             <span class="link" @click="detail=c">详情</span>
             <span class="link" @click="openEdit(c)">修改</span>
             <span class="link danger" @click="del(c)">删除</span>
@@ -178,20 +177,10 @@ const CustomerList = {
         <tr v-if="!paged.length"><td colspan="17" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
-    </template>
-    <div v-else class="row-cards">
-      <div v-for="c in paged" :key="c.id" class="row-card" @click="$root.openRow(c, rowFields(c), '客户详情')">
-        <div class="rc-title">{{c.name}}</div>
-        <div class="rc-sub">{{S.name('custLevels', c.levelId)}}</div>
-        <div class="rc-row"><span>累计欠款</span><b class="money" :class="{red: arrears(c)>0}">{{fmtMoney(arrears(c))}}</b></div>
-        <div class="rc-row"><span>状态</span><span>{{c.status}}</span></div>
-      </div>
-      <div v-if="!paged.length" class="empty">暂无数据</div>
-    </div>
     </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-    <x-modal v-if="showForm" :title="editing?'修改客户':'新增客户'" :width="760" :fullscreen="$root.isMobile" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'修改客户':'新增客户'" :width="760" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-grid cols3">
         <div class="form-item"><label>客户名称<b class="req">*</b></label><input type="text" v-model="form.name"></div>
         <div class="form-item"><label>区域名称<b class="req">*</b></label>

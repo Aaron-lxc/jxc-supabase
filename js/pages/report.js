@@ -307,10 +307,7 @@ Pages['page-report'] = {
     <div class="card">
       <h3>资源合伙人佣金统计 <span class="muted" style="font-weight:400">同一合伙人可同时担任一/二/三级，分级列示并小计</span></h3>
       <div class="toolbar">
-        <div v-if="! $root.isMobile || fResFilter.showFilter" style="display:contents">
-          <input type="text" v-model="fResName" placeholder="资源合伙人（模糊）" style="width:200px">
-        </div>
-        <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fResFilter,'showFilter',!fResFilter.showFilter)">筛选</button>
+        <input type="text" v-model="fResName" placeholder="资源合伙人（模糊）" style="width:200px">
         <button class="btn btn-sm" @click="exportRes">导出</button>
       </div>
       <table class="grid">
@@ -333,10 +330,7 @@ Pages['page-report'] = {
     <div class="card">
       <h3>区域合伙人佣金统计</h3>
       <div class="toolbar">
-        <div v-if="! $root.isMobile || fRegFilter.showFilter" style="display:contents">
-          <input type="text" v-model="fRegName" placeholder="区域合伙人（模糊）" style="width:200px">
-        </div>
-        <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fRegFilter,'showFilter',!fRegFilter.showFilter)">筛选</button>
+        <input type="text" v-model="fRegName" placeholder="区域合伙人（模糊）" style="width:200px">
         <button class="btn btn-sm" @click="exportReg">导出</button>
       </div>
       <table class="grid">
@@ -359,11 +353,8 @@ Pages['page-report'] = {
     <div class="card">
       <h3>佣金支付与质押统计 <span class="muted" style="font-weight:400">全期口径；质押 = 每个客户最后一单佣金 + 未支付货款单佣金，防退货/跑单超额</span></h3>
       <div class="toolbar">
-        <div v-if="! $root.isMobile || fPayFilter.showFilter" style="display:contents">
-          <input type="text" v-model="fPayName" placeholder="姓名（模糊）" style="width:180px">
-          <x-combobox v-model="fPayType" :options="payTypeOpts" placeholder="全部类型" style="width:160px"></x-combobox>
-        </div>
-        <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fPayFilter,'showFilter',!fPayFilter.showFilter)">筛选</button>
+        <input type="text" v-model="fPayName" placeholder="姓名（模糊）" style="width:180px">
+        <x-combobox v-model="fPayType" :options="payTypeOpts" placeholder="全部类型" style="width:160px"></x-combobox>
         <button class="btn btn-sm" @click="exportPay">导出</button>
       </div>
       <table class="grid">
@@ -400,11 +391,8 @@ Pages['page-report'] = {
       <div class="card" style="margin-bottom:0">
         <h3>商品销售汇总（净额口径）</h3>
         <div class="toolbar">
-          <div v-if="! $root.isMobile || fGoodsFilter.showFilter" style="display:contents">
-            <input type="text" v-model="fGoods" placeholder="商品（模糊）" style="width:150px">
-            <x-combobox v-model="fGoodsType" :options="goodsTypeOpts" placeholder="全部分类" style="width:140px"></x-combobox>
-          </div>
-          <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fGoodsFilter,'showFilter',!fGoodsFilter.showFilter)">筛选</button>
+          <input type="text" v-model="fGoods" placeholder="商品（模糊）" style="width:150px">
+          <x-combobox v-model="fGoodsType" :options="goodsTypeOpts" placeholder="全部分类" style="width:140px"></x-combobox>
           <button class="btn btn-sm" @click="exportGoods">导出</button>
         </div>
         <table class="grid">
@@ -427,10 +415,7 @@ Pages['page-report'] = {
       <div class="card" style="margin-bottom:0">
         <h3>供应商采购汇总</h3>
         <div class="toolbar">
-          <div v-if="! $root.isMobile || fSupFilter.showFilter" style="display:contents">
-            <input type="text" v-model="fSup" placeholder="供应商（模糊）" style="width:180px">
-          </div>
-          <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fSupFilter,'showFilter',!fSupFilter.showFilter)">筛选</button>
+          <input type="text" v-model="fSup" placeholder="供应商（模糊）" style="width:180px">
           <button class="btn btn-sm" @click="exportSupplier">导出</button>
         </div>
         <table class="grid">
@@ -456,10 +441,7 @@ Pages['page-report'] = {
       <div class="card" style="margin-bottom:0">
         <h3>运营成本汇总（已计算）</h3>
         <div class="toolbar">
-          <div v-if="! $root.isMobile || fExpFilter.showFilter" style="display:contents">
-            <x-combobox v-model="fExpCat" :options="expCatOpts" placeholder="全部分类" style="width:180px"></x-combobox>
-          </div>
-          <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fExpFilter,'showFilter',!fExpFilter.showFilter)">筛选</button>
+          <x-combobox v-model="fExpCat" :options="expCatOpts" placeholder="全部分类" style="width:180px"></x-combobox>
           <button class="btn btn-sm" @click="exportExpense">导出</button>
         </div>
         <table class="grid">
@@ -480,10 +462,7 @@ Pages['page-report'] = {
       <div class="card" style="margin-bottom:0">
         <h3>应收账款（全部未支付，不限时间）</h3>
         <div class="toolbar">
-          <div v-if="! $root.isMobile || fARFilter.showFilter" style="display:contents">
-            <input type="text" v-model="fCust" placeholder="客户（模糊）" style="width:180px">
-          </div>
-          <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fARFilter,'showFilter',!fARFilter.showFilter)">筛选</button>
+          <input type="text" v-model="fCust" placeholder="客户（模糊）" style="width:180px">
           <button class="btn btn-sm" @click="exportAR">导出</button>
         </div>
         <table class="grid">

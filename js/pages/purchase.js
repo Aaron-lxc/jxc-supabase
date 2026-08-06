@@ -111,21 +111,20 @@ Pages['page-purchase'] = {
         <button class="btn btn-primary" @click="openNew">+ 新增采购单</button>
       </div>
       <div class="table-wrap">
-      <template v-if="!$root.isMobile">
-      <table class="grid wide-table">
+      <table class="grid">
         <thead><tr>
           <th>序号</th><th>订单号</th><th>商品类型</th><th>商品名称</th><th>供应商</th><th>单位</th>
           <th class="num">采购数量</th><th class="num">采购价</th><th class="num">金额</th><th>入库仓库</th><th>支付方式</th><th>入库时间</th><th>操作</th>
         </tr></thead>
         <tbody>
           <tr v-for="(p,i) in paged" :key="p.id">
-            <td>{{(page-1)*pageSize+i+1}}</td><td>{{p.no}}</td>
-            <td>{{S.name('goodsTypes',p.typeId)}}</td><td>{{S.name('goods',p.goodsId)}}</td>
-            <td>{{S.name('suppliers',p.supplierId)}}</td><td>{{S.name('units',p.unitId)}}</td>
-            <td class="num">{{p.qty}}</td><td class="num money">{{fmtMoney(p.price)}}</td>
-            <td class="num money">{{fmtMoney(p.amount)}}</td>
-            <td>{{S.name('warehouses',p.whId)}}</td><td>{{p.payMethod||'—'}}</td><td>{{p.inTime}}</td>
-            <td class="ops">
+            <td data-label="序号">{{(page-1)*pageSize+i+1}}</td><td data-label="订单号">{{p.no}}</td>
+            <td data-label="商品类型">{{S.name('goodsTypes',p.typeId)}}</td><td data-label="商品名称">{{S.name('goods',p.goodsId)}}</td>
+            <td data-label="供应商">{{S.name('suppliers',p.supplierId)}}</td><td data-label="单位">{{S.name('units',p.unitId)}}</td>
+            <td class="num" data-label="采购数量">{{p.qty}}</td><td class="num money" data-label="采购价">{{fmtMoney(p.price)}}</td>
+            <td class="num money" data-label="金额">{{fmtMoney(p.amount)}}</td>
+            <td data-label="入库仓库">{{S.name('warehouses',p.whId)}}</td><td data-label="支付方式">{{p.payMethod||'—'}}</td><td data-label="入库时间">{{p.inTime}}</td>
+            <td class="ops" data-label="操作">
               <span class="link" @click="openEdit(p)">修改</span>
               <span class="link danger" @click="del(p)">删除</span>
             </td>
@@ -133,21 +132,11 @@ Pages['page-purchase'] = {
           <tr v-if="!paged.length"><td colspan="13" class="empty">暂无数据</td></tr>
         </tbody>
       </table>
-      </template>
-      <div v-else class="row-cards">
-        <div v-for="p in paged" :key="p.id" class="row-card" @click="$root.openRow(p, rowFields(p), '采购单详情')">
-          <div class="rc-title">{{p.no}}</div>
-          <div class="rc-sub">{{S.name('suppliers', p.supplierId)}}</div>
-          <div class="rc-row"><span>金额</span><b class="money">{{fmtMoney(p.amount)}}</b></div>
-          <div class="rc-row"><span>入库时间</span><span>{{p.inTime}}</span></div>
-        </div>
-        <div v-if="!paged.length" class="empty">暂无数据</div>
-      </div>
       </div>
       <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
     </div>
 
-    <x-modal v-if="showForm" :title="editing?'修改采购单':'新增采购单（保存后自动入库）'" :width="640" :fullscreen="$root.isMobile" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'修改采购单':'新增采购单（保存后自动入库）'" :width="640" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>商品类型<b class="req">*</b></label>
           <x-combobox v-model="form.typeId" :options="formTypeOpts" style="width:100%"/></div>

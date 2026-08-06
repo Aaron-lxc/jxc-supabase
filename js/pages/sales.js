@@ -264,25 +264,24 @@ const SaleList = {
       <button class="btn btn-primary" @click="openNew">+ 新增销售单</button>
     </div>
     <div class="table-wrap">
-    <template v-if="!$root.isMobile">
-    <table class="grid wide-table">
+    <table class="grid">
       <thead><tr>
         <th>序号</th><th>销售单号</th><th>客户名称</th><th>仓库名称</th><th>商品</th>
         <th class="num">数量</th><th class="num">金额</th><th class="num">税点费用</th><th class="num">累计欠款</th><th class="num">配送费</th><th>客户备注</th><th>状态</th><th>创建时间</th><th>操作</th>
       </tr></thead>
       <tbody>
         <tr v-for="(s,i) in paged" :key="s.id">
-          <td>{{(page-1)*pageSize+i+1}}</td><td>{{s.no}}</td>
-          <td>{{S.name('customers',s.customerId)}}</td><td>{{S.name('warehouses',s.whId)}}</td>
-          <td><span class="link" @click="detail=s">{{itemsSummary(s)}}</span></td>
-          <td class="num">{{qtySum(s)}}</td><td class="num money">{{fmtMoney(s.total)}}</td>
-          <td class="num money" :class="{red:S.saleTaxCost(s)>0}">{{fmtMoney(S.saleTaxCost(s))}}
+          <td data-label="序号">{{(page-1)*pageSize+i+1}}</td><td data-label="销售单号">{{s.no}}</td>
+          <td data-label="客户名称">{{S.name('customers',s.customerId)}}</td><td data-label="仓库名称">{{S.name('warehouses',s.whId)}}</td>
+          <td data-label="商品"><span class="link" @click="detail=s">{{itemsSummary(s)}}</span></td>
+          <td class="num" data-label="数量">{{qtySum(s)}}</td><td class="num money" data-label="金额">{{fmtMoney(s.total)}}</td>
+          <td class="num money" :class="{red:S.saleTaxCost(s)>0}" data-label="税点费用">{{fmtMoney(S.saleTaxCost(s))}}
             <span v-if="s.taxManual===true && s.status!=='已完成'" class="tag tag-orange" title="本单税点为手工特调，不随客户档案税点变更">特调</span></td>
-          <td class="num money" :class="{red:custArrears(s)>0}">{{fmtMoney(custArrears(s))}}</td>
-          <td class="num money">{{fmtMoney(S.saleDeliveryCost(s))}}</td>
-          <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">{{s.custRemark||'-'}}</td>
-          <td><x-status :v="s.status"/></td><td>{{s.createTime}}</td>
-          <td class="ops">
+          <td class="num money" :class="{red:custArrears(s)>0}" data-label="累计欠款">{{fmtMoney(custArrears(s))}}</td>
+          <td class="num money" data-label="配送费">{{fmtMoney(S.saleDeliveryCost(s))}}</td>
+          <td data-label="客户备注">{{s.custRemark||'-'}}</td>
+          <td data-label="状态"><x-status :v="s.status"/></td><td data-label="创建时间">{{s.createTime}}</td>
+          <td class="ops" data-label="操作">
             <span class="link" @click="openPreview(s)">预览</span>
             <span class="link" @click="print(s)">打印</span>
             <template v-if="s.status==='未完成'">
@@ -296,22 +295,11 @@ const SaleList = {
         <tr v-if="!paged.length"><td colspan="14" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
-    </template>
-    <div v-else class="row-cards">
-      <div v-for="s in paged" :key="s.id" class="row-card" @click="$root.openRow(s, rowFields(s), '销售单详情')">
-        <div class="rc-title">{{s.no}}</div>
-        <div class="rc-sub">{{S.name('customers', s.customerId)}}</div>
-        <div class="rc-row"><span>金额</span><b class="money">{{fmtMoney(s.total)}}</b></div>
-        <div class="rc-row"><span>状态</span><span>{{s.status}}</span></div>
-        <div class="rc-row"><span>创建时间</span><span>{{s.createTime}}</span></div>
-      </div>
-      <div v-if="!paged.length" class="empty">暂无数据</div>
-    </div>
     </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
     <!-- 新增/修改销售单 -->
-    <x-modal v-if="showForm" :title="editing?'修改销售单':'新增销售单'" :width="860" :fullscreen="$root.isMobile" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'修改销售单':'新增销售单'" :width="860" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>客户名称<b class="req">*</b></label>
           <x-combobox v-model="form.customerId" :options="custOpts" placeholder="请选择（可输入检索）" @update:modelValue="onCustChange"/></div>
@@ -514,32 +502,21 @@ const ReturnList = {
       <button class="btn btn-primary" @click="openNew">+ 新增退货</button>
     </div>
     <div class="table-wrap">
-    <template v-if="!$root.isMobile">
-    <table class="grid wide-table">
+    <table class="grid">
       <thead><tr><th>序号</th><th>退货单号</th><th>销售单号</th><th>客户名称</th><th>仓库</th><th>退货明细</th><th class="num">退货金额</th><th>退货时间</th></tr></thead>
       <tbody>
         <tr v-for="(r,i) in paged" :key="r.id">
-          <td>{{(page-1)*pageSize+i+1}}</td><td>{{r.no}}</td><td>{{r.saleNo}}</td>
-          <td>{{S.name('customers',r.customerId)}}</td><td>{{S.name('warehouses',r.whId)}}</td>
-          <td>{{itemsDesc(r)}}</td><td class="num money red">{{fmtMoney(r.total)}}</td><td>{{r.createTime}}</td>
+          <td data-label="序号">{{(page-1)*pageSize+i+1}}</td><td data-label="退货单号">{{r.no}}</td><td data-label="销售单号">{{r.saleNo}}</td>
+          <td data-label="客户名称">{{S.name('customers',r.customerId)}}</td><td data-label="仓库">{{S.name('warehouses',r.whId)}}</td>
+          <td data-label="退货明细">{{itemsDesc(r)}}</td><td class="num money red" data-label="退货金额">{{fmtMoney(r.total)}}</td><td data-label="退货时间">{{r.createTime}}</td>
         </tr>
           <tr v-if="!paged.length"><td colspan="8" class="empty">暂无退货记录</td></tr>
         </tbody>
       </table>
-      </template>
-      <div v-else class="row-cards">
-        <div v-for="r in paged" :key="r.id" class="row-card" @click="$root.openRow(r, rowFields(r), '退货单详情')">
-          <div class="rc-title">{{r.no}}</div>
-          <div class="rc-sub">{{S.name('customers', r.customerId)}}</div>
-          <div class="rc-row"><span>退货金额</span><b class="money red">{{fmtMoney(r.total)}}</b></div>
-          <div class="rc-row"><span>退货时间</span><span>{{r.createTime}}</span></div>
-        </div>
-        <div v-if="!paged.length" class="empty">暂无数据</div>
-      </div>
       </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-    <x-modal v-if="showForm" title="新增退货（依据已完成的销售单）" :width="720" :fullscreen="$root.isMobile" @close="showForm=false">
+    <x-modal v-if="showForm" title="新增退货（依据已完成的销售单）" :width="720" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-item">
         <label>选择销售单<b class="req">*</b></label>
         <x-combobox v-model="saleId" :options="saleOpts" placeholder="请选择已完成的销售单（可输入单号/客户检索）"/>
@@ -669,8 +646,7 @@ const SettleList = {
       <button class="btn" @click="exportData">导出</button>
     </div>
     <div class="table-wrap">
-    <template v-if="!$root.isMobile">
-    <table class="grid wide-table">
+    <table class="grid">
       <thead><tr>
         <th>序号</th><th>销售单号</th><th>客户名称</th><th>账期</th>
         <th class="num">销售金额</th><th class="num">退货金额</th><th class="num">税点费用</th><th class="num">应收净额(含税)</th>
@@ -679,19 +655,19 @@ const SettleList = {
       </tr></thead>
       <tbody>
         <tr v-for="(r,i) in paged" :key="r.no">
-          <td>{{(page-1)*pageSize+i+1}}</td><td>{{r.no}}</td><td>{{r.cust}}</td><td>{{r.cycle}}</td>
-          <td class="num money">{{fmtMoney(r.total)}}</td>
-          <td class="num money" :class="{red:r.returned>0}">{{fmtMoney(r.returned)}}</td>
-          <td class="num money" :class="{red:S.saleTaxCost(r.s)>0}">{{fmtMoney(S.saleTaxCost(r.s))}}</td>
-          <td class="num money"><b>{{fmtMoney(S.salePayable(r.s))}}</b></td>
-          <td>{{r.s.payMethod||'-'}}</td>
-          <td class="num money">{{r.s.actualPaid?fmtMoney(r.s.actualPaid):'-'}}</td>
-          <td class="num money" :class="{red:r.s.fee>0}">{{r.s.fee?fmtMoney(r.s.fee):'-'}}</td>
-          <td class="num money">{{r.delivery?fmtMoney(r.delivery):'-'}}</td>
-          <td>{{r.due}}</td>
-          <td><span v-if="r.overdue>0" class="tag tag-red">超期{{r.overdue}}天</span><span v-else class="muted">-</span></td>
-          <td><x-status :v="r.payStatus"/></td><td>{{r.payTime||'-'}}</td>
-          <td class="ops">
+          <td data-label="序号">{{(page-1)*pageSize+i+1}}</td><td data-label="销售单号">{{r.no}}</td><td data-label="客户名称">{{r.cust}}</td><td data-label="账期">{{r.cycle}}</td>
+          <td class="num money" data-label="销售金额">{{fmtMoney(r.total)}}</td>
+          <td class="num money" :class="{red:r.returned>0}" data-label="退货金额">{{fmtMoney(r.returned)}}</td>
+          <td class="num money" :class="{red:S.saleTaxCost(r.s)>0}" data-label="税点费用">{{fmtMoney(S.saleTaxCost(r.s))}}</td>
+          <td class="num money" data-label="应收净额(含税)"><b>{{fmtMoney(S.salePayable(r.s))}}</b></td>
+          <td data-label="支付方式">{{r.s.payMethod||'-'}}</td>
+          <td class="num money" data-label="实际收款">{{r.s.actualPaid?fmtMoney(r.s.actualPaid):'-'}}</td>
+          <td class="num money" :class="{red:r.s.fee>0}" data-label="手续费">{{r.s.fee?fmtMoney(r.s.fee):'-'}}</td>
+          <td class="num money" data-label="配送费">{{r.delivery?fmtMoney(r.delivery):'-'}}</td>
+          <td data-label="应付日期">{{r.due}}</td>
+          <td data-label="超期"><span v-if="r.overdue>0" class="tag tag-red">超期{{r.overdue}}天</span><span v-else class="muted">-</span></td>
+          <td data-label="支付状态"><x-status :v="r.payStatus"/></td><td data-label="支付时间">{{r.payTime||'-'}}</td>
+          <td class="ops" data-label="操作">
             <span v-if="r.payStatus!=='已支付'" class="link green" @click="markPaid(r)">标记已支付</span>
             <template v-else>
               <span class="link" @click="editSettle(r)">修改结算</span>
@@ -702,20 +678,10 @@ const SettleList = {
           <tr v-if="!paged.length"><td colspan="17" class="empty">暂无已完成的销售单</td></tr>
         </tbody>
       </table>
-      </template>
-      <div v-else class="row-cards">
-        <div v-for="r in paged" :key="r.no" class="row-card" @click="$root.openRow(r, rowFields(r), '结算详情')">
-          <div class="rc-title">{{r.no}}</div>
-          <div class="rc-sub">{{r.cust}}</div>
-          <div class="rc-row"><span>应收净额</span><b class="money">{{fmtMoney(S.salePayable(r.s))}}</b></div>
-          <div class="rc-row"><span>支付状态</span><span>{{r.payStatus}}</span></div>
-        </div>
-        <div v-if="!paged.length" class="empty">暂无数据</div>
-      </div>
       </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-    <x-modal v-if="showSettle" title="销售收款结算" :width="520" :fullscreen="$root.isMobile" @close="showSettle=false">
+    <x-modal v-if="showSettle" title="销售收款结算" :width="520" :fullscreen="$root.isMobile" position="bottom" @close="showSettle=false">
       <div class="form-grid">
         <div class="form-item"><label>销售单号</label><input type="text" :value="cur && cur.s ? cur.s.no : ''" disabled></div>
         <div class="form-item"><label>客户名称</label><input type="text" :value="cur?S.name('customers',cur.s.customerId):''" disabled></div>

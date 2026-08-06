@@ -153,7 +153,7 @@ AppComponents['dict-page'] = {
     </table>
     </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
-    <x-modal v-if="showForm" :title="(editing?'修改':'新增')+label" :width="560" @close="showForm=false">
+    <x-modal v-if="showForm" :title="(editing?'修改':'新增')+label" :width="560" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-item">
         <label>{{label}}<b class="req">*</b></label>
         <input type="text" v-model="formName" @keyup.enter="save">

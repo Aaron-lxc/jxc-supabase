@@ -162,7 +162,7 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
   .topbar { gap: 8px; padding-top: calc(8px + env(safe-area-inset-top)); }
   .tb-left, .tb-right { flex-wrap: wrap; align-items: center; gap: 6px; }
   .tb-right .muted { width: 100%; order: 3; }
-  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat-grid { grid-template-columns: repeat(1, 1fr); gap: 8px; }
   .filter-grid { grid-template-columns: repeat(2, 1fr); }
   .form-grid, .form-grid.cols3 { grid-template-columns: 1fr; }
   .card { padding: 12px; }

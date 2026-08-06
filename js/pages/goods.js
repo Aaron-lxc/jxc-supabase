@@ -256,8 +256,7 @@ const SupplierList = {
       <button class="btn btn-primary" @click="openNew">+ 新增供应商</button>
     </div>
     <div class="table-wrap">
-      <template v-if="!$root.isMobile">
-      <table class="grid wide-table">
+    <table class="grid">
       <thead><tr>
         <th>序号</th><th>供应商名称</th><th>地址</th><th>业务联系人 / 电话或微信</th><th>财务联系人 / 电话或微信</th>
         <th>支付周期</th><th>支付方式</th><th class="num">开票税点</th><th class="num">在售商品</th><th class="num">累计采购</th>
@@ -265,19 +264,19 @@ const SupplierList = {
       </tr></thead>
       <tbody>
         <tr v-for="(s,i) in paged" :key="s.id">
-          <td>{{(page-1)*pageSize+i+1}}</td>
-          <td><span class="link" @click="detail=s">{{s.name}}</span></td>
-          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis">{{s.address||'-'}}</td>
-          <td>{{s.contactBiz||'-'}}<span v-if="s.contactBizWechat" class="muted"> / 微信 {{s.contactBizWechat}}</span></td>
-          <td>{{s.contactFin||'-'}}<span v-if="s.contactFinWechat" class="muted"> / 微信 {{s.contactFinWechat}}</span></td>
-          <td><span class="tag" :class="s.payCycle==='现结'?'tag-green':'tag-orange'">{{s.payCycle||'-'}}</span></td>
-          <td>{{s.payMethod||'-'}}</td>
-          <td class="num">{{s.taxPoint||0}}%</td>
-          <td class="num">{{goodsCount(s)}}</td>
-          <td class="num money">{{fmtMoney(purchaseAmt(s))}}</td>
-          <td>{{s.createTime}}</td>
-          <td><x-status :v="s.status"/></td>
-          <td class="ops">
+          <td data-label="序号">{{(page-1)*pageSize+i+1}}</td>
+          <td data-label="供应商名称"><span class="link" @click="detail=s">{{s.name}}</span></td>
+          <td data-label="地址">{{s.address||'-'}}</td>
+          <td data-label="业务联系人 / 电话或微信">{{s.contactBiz||'-'}}<span v-if="s.contactBizWechat" class="muted"> / 微信 {{s.contactBizWechat}}</span></td>
+          <td data-label="财务联系人 / 电话或微信">{{s.contactFin||'-'}}<span v-if="s.contactFinWechat" class="muted"> / 微信 {{s.contactFinWechat}}</span></td>
+          <td data-label="支付周期"><span class="tag" :class="s.payCycle==='现结'?'tag-green':'tag-orange'">{{s.payCycle||'-'}}</span></td>
+          <td data-label="支付方式">{{s.payMethod||'-'}}</td>
+          <td class="num" data-label="开票税点">{{s.taxPoint||0}}%</td>
+          <td class="num" data-label="在售商品">{{goodsCount(s)}}</td>
+          <td class="num money" data-label="累计采购">{{fmtMoney(purchaseAmt(s))}}</td>
+          <td data-label="创建时间">{{s.createTime}}</td>
+          <td data-label="状态"><x-status :v="s.status"/></td>
+          <td class="ops" data-label="操作">
             <span class="link" @click="openEdit(s)">编辑</span>
             <span class="link danger" @click="del(s)">删除</span>
             <span class="link" :class="s.status==='已启用'?'warn':'green'" @click="toggle(s)">{{s.status==='已启用'?'停用':'启用'}}</span>
@@ -286,21 +285,10 @@ const SupplierList = {
         <tr v-if="!paged.length"><td colspan="13" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
-    </template>
-    <div v-else class="row-cards">
-      <div v-for="s in paged" :key="s.id" class="row-card" @click="$root.openRow(s, rowFields(s), '供应商详情')">
-        <div class="rc-title">{{s.name}}</div>
-        <div class="rc-sub">{{s.address || '-'}}</div>
-        <div class="rc-row"><span>支付周期</span><span>{{s.payCycle||'-'}}</span></div>
-        <div class="rc-row"><span>累计采购</span><b class="money">{{fmtMoney(purchaseAmt(s))}}</b></div>
-        <div class="rc-row"><span>状态</span><span>{{s.status}}</span></div>
-      </div>
-      <div v-if="!paged.length" class="empty">暂无数据</div>
-    </div>
     </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-    <x-modal v-if="showForm" :title="editing?'编辑供应商':'新增供应商'" :width="700" :fullscreen="$root.isMobile" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'编辑供应商':'新增供应商'" :width="700" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>供应商名称<b class="req">*</b></label><input type="text" v-model="form.name"></div>
         <div class="form-item"><label>开票税点（%）</label><input type="number" min="0" step="0.01" v-model.number="form.taxPoint"></div>

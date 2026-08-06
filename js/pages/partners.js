@@ -138,8 +138,7 @@ function partnerListFactory(isRegion) {
         <button class="btn btn-primary" @click="openNew">+ 新增${label}</button>
       </div>
       <div class="table-wrap">
-      <template v-if="!$root.isMobile">
-      <table class="grid wide-table">
+      <table class="grid">
         <thead><tr>
           <th>序号</th><th>姓名</th><th>电话</th>
           ${isRegion ? '<th>负责区域</th><th class="num">佣金比例</th><th class="num">名下客户数</th>' : '<th>担任一级</th><th>担任二级</th><th>担任三级</th>'}
@@ -148,40 +147,33 @@ function partnerListFactory(isRegion) {
         </tr></thead>
         <tbody>
           <tr v-for="(p,i) in paged" :key="p.id">
-            <td>{{(page-1)*pageSize+i+1}}</td><td>{{p.name}}</td><td>{{p.phone||'-'}}</td>
+            <td data-label="序号">{{(page-1)*pageSize+i+1}}</td>
+            <td data-label="姓名">{{p.name}}</td>
+            <td data-label="电话">{{p.phone||'-'}}</td>
             ${isRegion
-              ? `<td>{{S.name('regions',p.regionId)||'-'}}</td><td class="num">{{rateOf(p)}}%</td><td class="num">{{custCount(p)}}</td>`
-              : `<td class="num">{{custCount(p)[0]}} 家</td><td class="num">{{custCount(p)[1]}} 家</td><td class="num">{{custCount(p)[2]}} 家</td>`}
-            <td class="num money">{{fmtMoney(acc(p).earned)}}</td>
-            <td class="num money green-t">{{fmtMoney(acc(p).paid)}}</td>
-            <td class="num money" :class="{orange:acc(p).pledge>0}">{{fmtMoney(acc(p).pledge)}}</td>
-            <td class="num money"><b>{{fmtMoney(acc(p).payable)}}</b></td>
-            <td>{{p.remark||'-'}}</td><td>{{p.createTime}}</td>
-            <td><x-status :v="p.status"/></td>
-            <td class="ops">
+              ? `<td data-label="负责区域">{{S.name('regions',p.regionId)||'-'}}</td><td class="num" data-label="佣金比例">{{rateOf(p)}}%</td><td class="num" data-label="名下客户数">{{custCount(p)}}</td>`
+              : `<td class="num" data-label="担任一级">{{custCount(p)[0]}} 家</td><td class="num" data-label="担任二级">{{custCount(p)[1]}} 家</td><td class="num" data-label="担任三级">{{custCount(p)[2]}} 家</td>`}
+            <td class="num money" data-label="累计佣金">{{fmtMoney(acc(p).earned)}}</td>
+            <td class="num money green-t" data-label="已支付">{{fmtMoney(acc(p).paid)}}</td>
+            <td class="num money" :class="{orange:acc(p).pledge>0}" data-label="质押中">{{fmtMoney(acc(p).pledge)}}</td>
+            <td class="num money" data-label="可支付"><b>{{fmtMoney(acc(p).payable)}}</b></td>
+            <td data-label="备注">{{p.remark||'-'}}</td>
+            <td data-label="创建时间">{{p.createTime}}</td>
+            <td data-label="状态"><x-status :v="p.status"/></td>
+            <td class="ops" data-label="操作">
               <span class="link" @click="detail=p">详情</span>
               <span class="link" @click="openEdit(p)">修改</span>
               <span class="link danger" @click="del(p)">删除</span>
               <span class="link" :class="p.status==='已启用'?'warn':'green'" @click="toggle(p)">{{p.status==='已启用'?'停用':'启用'}}</span>
             </td>
           </tr>
-          <tr v-if="!paged.length"><td colspan="15" class="empty">暂无数据</td></tr>
+          <tr v-if="!paged.length"><td colspan="14" class="empty">暂无数据</td></tr>
         </tbody>
       </table>
-      </template>
-      <div v-else class="row-cards">
-        <div v-for="p in paged" :key="p.id" class="row-card" @click="$root.openRow(p, rowFields(p), isRegion() ? '区域合伙人详情' : '资源合伙人详情')">
-          <div class="rc-title">{{p.name}}</div>
-          <div class="rc-sub">{{isRegion() ? '区域合伙人' : '资源合伙人'}} · {{p.phone||'-'}}</div>
-          <div class="rc-row"><span>可支付</span><b class="money">{{fmtMoney(acc(p).payable)}}</b></div>
-          <div class="rc-row"><span>状态</span><span>{{p.status}}</span></div>
-        </div>
-        <div v-if="!paged.length" class="empty">暂无数据</div>
-      </div>
       </div>
       <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-      <x-modal v-if="showForm" :title="(editing?'修改':'新增')+'${label}'" :width="560" :fullscreen="$root.isMobile" @close="showForm=false">
+      <x-modal v-if="showForm" :title="(editing?'修改':'新增')+'${label}'" :width="560" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
         <div class="form-grid">
           <div class="form-item"><label>姓名<b class="req">*</b></label><input type="text" v-model="form.name"></div>
           <div class="form-item"><label>电话</label><input type="text" v-model="form.phone"></div>
