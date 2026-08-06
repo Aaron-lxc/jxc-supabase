@@ -104,7 +104,11 @@
       /* 供模板使用的全局引用（globalProperties 已注入，这里再显式暴露一层更直观） */
       wsList() { return Cloud.state.workspaces; },
       menu() { return P.menus(); },
-      tabItems() { return this.menu.slice(0, Math.min(5, this.menu.length)); },
+      tabItems() {
+        const order = ['sales', 'goods', 'customers', 'partners', 'purchase'];
+        const map = this.menu.reduce((acc, m) => { acc[m.key] = m; return acc; }, {});
+        return order.map(k => map[k]).filter(Boolean);
+      },
       company() { return (S.db && S.db.settings) ? S.db.settings.company : ''; },
       sync() { return Sync.state; },
       myRole() { return P.roleLabel(P.role()); },
