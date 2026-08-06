@@ -75,6 +75,27 @@ window.Cloud = {
     return '__NEED_CONFIRM__';
   },
 
+  /* 受邀注册通道：调用 Edge Function（service_role 创建用户 + 接受邀请）。
+     仅被邀请邮箱可成功；无有效邀请返回 403 中文提示。返回 null=成功，字符串=错误。 */
+  async inviteSignup(email, password, name) {
+    try {
+      const cfg = CFG.read() || {};
+      const base = cfg.url || '';
+      if (!base) return '未配置 Supabase 连接';
+      const res = await fetch(base + '/functions/v1/invite-signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': cfg.anonKey || ''
+        },
+        body: JSON.stringify({ email: String(email).trim(), password, name: name || '' })
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) return (j && j.error) || ('注册失败（HTTP ' + res.status + '）');
+      return null;
+    } catch (e) { return String((e && e.message) || e); }
+  },
+
   async signOut() {
     try { await this.sb.auth.signOut(); } catch (e) { /* ignore */ }
     this.state.user = null;

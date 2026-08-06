@@ -234,14 +234,12 @@
         try {
           if (!this.aEmail || !this.aPwd) return alert('请填写邮箱和密码');
           this.err = ''; this.busy = true;
-          const e = await Cloud.signUp(this.aEmail, this.aPwd, this.aName);
-          if (e === '__NEED_CONFIRM__') {
-            this.busy = false;
-            this.err = '注册成功！请查收验证邮件后登录（或在 Supabase 后台关闭邮箱验证以直接登录）。';
-            this.authTab = 'login';
-            return;
-          }
+          /* 仅受邀注册：先经 Edge Function（service_role）创建用户并加入账套，
+             再用同一凭据 signIn 拿 session。无有效邀请会被 Edge Function 拒绝。 */
+          const e = await Cloud.inviteSignup(this.aEmail, this.aPwd, this.aName);
           if (e) { this.busy = false; this.err = e; return; }
+          const e2 = await Cloud.signIn(this.aEmail, this.aPwd);
+          if (e2) { this.busy = false; this.err = e2; return; }
           await this.enterApp();
           this.busy = false;
         } catch (e) { this.fail(e, '注册后加载失败'); }
@@ -431,6 +429,7 @@
           </template>
 
           <template v-else>
+            <div class="form-hint" style="margin-bottom:6px">本项目仅接受受邀注册：请使用管理员在「账户管理」中邀请的邮箱注册，其它邮箱无法注册。</div>
             <div class="form-item"><label>昵称</label>
               <input type="text" v-model="aName" placeholder="显示名称（可选）"></div>
             <div class="form-item"><label>邮箱</label>

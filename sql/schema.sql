@@ -393,6 +393,26 @@ begin
 end;
 $$;
 
+-- 接受邀请：把 invites 记录转为 workspace_members（供 Edge Function 用 service_role 调用）
+-- security definer 绕过 RLS 与 manager 限制，仅校验邀请本身有效
+create or replace function public.accept_invite(invite_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  iv record;
+  uid uuid;
+begin
+  select * into iv from public.invites where id = invite_id and status = '待接受';
+  if not found then raise exception '邀请不存在或已失效'; end if;
+  select id into uid from public.profiles where lower(email) = iv.email limit 1;
+  if uid is null then raise exception '账号尚未创建'; end if;
+  insert into public.workspace_members (workspace_id, user_id, role, permissions, status)
+  values (iv.workspace_id, uid, iv.role, iv.permissions, '已启用')
+  on conflict (workspace_id, user_id)
+    do update set role = excluded.role, permissions = excluded.permissions, status = '已启用';
+  update public.invites set status = '已接受' where id = invite_id;
+end;
+$$;
+
 -- 我的账套列表（含我的角色与权限）
 create or replace function public.my_workspaces()
 returns table (
