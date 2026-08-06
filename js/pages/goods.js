@@ -93,8 +93,7 @@ const GoodsList = {
       <button class="btn btn-primary" @click="openNew">+ 新增商品</button>
     </div>
     <div class="table-wrap">
-    <template v-if="!$root.isMobile">
-    <table class="grid wide-table">
+    <table class="grid">
       <thead><tr>
         <th>商品编号</th><th>商品名称</th><th>商品类型</th><th>SKU</th><th>单位</th><th>供应商</th>
         <th class="num">采购价</th><th class="num">零售价</th><th class="num">大客价</th><th class="num">批发价</th>
@@ -102,13 +101,20 @@ const GoodsList = {
       </tr></thead>
       <tbody>
         <tr v-for="g in paged" :key="g.id">
-          <td>{{g.code}}</td><td>{{g.name}}</td><td>{{S.name('goodsTypes',g.typeId)}}</td><td>{{g.sku}}</td>
-          <td>{{S.name('units',g.unitId)}}</td><td>{{S.name('suppliers',g.supplierId)}}</td>
-          <td class="num money">{{fmtMoney(g.purchasePrice)}}</td><td class="num money">{{fmtMoney(g.retailPrice)}}</td>
-          <td class="num money">{{fmtMoney(g.bigPrice)}}</td><td class="num money">{{fmtMoney(g.wholePrice)}}</td>
-          <td class="num">{{g.minStock}}</td><td>{{g.createTime}}</td>
-          <td><x-status :v="g.status"/></td>
-          <td class="ops">
+          <td data-label="商品编号">{{g.code}}</td>
+          <td data-label="商品名称">{{g.name}}</td>
+          <td data-label="商品类型">{{S.name('goodsTypes',g.typeId)}}</td>
+          <td data-label="SKU">{{g.sku}}</td>
+          <td data-label="单位">{{S.name('units',g.unitId)}}</td>
+          <td data-label="供应商">{{S.name('suppliers',g.supplierId)}}</td>
+          <td class="num money" data-label="采购价">{{fmtMoney(g.purchasePrice)}}</td>
+          <td class="num money" data-label="零售价">{{fmtMoney(g.retailPrice)}}</td>
+          <td class="num money" data-label="大客价">{{fmtMoney(g.bigPrice)}}</td>
+          <td class="num money" data-label="批发价">{{fmtMoney(g.wholePrice)}}</td>
+          <td class="num" data-label="最低库存">{{g.minStock}}</td>
+          <td data-label="创建时间">{{g.createTime}}</td>
+          <td data-label="状态"><x-status :v="g.status"/></td>
+          <td class="ops" data-label="操作">
             <span class="link" @click="openEdit(g)">编辑</span>
             <span class="link danger" @click="del(g)">删除</span>
             <span class="link" :class="g.status==='已启用'?'warn':'green'" @click="toggle(g)">{{g.status==='已启用'?'停用':'启用'}}</span>
@@ -117,20 +123,10 @@ const GoodsList = {
         <tr v-if="!paged.length"><td colspan="14" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
-    </template>
-    <div v-else class="row-cards">
-      <div v-for="g in paged" :key="g.id" class="row-card" @click="$root.openRow(g, rowFields(g), '商品详情')">
-        <div class="rc-title">{{g.name}}</div>
-        <div class="rc-sub">{{g.code}}</div>
-        <div class="rc-row"><span>状态</span><span>{{g.status}}</span></div>
-        <div class="rc-row"><span>零售价</span><b class="money">{{fmtMoney(g.retailPrice)}}</b></div>
-      </div>
-      <div v-if="!paged.length" class="empty">暂无数据</div>
-    </div>
     </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-    <x-modal v-if="showForm" :title="editing?'编辑商品':'新增商品'" :width="640" :fullscreen="$root.isMobile" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'编辑商品':'新增商品'" :width="640" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>商品名称<b class="req">*</b></label><input type="text" v-model="form.name"></div>
         <div class="form-item"><label>商品类型<b class="req">*</b></label>
