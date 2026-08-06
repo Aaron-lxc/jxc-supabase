@@ -7,7 +7,7 @@ Pages['page-inventory'] = {
       tab: 'stock',
       // 库存明细
       q: { whId: '', typeId: '', name: '', supplierId: '', lastInT1: '', lastInT2: '' },
-      page: 1, pageSize: 10, showCheck: false, checkRows: [],
+      page: 1, pageSize: 10, showCheck: false, checkRows: [], checkQ: { whId: '', goodsId: '' },
       // 报损管理
       lossQ: { orderNo: '', typeId: '', name: '', supplierId: '', whId: '', t1: '', t2: '' },
       lossPage: 1, lossSize: 10, showLossForm: false, editingLoss: null, lossForm: {},
@@ -29,6 +29,13 @@ Pages['page-inventory'] = {
     supplierOpts() { return [{ value: '', label: '全部供应商' }].concat(S.db.suppliers.map(s => ({ value: s.id, label: s.name }))); },
     orderOpts() { return [{ value: '', label: '全部订单号' }].concat(S.db.purchases.map(p => ({ value: p.no, label: p.no }))); },
     payMethodOpts() { return [{ value: '', label: '请选择' }].concat((window.PAY_METHODS || []).map(m => ({ value: m, label: m }))); },
+    checkGoodsOpts() { return [{ value: '', label: '全部商品' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.name + '（' + g.sku + '）' }))); },
+    checkFiltered() {
+      return this.checkRows.filter(cr =>
+        (!this.checkQ.whId || cr.whId === this.checkQ.whId) &&
+        (!this.checkQ.goodsId || cr.goodsId === this.checkQ.goodsId)
+      );
+    },
 
     /* ---------- 库存明细 ---------- */
     rows() {
@@ -141,8 +148,9 @@ Pages['page-inventory'] = {
     },
     openCheck() {
       if (!this.rows.length) return alert('当前筛选条件下没有库存记录');
+      this.checkQ = { whId: '', goodsId: '' };
       this.checkRows = this.rows.map(r => ({
-        rec: r.rec, whName: r.whName, goodsName: r.goodsName, sku: r.sku,
+        rec: r.rec, whId: r.whId, goodsId: r.goodsId, whName: r.whName, goodsName: r.goodsName, sku: r.sku,
         unitName: r.unitName, qty: r.qty, actual: r.qty
       }));
       this.showCheck = true;
@@ -389,11 +397,17 @@ Pages['page-inventory'] = {
 
     <!-- 批量盘库弹窗 -->
     <x-modal v-if="showCheck" title="批量盘库（修改实际库存后提交，差异自动留痕）" :width="720" :fullscreen="$root.isMobile" position="bottom" @close="showCheck=false">
+      <div class="toolbar">
+        <x-combobox v-model="checkQ.whId" :options="whOpts" style="width:140px" placeholder="仓库"/>
+        <x-combobox v-model="checkQ.goodsId" :options="checkGoodsOpts" style="width:220px" placeholder="商品"/>
+        <div class="spacer"></div>
+        <span class="muted">共 {{checkFiltered.length}} 项</span>
+      </div>
       <div class="item-rows table-wrap">
       <table class="grid">
         <thead><tr><th>仓库</th><th>商品</th><th>SKU</th><th>单位</th><th class="num">账面库存</th><th class="num" style="width:110px">实际库存</th><th class="num">差异</th></tr></thead>
         <tbody>
-          <tr v-for="cr in checkRows">
+          <tr v-for="cr in checkFiltered" :key="(cr.whId||'')+(cr.goodsId||'')+(cr.sku||'')">
             <td data-label="仓库">{{cr.whName}}</td>
             <td data-label="商品">{{cr.goodsName}}</td>
             <td data-label="SKU">{{cr.sku}}</td>
@@ -402,6 +416,7 @@ Pages['page-inventory'] = {
             <td class="num" data-label="实际库存"><input type="number" min="0" style="width:90px" v-model.number="cr.actual"></td>
             <td class="num" data-label="差异" :class="{red: cr.actual-cr.qty<0, 'green-t': cr.actual-cr.qty>0}">{{(cr.actual||0)-cr.qty}}</td>
           </tr>
+          <tr v-if="!checkFiltered.length"><td colspan="7" class="empty">无匹配记录</td></tr>
         </tbody>
       </table>
       </div>

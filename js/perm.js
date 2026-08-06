@@ -4,22 +4,22 @@ window.P = {
   MODULES: [
     { key: 'dashboard',  label: '仪表盘',    ico: '📊', readonly: true },
     { key: 'goods',      label: '商品管理',  ico: '📦' },
-    { key: 'customers',  label: '客户管理',  ico: '👥' },
     { key: 'partners',   label: '合伙人管理', ico: '🤝' },
+    { key: 'customers',  label: '客户管理',  ico: '👥' },
     { key: 'warehouse',  label: '仓库管理',  ico: '🏬' },
     { key: 'purchase',   label: '采购管理',  ico: '🛒' },
     { key: 'inventory',  label: '库存管理',  ico: '📋' },
     { key: 'loss',       label: '报损管理',  ico: '📉', hidden: true },
     { key: 'overflow',   label: '报溢管理',  ico: '📈', hidden: true },
     { key: 'sales',      label: '销售管理',  ico: '💰' },
-    { key: 'opening',    label: '期初管理',  ico: '🗓️' },
-    { key: 'capital',    label: '注资管理',  ico: '🏦' },
     { key: 'finance',    label: '财务管理',  ico: '💳' },
     { key: 'complaint',  label: '投诉管理',  ico: '📣' },
-    { key: 'report',     label: '运营报表',  ico: '📈', readonly: true },
     { key: 'commission', label: '佣金管理',  ico: '🎯' },
-    { key: 'settings',   label: '系统设置',  ico: '⚙️' },
-    { key: 'reportcenter', label: '佣金报表', ico: '📊', readonly: true }
+    { key: 'reportcenter', label: '佣金报表', ico: '📊', readonly: true },
+    { key: 'report',     label: '运营报表',  ico: '📈', readonly: true },
+    { key: 'capital',    label: '注资管理',  ico: '🏦' },
+    { key: 'opening',    label: '期初管理',  ico: '🗓️' },
+    { key: 'settings',   label: '系统设置',  ico: '⚙️' }
   ],
 
   /* 账户管理：仅 owner / admin 可见，不参与逐项授权 */
@@ -81,9 +81,11 @@ window.P = {
     const list = this.MODULES.filter(m => !m.hidden && this.canView(m.key))
       .map(m => ({ key: m.key, label: m.label, ico: m.ico }));
     if (this.isManager()) {
-      list.push({ ...this.MEMBER_MENU });
-      list.push({ ...this.RECIPIENT_MENU });
-      // 报表中心入口已由 MODULES 内的 reportcenter 提供，此处不再重复 push（避免重复）
+      // 账户管理 / 报表接收人 插入在「运营报表」之后、「注资管理」之前（按指定顺序排列）
+      const extra = [{ ...this.MEMBER_MENU }, { ...this.RECIPIENT_MENU }];
+      const idx = list.findIndex(m => m.key === 'report');
+      if (idx >= 0) list.splice(idx + 1, 0, ...extra);
+      else list.push(...extra);
     }
     return list;
   },
