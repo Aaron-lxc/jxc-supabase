@@ -187,10 +187,21 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
   .table-wrap { margin-bottom: 4px; }
 
   /* 每张表各自内嵌横滑：保留表头，默认显示约 4 列，手指在单表内左右滑动看全部列 */
-  .tbl-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  table.grid.keep-table { width: auto; table-layout: auto; }
+  .tbl-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    min-width: 0;                 /* Grid/Flex 子项允许收缩，横向滚动落在表内而非整页 */
+    touch-action: pan-x;          /* 横向滑动手势优先作用于表内，不带动页面上下滚 */
+    overscroll-behavior-x: contain;
+  }
+  table.grid.keep-table { width: max-content; table-layout: auto; }
   table.grid.keep-table > thead { display: table-header-group; }
-  table.grid.keep-table th, table.grid.keep-table td { min-width: 90px; white-space: nowrap; }
+  table.grid.keep-table th, table.grid.keep-table td {
+    min-width: max(90px, 25vw);   /* 手机端默认约显示 4 列，其余列横向滑出，避免右侧空白 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   /* ===== 底部 Tab 栏（APP 化导航） ===== */
   .tabbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 180;
