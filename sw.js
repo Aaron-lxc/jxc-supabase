@@ -4,7 +4,7 @@
    它们会在首次被请求时由 fetch 处理器自动缓存。 */
 const CACHE = 'jxc-v4';
 const ASSETS = [
-  './', './index.html', './css/style.css', './manifest.json', './icon.svg',
+  './', './index.html', './css/style.css', './manifest.json',
   './icon-192.png', './icon-512.png',
   './vendor/vue.global.prod.js', './vendor/supabase.js',
   './js/utils.js', './js/config.js', './js/cloud.js', './js/perm.js', './js/sync.js',
@@ -13,7 +13,13 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // 逐个容错安装：任一资源 404/失败都不影响其他资源与整体激活，
+  // 避免此前因 icon.svg 被删除导致 addAll 整体 reject、jxc-v4 永远装不上的问题。
+  e.waitUntil(
+    caches.open(CACHE)
+      .then(c => Promise.allSettled(ASSETS.map(u => c.add(u).catch(() => {}))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', e => {
