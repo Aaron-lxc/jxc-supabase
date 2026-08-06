@@ -228,10 +228,12 @@ AppComponents['x-combobox'] = {
         :placeholder="placeholder" :disabled="disabled">
       <span class="cb-arrow" @mousedown.prevent="toggle">▾</span>
     </div>
+    <teleport to="body">
     <div class="cb-panel" v-if="open" :style="{top:pos.top+'px',left:pos.left+'px',minWidth:pos.width+'px'}">
       <div class="cb-opt" v-for="o in filtered" :key="(o.value===null||o.value==='')?'_all':o.value"
         :class="{sel:o.value===modelValue}" @mousedown.prevent="pick(o)">{{o.label}}</div>
       <div class="cb-empty" v-if="!filtered.length">无匹配项</div>
     </div>
+    </teleport>
   </div>`
 };
