@@ -105,9 +105,12 @@
       wsList() { return Cloud.state.workspaces; },
       menu() { return P.menus(); },
       tabItems() {
-        const order = ['sales', 'goods', 'customers', 'partners', 'purchase'];
+        const def = ['sales', 'goods', 'customers', 'partners', 'purchase'];
+        const cfg = (S.db && S.db.settings && Array.isArray(S.db.settings.tabbar) && S.db.settings.tabbar.length)
+          ? S.db.settings.tabbar : def;
         const map = this.menu.reduce((acc, m) => { acc[m.key] = m; return acc; }, {});
-        return order.map(k => map[k]).filter(Boolean);
+        const list = cfg.map(k => map[k]).filter(Boolean);
+        return list.length ? list : def.map(k => map[k]).filter(Boolean);
       },
       company() { return (S.db && S.db.settings) ? S.db.settings.company : ''; },
       sync() { return Sync.state; },

@@ -30,6 +30,7 @@ window.S = {
         company: '我的公司', fixedCosts: [], backupKeep: 20, backupDays: 0,
         saleTemplate: null,
         opened: false, openTime: '',
+        tabbar: null,
         feeRates: { '现金': 0, '微信': 0, '支付宝': 0, '收款码': 0, '对公': 0, '银行卡': 0, '其他': 0 }
       }
     };

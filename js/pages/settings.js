@@ -3,7 +3,7 @@ window.Pages = window.Pages || {};
 
 Pages['page-settings'] = {
   data() {
-    return { busy: '', pwd1: '', pwd2: '', wsName: '' };
+    return { busy: '', pwd1: '', pwd2: '', wsName: '', tabbarDef: ['sales', 'goods', 'customers', 'partners', 'purchase'] };
   },
   computed: {
     S() { return window.S; },
@@ -14,6 +14,18 @@ Pages['page-settings'] = {
     cloud() { return Cloud.state; },
     sync() { return Sync.state; },
     cfg() { return CFG.read() || {}; },
+    /* 底部导航已选（按数组顺序），未配置时回退默认 */
+    tabbarSel() {
+      const t = (this.st.tabbar && this.st.tabbar.length) ? this.st.tabbar.filter(k => this.menuMap[k]) : this.tabbarDef;
+      return t.filter(k => this.menuMap[k]);
+    },
+    /* 可选（未选中的有权限模块） */
+    tabbarAvail() {
+      return P.menus().filter(m => this.tabbarSel.indexOf(m.key) < 0);
+    },
+    menuMap() {
+      return P.menus().reduce((a, m) => (a[m.key] = m, a), {});
+    },
     counts() {
       const d = S.db;
       return [
@@ -118,6 +130,39 @@ Pages['page-settings'] = {
       try { await Sync.push(); await Sync.reload(); alert('已与云端同步'); }
       catch (e) { alert('同步失败：' + (e.message || e)); }
       this.busy = '';
+    },
+
+    /* ---- 移动端底部导航配置 ---- */
+    menuLabel(key) {
+      const m = this.menuMap[key];
+      return m ? m.label : key;
+    },
+    _tabbarBase() {
+      return (this.st.tabbar && this.st.tabbar.length) ? this.st.tabbar.slice() : this.tabbarDef.slice();
+    },
+    addTabbar(key) {
+      if (this.ro) return alert(P.denyTip('settings'));
+      const base = this._tabbarBase();
+      if (base.length >= 5) return alert('底部导航最多选择 5 个模块');
+      if (base.indexOf(key) >= 0) return;
+      base.push(key);
+      this.st.tabbar = base;
+    },
+    removeTabbar(key) {
+      if (this.ro) return alert(P.denyTip('settings'));
+      this.st.tabbar = this._tabbarBase().filter(k => k !== key);
+    },
+    moveTabbar(i, dir) {
+      if (this.ro) return alert(P.denyTip('settings'));
+      const base = this._tabbarBase();
+      const j = i + dir;
+      if (j < 0 || j >= base.length) return;
+      const t = base[i]; base[i] = base[j]; base[j] = t;
+      this.st.tabbar = base;
+    },
+    resetTabbar() {
+      if (this.ro) return alert(P.denyTip('settings'));
+      this.st.tabbar = null;
     }
   },
   template: `
@@ -135,6 +180,28 @@ Pages['page-settings'] = {
           <input type="text" disabled value="「每月固定成本」已并入日常运营，无需单独设置"></div>
       </div>
       <div class="form-hint" style="margin-top:8px">说明：原「每月固定成本」功能已去除，相关固定支出请直接在日常运营中登记并「计算」，即可纳入累计成本统计。</div>
+    </div>
+
+    <div class="card">
+      <h3>移动端底部导航（最多 5 个）</h3>
+      <div class="muted" style="margin-bottom:10px">设置手机端底部导航栏显示的模块及顺序，最多 5 个。保存后所有手机端成员自动生效（云端同步）。</div>
+      <div v-if="tabbarSel.length" style="margin-bottom:10px">
+        <div v-for="(k,i) in tabbarSel" :key="k" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px">
+          <span style="width:22px;text-align:center;color:#64748b">{{i+1}}</span>
+          <span style="flex:1">{{menuLabel(k)}}</span>
+          <button class="btn btn-sm" :disabled="ro||i===0" @click="moveTabbar(i,-1)">↑</button>
+          <button class="btn btn-sm" :disabled="ro||i===tabbarSel.length-1" @click="moveTabbar(i,1)">↓</button>
+          <button class="btn btn-sm btn-danger" :disabled="ro" @click="removeTabbar(k)">移除</button>
+        </div>
+      </div>
+      <div v-else class="muted" style="margin:8px 0">未选择，将使用默认（销售 / 商品 / 客户 / 合伙人 / 采购）</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <button class="btn btn-sm" v-for="m in tabbarAvail" :key="m.key" :disabled="ro||tabbarSel.length>=5" @click="addTabbar(m.key)">+ {{m.label}}</button>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn btn-sm" :disabled="ro" @click="resetTabbar">恢复默认</button>
+      </div>
+      <div class="form-hint" style="margin-top:8px" v-if="!ro">修改后无需手动保存（与系统设置一同自动同步）；手机端需清缓存后生效。</div>
     </div>
 
     <div class="card">
