@@ -90,7 +90,13 @@
         cur: 'dashboard',
         navOpen: false,
         loadingPage: false,     // 页面懒加载时的加载态
-        unread: false
+        unread: false,
+        /* 移动端 */
+        isMobile: false,
+        drawerOpen: false,
+        drawerTitle: '',
+        drawerFields: [],
+        selectedRow: null
       };
     },
 
@@ -98,6 +104,7 @@
       /* 供模板使用的全局引用（globalProperties 已注入，这里再显式暴露一层更直观） */
       wsList() { return Cloud.state.workspaces; },
       menu() { return P.menus(); },
+      tabItems() { return this.menu.slice(0, Math.min(5, this.menu.length)); },
       company() { return (S.db && S.db.settings) ? S.db.settings.company : ''; },
       sync() { return Sync.state; },
       myRole() { return P.roleLabel(P.role()); },
@@ -115,6 +122,7 @@
     created() {
       /* 用函数式 $watch，字符串路径无法访问全局对象 */
       this.$watch(() => Cloud.state.ws, () => this.ensureCur(), { deep: true });
+      this.initMobile();
       this.boot();
     },
 
@@ -289,6 +297,23 @@
         });
       },
       toggleNav() { this.navOpen = !this.navOpen; },
+      initMobile() {
+        try {
+          const mq = window.matchMedia('(max-width: 820px)');
+          this.isMobile = mq.matches;
+          const onMq = (e) => { this.isMobile = e.matches; };
+          if (mq.addEventListener) mq.addEventListener('change', onMq);
+          else if (mq.addListener) mq.addListener(onMq);
+        } catch (e) { /* 不支持则视为桌面 */ }
+      },
+      /* 行详情抽屉：fields 为 [{label,value,full}] 数组 */
+      openRow(row, fields, title) {
+        this.selectedRow = row;
+        this.drawerFields = fields || [];
+        this.drawerTitle = title || '详情';
+        this.drawerOpen = true;
+      },
+      closeDrawer() { this.drawerOpen = false; },
       ensureCur() {
         if (this.step !== 'app') return;
         const ok = this.menu.some(m => m.key === this.cur);
@@ -487,6 +512,12 @@
           <div v-if="loadingPage" class="page-loading"><div class="spinner"></div><span>页面加载中…</span></div>
           <component v-else :is="'page-'+cur" :key="cur"></component>
         </main>
+        <div class="tabbar" v-if="isMobile">
+          <div class="tb" v-for="m in tabItems" :key="m.key" :class="{active:cur===m.key}" @click="go(m.key)">
+            <span class="ti">{{m.ico}}</span><span>{{m.label}}</span>
+          </div>
+        </div>
+        <x-drawer :title="drawerTitle" :fields="drawerFields" :open="drawerOpen" @close="closeDrawer"></x-drawer>
       </div>
 
       <!-- ⑤ 错误屏 -->

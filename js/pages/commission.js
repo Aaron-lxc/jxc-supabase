@@ -47,9 +47,9 @@ const ResourceRates = {
       <thead><tr><th>序号</th><th>资源级别</th><th class="num">佣金比例</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
       <tbody>
         <tr v-for="(r,i) in rows" :key="r.id">
-          <td>{{i+1}}</td><td>{{lvName(r.level)}}</td><td class="num">{{r.rate}}%</td><td>{{r.createTime}}</td>
-          <td><x-status :v="r.status"/></td>
-          <td class="ops">
+          <td data-label="序号">{{i+1}}</td><td data-label="资源级别">{{lvName(r.level)}}</td><td class="num" data-label="佣金比例">{{r.rate}}%</td><td data-label="创建时间">{{r.createTime}}</td>
+          <td data-label="状态"><x-status :v="r.status"/></td>
+          <td class="ops" data-label="操作">
             <span class="link" @click="openEdit(r)">修改</span>
             <span class="link danger" @click="del(r)">删除</span>
             <span class="link" :class="r.status==='已启用'?'warn':'green'" @click="toggle(r)">{{r.status==='已启用'?'停用':'启用'}}</span>
@@ -58,7 +58,7 @@ const ResourceRates = {
         <tr v-if="!rows.length"><td colspan="6" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
-    <x-modal v-if="showForm" :title="editing?'修改资源佣金比例':'新增资源佣金比例'" :width="560" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'修改资源佣金比例':'新增资源佣金比例'" :width="560" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>资源级别<b class="req">*</b></label>
           <x-combobox v-model="form.level" :options="levelOpts" style="width:100%"/></div>
@@ -115,9 +115,9 @@ const RegionRates = {
       <thead><tr><th>序号</th><th>区域合伙人</th><th class="num">佣金比例</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
       <tbody>
         <tr v-for="(r,i) in rows" :key="r.id">
-          <td>{{i+1}}</td><td>{{S.name('regionPartners',r.partnerId)}}</td><td class="num">{{r.rate}}%</td><td>{{r.createTime}}</td>
-          <td><x-status :v="r.status"/></td>
-          <td class="ops">
+          <td data-label="序号">{{i+1}}</td><td data-label="区域合伙人">{{S.name('regionPartners',r.partnerId)}}</td><td class="num" data-label="佣金比例">{{r.rate}}%</td><td data-label="创建时间">{{r.createTime}}</td>
+          <td data-label="状态"><x-status :v="r.status"/></td>
+          <td class="ops" data-label="操作">
             <span class="link" @click="openEdit(r)">修改</span>
             <span class="link danger" @click="del(r)">删除</span>
             <span class="link" :class="r.status==='已启用'?'warn':'green'" @click="toggle(r)">{{r.status==='已启用'?'停用':'启用'}}</span>
@@ -126,7 +126,7 @@ const RegionRates = {
         <tr v-if="!rows.length"><td colspan="6" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
-    <x-modal v-if="showForm" :title="editing?'修改区域佣金比例':'新增区域佣金比例'" :width="560" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'修改区域佣金比例':'新增区域佣金比例'" :width="560" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>区域合伙人<b class="req">*</b></label>
           <x-combobox v-model="form.partnerId" :options="formPartnerOpts" style="width:100%"/></div>

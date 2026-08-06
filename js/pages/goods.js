@@ -28,6 +28,23 @@ const GoodsList = {
   },
   methods: {
     fmtMoney: U.fmtMoney,
+    rowFields(g) {
+      return [
+        { label: '商品编号', value: g.code },
+        { label: '商品名称', value: g.name },
+        { label: '商品类型', value: S.name('goodsTypes', g.typeId) },
+        { label: 'SKU', value: g.sku || '-' },
+        { label: '单位', value: S.name('units', g.unitId) },
+        { label: '供应商', value: S.name('suppliers', g.supplierId) },
+        { label: '采购价', value: U.fmtMoney(g.purchasePrice) },
+        { label: '零售价', value: U.fmtMoney(g.retailPrice) },
+        { label: '大客价', value: U.fmtMoney(g.bigPrice) },
+        { label: '批发价', value: U.fmtMoney(g.wholePrice) },
+        { label: '最低库存', value: g.minStock },
+        { label: '创建时间', value: g.createTime },
+        { label: '状态', value: g.status }
+      ];
+    },
     blank() {
       return { name: '', typeId: '', sku: '', unitId: '', supplierId: '', purchasePrice: null, retailPrice: null, bigPrice: null, wholePrice: null, minStock: 0 };
     },
@@ -76,7 +93,8 @@ const GoodsList = {
       <button class="btn btn-primary" @click="openNew">+ 新增商品</button>
     </div>
     <div class="table-wrap">
-    <table class="grid">
+    <template v-if="!$root.isMobile">
+    <table class="grid wide-table">
       <thead><tr>
         <th>商品编号</th><th>商品名称</th><th>商品类型</th><th>SKU</th><th>单位</th><th>供应商</th>
         <th class="num">采购价</th><th class="num">零售价</th><th class="num">大客价</th><th class="num">批发价</th>
@@ -99,10 +117,20 @@ const GoodsList = {
         <tr v-if="!paged.length"><td colspan="14" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
+    </template>
+    <div v-else class="row-cards">
+      <div v-for="g in paged" :key="g.id" class="row-card" @click="$root.openRow(g, rowFields(g), '商品详情')">
+        <div class="rc-title">{{g.name}}</div>
+        <div class="rc-sub">{{g.code}}</div>
+        <div class="rc-row"><span>状态</span><span>{{g.status}}</span></div>
+        <div class="rc-row"><span>零售价</span><b class="money">{{fmtMoney(g.retailPrice)}}</b></div>
+      </div>
+      <div v-if="!paged.length" class="empty">暂无数据</div>
+    </div>
     </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-    <x-modal v-if="showForm" :title="editing?'编辑商品':'新增商品'" :width="640" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'编辑商品':'新增商品'" :width="640" :fullscreen="$root.isMobile" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>商品名称<b class="req">*</b></label><input type="text" v-model="form.name"></div>
         <div class="form-item"><label>商品类型<b class="req">*</b></label>
@@ -157,6 +185,23 @@ const SupplierList = {
   },
   methods: {
     fmtMoney: U.fmtMoney,
+    rowFields(s) {
+      return [
+        { label: '供应商名称', value: s.name },
+        { label: '地址', value: s.address || '-' },
+        { label: '业务联系人', value: s.contactBiz || '-' },
+        { label: '业务微信', value: s.contactBizWechat || '-' },
+        { label: '财务联系人', value: s.contactFin || '-' },
+        { label: '财务微信', value: s.contactFinWechat || '-' },
+        { label: '支付周期', value: s.payCycle || '-' },
+        { label: '支付方式', value: s.payMethod || '-' },
+        { label: '开票税点', value: (s.taxPoint || 0) + '%' },
+        { label: '在售商品数', value: this.goodsCount(s) },
+        { label: '累计采购金额', value: U.fmtMoney(this.purchaseAmt(s)) },
+        { label: '创建时间', value: s.createTime },
+        { label: '状态', value: s.status }
+      ];
+    },
     goodsCount(s) { return S.db.goods.filter(g => g.supplierId === s.id).length; },
     purchaseAmt(s) {
       return U.round2(S.db.purchases.filter(p => p.supplierId === s.id).reduce((a, p) => a + Number(p.amount || 0), 0));
@@ -215,7 +260,8 @@ const SupplierList = {
       <button class="btn btn-primary" @click="openNew">+ 新增供应商</button>
     </div>
     <div class="table-wrap">
-    <table class="grid">
+      <template v-if="!$root.isMobile">
+      <table class="grid wide-table">
       <thead><tr>
         <th>序号</th><th>供应商名称</th><th>地址</th><th>业务联系人 / 电话或微信</th><th>财务联系人 / 电话或微信</th>
         <th>支付周期</th><th>支付方式</th><th class="num">开票税点</th><th class="num">在售商品</th><th class="num">累计采购</th>
@@ -244,10 +290,21 @@ const SupplierList = {
         <tr v-if="!paged.length"><td colspan="13" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
+    </template>
+    <div v-else class="row-cards">
+      <div v-for="s in paged" :key="s.id" class="row-card" @click="$root.openRow(s, rowFields(s), '供应商详情')">
+        <div class="rc-title">{{s.name}}</div>
+        <div class="rc-sub">{{s.address || '-'}}</div>
+        <div class="rc-row"><span>支付周期</span><span>{{s.payCycle||'-'}}</span></div>
+        <div class="rc-row"><span>累计采购</span><b class="money">{{fmtMoney(purchaseAmt(s))}}</b></div>
+        <div class="rc-row"><span>状态</span><span>{{s.status}}</span></div>
+      </div>
+      <div v-if="!paged.length" class="empty">暂无数据</div>
+    </div>
     </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-    <x-modal v-if="showForm" :title="editing?'编辑供应商':'新增供应商'" :width="700" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'编辑供应商':'新增供应商'" :width="700" :fullscreen="$root.isMobile" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>供应商名称<b class="req">*</b></label><input type="text" v-model="form.name"></div>
         <div class="form-item"><label>开票税点（%）</label><input type="number" min="0" step="0.01" v-model.number="form.taxPoint"></div>

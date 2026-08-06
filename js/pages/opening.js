@@ -122,11 +122,11 @@ Pages['page-opening'] = {
         <table class="grid">
           <thead><tr><th>序号</th><th>仓库</th><th>商品</th><th class="num">数量</th><th class="num">单价</th><th class="num">金额</th><th>备注</th><th v-if="!ro">操作</th></tr></thead>
           <tbody>
-            <tr v-for="(r,i) in stockRows"><td>{{i+1}}</td>
-              <td>{{S.name('warehouses',r.whId)}}</td><td>{{S.name('goods',r.goodsId)}}</td>
-              <td class="num">{{r.qty}}</td><td class="num money">{{fmtMoney(r.price)}}</td>
-              <td class="num money">{{fmtMoney(r.qty*r.price)}}</td><td>{{r.remark||'-'}}</td>
-              <td v-if="!ro" class="ops"><span class="link danger" @click="delStock(r)">删除</span></td></tr>
+            <tr v-for="(r,i) in stockRows"><td data-label="序号">{{i+1}}</td>
+              <td data-label="仓库">{{S.name('warehouses',r.whId)}}</td><td data-label="商品">{{S.name('goods',r.goodsId)}}</td>
+              <td class="num" data-label="数量">{{r.qty}}</td><td class="num money" data-label="单价">{{fmtMoney(r.price)}}</td>
+              <td class="num money" data-label="金额">{{fmtMoney(r.qty*r.price)}}</td><td data-label="备注">{{r.remark||'-'}}</td>
+              <td v-if="!ro" class="ops" data-label="操作"><span class="link danger" @click="delStock(r)">删除</span></td></tr>
             <tr v-if="!stockRows.length"><td colspan="8" class="empty">暂无期初库存</td></tr>
           </tbody>
         </table>
@@ -147,9 +147,9 @@ Pages['page-opening'] = {
         <table class="grid">
           <thead><tr><th>序号</th><th>客户</th><th class="num">金额</th><th>备注</th><th v-if="!ro">操作</th></tr></thead>
           <tbody>
-            <tr v-for="(r,i) in arRows"><td>{{i+1}}</td><td>{{S.name('customers',r.customerId)}}</td>
-              <td class="num money">{{fmtMoney(r.amount)}}</td><td>{{r.remark||'-'}}</td>
-              <td v-if="!ro" class="ops"><span class="link danger" @click="delAr(r)">删除</span></td></tr>
+            <tr v-for="(r,i) in arRows"><td data-label="序号">{{i+1}}</td><td data-label="客户">{{S.name('customers',r.customerId)}}</td>
+              <td class="num money" data-label="金额">{{fmtMoney(r.amount)}}</td><td data-label="备注">{{r.remark||'-'}}</td>
+              <td v-if="!ro" class="ops" data-label="操作"><span class="link danger" @click="delAr(r)">删除</span></td></tr>
             <tr v-if="!arRows.length"><td colspan="5" class="empty">暂无期初应收</td></tr>
           </tbody>
         </table>
@@ -168,9 +168,9 @@ Pages['page-opening'] = {
         <table class="grid">
           <thead><tr><th>序号</th><th>供应商</th><th class="num">金额</th><th>备注</th><th v-if="!ro">操作</th></tr></thead>
           <tbody>
-            <tr v-for="(r,i) in apRows"><td>{{i+1}}</td><td>{{S.name('suppliers',r.supplierId)}}</td>
-              <td class="num money">{{fmtMoney(r.amount)}}</td><td>{{r.remark||'-'}}</td>
-              <td v-if="!ro" class="ops"><span class="link danger" @click="delAp(r)">删除</span></td></tr>
+            <tr v-for="(r,i) in apRows"><td data-label="序号">{{i+1}}</td><td data-label="供应商">{{S.name('suppliers',r.supplierId)}}</td>
+              <td class="num money" data-label="金额">{{fmtMoney(r.amount)}}</td><td data-label="备注">{{r.remark||'-'}}</td>
+              <td v-if="!ro" class="ops" data-label="操作"><span class="link danger" @click="delAp(r)">删除</span></td></tr>
             <tr v-if="!apRows.length"><td colspan="5" class="empty">暂无期初应付</td></tr>
           </tbody>
         </table>
@@ -189,9 +189,9 @@ Pages['page-opening'] = {
         <table class="grid">
           <thead><tr><th>序号</th><th>支付方式</th><th class="num">金额</th><th>备注</th><th v-if="!ro">操作</th></tr></thead>
           <tbody>
-            <tr v-for="(r,i) in fundRows"><td>{{i+1}}</td><td>{{r.payMethod}}</td>
-              <td class="num money">{{fmtMoney(r.amount)}}</td><td>{{r.remark||'-'}}</td>
-              <td v-if="!ro" class="ops"><span class="link danger" @click="delFund(r)">删除</span></td></tr>
+            <tr v-for="(r,i) in fundRows"><td data-label="序号">{{i+1}}</td><td data-label="支付方式">{{r.payMethod}}</td>
+              <td class="num money" data-label="金额">{{fmtMoney(r.amount)}}</td><td data-label="备注">{{r.remark||'-'}}</td>
+              <td v-if="!ro" class="ops" data-label="操作"><span class="link danger" @click="delFund(r)">删除</span></td></tr>
             <tr v-if="!fundRows.length"><td colspan="5" class="empty">暂无期初资金</td></tr>
           </tbody>
         </table>

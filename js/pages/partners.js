@@ -29,6 +29,30 @@ function partnerListFactory(isRegion) {
     methods: {
       fmtMoney: U.fmtMoney,
       isRegion: () => isRegion,
+      rowFields(p) {
+        const f = [
+          { label: '姓名', value: p.name },
+          { label: '电话', value: p.phone || '-' }
+        ];
+        if (this.isRegion()) {
+          f.push({ label: '负责区域', value: S.name('regions', p.regionId) || '-' });
+          f.push({ label: '佣金比例', value: this.rateOf(p) + '%' });
+          f.push({ label: '名下客户数', value: this.custCount(p) });
+        } else {
+          const cc = this.custCount(p);
+          f.push({ label: '担任一级', value: cc[0] + ' 家' });
+          f.push({ label: '担任二级', value: cc[1] + ' 家' });
+          f.push({ label: '担任三级', value: cc[2] + ' 家' });
+        }
+        f.push({ label: '累计佣金', value: '￥' + U.fmtMoney(this.acc(p).earned) });
+        f.push({ label: '已支付', value: '￥' + U.fmtMoney(this.acc(p).paid) });
+        f.push({ label: '质押中', value: '￥' + U.fmtMoney(this.acc(p).pledge) });
+        f.push({ label: '可支付', value: '￥' + U.fmtMoney(this.acc(p).payable) });
+        f.push({ label: '备注', value: p.remark || '-' });
+        f.push({ label: '创建时间', value: p.createTime });
+        f.push({ label: '状态', value: p.status });
+        return f;
+      },
       custCount(p) {
         if (isRegion) return S.db.customers.filter(c => c.regionPartnerId === p.id).length;
         const n = [0, 0, 0];
@@ -114,7 +138,8 @@ function partnerListFactory(isRegion) {
         <button class="btn btn-primary" @click="openNew">+ 新增${label}</button>
       </div>
       <div class="table-wrap">
-      <table class="grid">
+      <template v-if="!$root.isMobile">
+      <table class="grid wide-table">
         <thead><tr>
           <th>序号</th><th>姓名</th><th>电话</th>
           ${isRegion ? '<th>负责区域</th><th class="num">佣金比例</th><th class="num">名下客户数</th>' : '<th>担任一级</th><th>担任二级</th><th>担任三级</th>'}
@@ -143,10 +168,20 @@ function partnerListFactory(isRegion) {
           <tr v-if="!paged.length"><td colspan="15" class="empty">暂无数据</td></tr>
         </tbody>
       </table>
+      </template>
+      <div v-else class="row-cards">
+        <div v-for="p in paged" :key="p.id" class="row-card" @click="$root.openRow(p, rowFields(p), isRegion() ? '区域合伙人详情' : '资源合伙人详情')">
+          <div class="rc-title">{{p.name}}</div>
+          <div class="rc-sub">{{isRegion() ? '区域合伙人' : '资源合伙人'}} · {{p.phone||'-'}}</div>
+          <div class="rc-row"><span>可支付</span><b class="money">{{fmtMoney(acc(p).payable)}}</b></div>
+          <div class="rc-row"><span>状态</span><span>{{p.status}}</span></div>
+        </div>
+        <div v-if="!paged.length" class="empty">暂无数据</div>
+      </div>
       </div>
       <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-      <x-modal v-if="showForm" :title="(editing?'修改':'新增')+'${label}'" :width="560" @close="showForm=false">
+      <x-modal v-if="showForm" :title="(editing?'修改':'新增')+'${label}'" :width="560" :fullscreen="$root.isMobile" @close="showForm=false">
         <div class="form-grid">
           <div class="form-item"><label>姓名<b class="req">*</b></label><input type="text" v-model="form.name"></div>
           <div class="form-item"><label>电话</label><input type="text" v-model="form.phone"></div>

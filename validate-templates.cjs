@@ -29,9 +29,47 @@ sandbox.localStorage = {
 };
 sandbox.location = { href: 'http://localhost/', reload() {}, pathname: '/', search: '' };
 sandbox.navigator = { user_agent: 'node', useragent: 'node' };
+
+/* 纯 JS HTML 实体解码器：Vue(prod 构建)的 decodeEntities 依赖真实 DOM 的
+   innerHTML/textContent 来还原实体；在 Node 沙箱中我们用 createElement
+   返回的“智能元素”模拟该行为，否则含 & 的属性值（如 v-if="a && b"）会让
+   decodeEntities 返回 undefined 并导致编译崩溃（与真实浏览器无关）。 */
+const HTML_ENTITIES = {
+  quot: '"', amp: '&', lt: '<', gt: '>', apos: "'", nbsp: ' ', copy: '©',
+  reg: '®', deg: '°', plusmn: '±', times: '×', divide: '÷', middot: '·',
+  amp81: '&', lt60: '<', gt62: '>', ensp: ' ', emsp: ' ', hellip: '…',
+  mdash: '—', ndash: '–', laquo: '«', raquo: '»', bull: '•', euro: '€',
+  pound: '£', yen: '¥', sect: '§', para: '¶', trade: '™', acute: '´'
+};
+function decodeHtml(raw) {
+  if (typeof raw !== 'string' || raw.indexOf('&') < 0) return raw;
+  return raw.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);?/g, (full, ent) => {
+    if (ent[0] === '#') {
+      const code = ent[1] === 'x' || ent[1] === 'X'
+        ? parseInt(ent.slice(2), 16) : parseInt(ent.slice(1), 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : full;
+    }
+    const named = HTML_ENTITIES[ent];
+    return named !== undefined ? named : full;
+  });
+}
+function makeDecoderEl() {
+  let _html = '';
+  return {
+    style: {}, setAttribute() {}, appendChild() {}, addEventListener() {}, click() {},
+    get innerHTML() { return _html; },
+    set innerHTML(v) { _html = String(v); },
+    get textContent() { return decodeHtml(_html); },
+    get children() {
+      const m = _html.match(/^<div foo="([\s\S]*)">$/);
+      const foo = m ? decodeHtml(m[1].replace(/&quot;/g, '"')) : '';
+      return [{ getAttribute: () => foo }];
+    }
+  };
+}
 sandbox.document = {
   hidden: false,
-  createElement: () => ({ style: {}, setAttribute() {}, appendChild() {}, addEventListener() {}, click() {}, text: '' }),
+  createElement: () => makeDecoderEl(),
   createElementNS: () => ({ style: {}, setAttribute() {}, appendChild() {} }),
   getElementById: () => null,
   querySelector: () => null,
@@ -60,7 +98,8 @@ const files = [
   'js/pages/partners.js', 'js/pages/warehouse.js', 'js/pages/purchase.js',
   'js/pages/inventory.js', 'js/pages/sales.js', 'js/pages/opening.js', 'js/pages/capital.js', 'js/pages/finance.js',
   'js/pages/complaint.js', 'js/pages/report.js', 'js/pages/commission.js',
-  'js/pages/members.js', 'js/pages/settings.js'
+  'js/pages/members.js', 'js/pages/settings.js',
+  'js/pages/recipientmgr.js', 'js/pages/report-center.js'
 ];
 for (const f of files) {
   try { vm.runInContext(read(f), ctx, { filename: f }); }
@@ -93,13 +132,14 @@ if (failures) process.exit(1);
 let asserts = 0, failed = 0;
 function ok(cond, msg) { asserts++; if (!cond) { failed++; console.error('  ✗ ' + msg); } }
 
-/* 页面数量：15 业务模块页 + 账户管理 = 16 */
-ok(Object.keys(sandbox.Pages || {}).length === 16, 'Pages 应有 16 个页面（含 members）');
+/* 页面数量：16 业务模块页 + 账户管理 + 报表接收人 = 18 */
+ok(Object.keys(sandbox.Pages || {}).length === 18, 'Pages 应有 18 个页面（16 模块 + members + recipientmgr）');
 ok(!!sandbox.Pages['page-members'], '应存在 page-members 账户管理页');
+ok(!!sandbox.Pages['page-recipientmgr'], '应存在 page-recipientmgr 报表接收人页');
 
 /* 权限 / 菜单过滤 */
 sandbox.Cloud.state.ws = { id: 'w1', role: 'owner', permissions: {}, name: '测试账套' };
-ok(sandbox.P.menus().length === 16, 'owner 的菜单应为 15 模块 + 账户管理 = 16 项');
+ok(sandbox.P.menus().length === 18, 'owner 的菜单应为 16 模块 + 账户管理 + 报表接收人 = 18 项');
 sandbox.Cloud.state.ws = { id: 'w2', role: 'member', permissions: sandbox.P.defaultPermissions() };
 const mm = sandbox.P.menus();
 console.log('  [debug] member menus =', mm.map(m => m.key).join(','), '| isManager=', sandbox.P.isManager());

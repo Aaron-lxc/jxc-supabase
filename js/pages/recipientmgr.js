@@ -214,12 +214,12 @@ Pages['page-recipientmgr'] = {
             </tr></thead>
             <tbody>
               <tr v-for="m in filteredMembers" :key="m.id">
-                <td>{{ m.email || m.name || '—' }}</td>
-                <td><span :class="roleTag(m.role)">{{ memberRoleLabel(m.role) }}</span></td>
-                <td>{{ recipientOf(m) ? rpLabel(recipientOf(m).role) : '—' }}</td>
-                <td><span v-if="recipientOf(m)" :class="statusTag(recipientOf(m).status)">{{ recipientOf(m).status }}</span><span v-else class="muted">—</span></td>
-                <td>{{ recipientOf(m) ? fmt(recipientOf(m).created_at) : '—' }}</td>
-                <td style="white-space:nowrap">
+                <td data-label="邮箱 / 名称">{{ m.email || m.name || '—' }}</td>
+                <td data-label="成员角色"><span :class="roleTag(m.role)">{{ memberRoleLabel(m.role) }}</span></td>
+                <td data-label="报表角色">{{ recipientOf(m) ? rpLabel(recipientOf(m).role) : '—' }}</td>
+                <td data-label="状态"><span v-if="recipientOf(m)" :class="statusTag(recipientOf(m).status)">{{ recipientOf(m).status }}</span><span v-else class="muted">—</span></td>
+                <td data-label="创建时间">{{ recipientOf(m) ? fmt(recipientOf(m).created_at) : '—' }}</td>
+                <td style="white-space:nowrap" data-label="操作">
                   <template v-if="m.role === 'owner'"><span class="muted">—</span></template>
                   <template v-else>
                     <button class="btn btn-sm" @click="openSet(m)">设置</button>
@@ -236,7 +236,7 @@ Pages['page-recipientmgr'] = {
         </div>
       </div>
 
-      <x-modal v-if="showSet" title="设置报表接收人" width="560" @close="showSet=false">
+      <x-modal v-if="showSet" title="设置报表接收人" width="560" :fullscreen="$root.isMobile" position="bottom" @close="showSet=false">
         <div class="muted" style="margin-bottom:8px">成员：{{ setForm.email }}</div>
         <div class="form-grid">
           <div class="form-item"><label>报表角色</label>

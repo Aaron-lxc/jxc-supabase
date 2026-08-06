@@ -282,13 +282,13 @@ Pages['page-members'] = {
             </thead>
             <tbody>
               <tr v-for="m in filteredMembers" :key="m.id">
-                <td>{{ m.email || '—' }} <span class="muted" v-if="isSelf(m)">（我）</span></td>
-                <td><span :class="roleTag(m.role)">{{ roleLabel(m.role) }}</span></td>
-                <td class="muted">{{ summary(m.permissions, m.role) }}</td>
-                <td><span :class="statusTag(m.status)">{{ m.status || '已启用' }}</span></td>
-                <td class="col-created muted">{{ fmt(m.created_at) }}</td>
-                <td class="col-login muted">{{ fmt(m.last_sign_in_at) }}</td>
-                <td style="white-space:nowrap">
+                <td data-label="邮箱 / 名称">{{ m.email || '—' }} <span class="muted" v-if="isSelf(m)">（我）</span></td>
+                <td data-label="角色"><span :class="roleTag(m.role)">{{ roleLabel(m.role) }}</span></td>
+                <td class="muted" data-label="权限">{{ summary(m.permissions, m.role) }}</td>
+                <td data-label="状态"><span :class="statusTag(m.status)">{{ m.status || '已启用' }}</span></td>
+                <td class="col-created muted" data-label="创建时间">{{ fmt(m.created_at) }}</td>
+                <td class="col-login muted" data-label="最新登录时间">{{ fmt(m.last_sign_in_at) }}</td>
+                <td style="white-space:nowrap" data-label="操作">
                   <template v-if="m.role === 'owner'"><span class="muted">—</span></template>
                   <template v-else>
                     <button class="btn btn-sm" @click="openEdit(m)">修改</button>
@@ -316,11 +316,11 @@ Pages['page-members'] = {
             <thead><tr><th>邮箱</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
             <tbody>
               <tr v-for="iv in filteredInvites" :key="iv.id">
-                <td>{{ iv.email }}</td>
-                <td><span :class="roleTag(iv.role)">{{ roleLabel(iv.role) }}</span></td>
-                <td><span class="tag tag-orange">{{ iv.status }}</span></td>
-                <td class="col-created muted">{{ fmt(iv.created_at) }}</td>
-                <td style="white-space:nowrap">
+                <td data-label="邮箱">{{ iv.email }}</td>
+                <td data-label="角色"><span :class="roleTag(iv.role)">{{ roleLabel(iv.role) }}</span></td>
+                <td data-label="状态"><span class="tag tag-orange">{{ iv.status }}</span></td>
+                <td class="col-created muted" data-label="创建时间">{{ fmt(iv.created_at) }}</td>
+                <td style="white-space:nowrap" data-label="操作">
                   <button class="btn btn-sm" @click="iv.status === '已取消' ? enableInvite(iv) : cancelInvite(iv)">
                     {{ iv.status === '已取消' ? '重新邀请' : '取消邀请' }}
                   </button>
@@ -337,7 +337,7 @@ Pages['page-members'] = {
     </template>
 
     <!-- 添加弹窗 -->
-    <x-modal v-if="showAdd" title="添加成员" width="640" @close="showAdd=false">
+    <x-modal v-if="showAdd" title="添加成员" width="640" :fullscreen="$root.isMobile" position="bottom" @close="showAdd=false">
       <div class="form-grid">
         <div class="form-item full"><label>成员邮箱<b class="req">*</b></label>
           <input type="text" v-model="add.email" placeholder="对方注册所用的邮箱"></div>
@@ -369,7 +369,7 @@ Pages['page-members'] = {
     </x-modal>
 
     <!-- 编辑成员弹窗 -->
-    <x-modal v-if="showEdit" title="修改成员权限" width="640" @close="showEdit=false">
+    <x-modal v-if="showEdit" title="修改成员权限" width="640" :fullscreen="$root.isMobile" position="bottom" @close="showEdit=false">
       <div class="muted" style="margin-bottom:8px">邮箱：{{ edit.email }} ｜ 当前角色：<b>{{ roleLabel(edit.role) }}</b></div>
       <div v-if="edit.role === 'owner'" class="form-hint">创建者拥有全部权限，无需单独设置。</div>
       <template v-else>
@@ -407,7 +407,7 @@ Pages['page-members'] = {
     </x-modal>
 
     <!-- 编辑邀请弹窗 -->
-    <x-modal v-if="showInviteEdit" title="修改邀请" width="640" @close="showInviteEdit=false">
+    <x-modal v-if="showInviteEdit" title="修改邀请" width="640" :fullscreen="$root.isMobile" position="bottom" @close="showInviteEdit=false">
       <div class="muted" style="margin-bottom:8px">邀请邮箱：{{ inviteEdit.email }}</div>
       <div class="form-grid" style="margin-bottom:10px">
         <div class="form-item"><label>角色</label>
@@ -437,7 +437,7 @@ Pages['page-members'] = {
     </x-modal>
 
     <!-- 转让弹窗 -->
-    <x-modal v-if="showTransfer" title="转让账套所有权" width="520" @close="showTransfer=false">
+    <x-modal v-if="showTransfer" title="转让账套所有权" width="520" :fullscreen="$root.isMobile" @close="showTransfer=false">
       <div class="muted" style="margin-bottom:10px">转让后您将变为管理员，且无法再收回。请选择新的创建者：</div>
       <div class="form-item">
         <select v-model="transferId" style="width:100%">

@@ -160,11 +160,11 @@ Pages['page-reportcenter'] = {
           <div class="table-wrap"><table class="grid rc-comm">
             <thead><tr><th style="width:56px">序号</th><th>合伙人</th><th>累计总佣金</th><th>已支付</th><th>质押</th><th>待支付</th></tr></thead>
             <tbody>
-              <tr v-for="(r,i) in ovResPaged" :key="r.p.id"><td>{{(pageRes-1)*pageSizeRes+i+1}}</td><td>{{r.p.name}}</td>
-                <td class="num money">{{fmt(r.c && r.c.earned)}}</td>
-                <td class="num money">{{fmt(r.c && r.c.paid)}}</td>
-                <td class="num money">{{fmt(r.c && r.c.pledge)}}</td>
-                <td class="num money red">{{fmt(r.c && r.c.payable)}}</td></tr>
+              <tr v-for="(r,i) in ovResPaged" :key="r.p.id"><td data-label="序号">{{(pageRes-1)*pageSizeRes+i+1}}</td><td data-label="合伙人">{{r.p.name}}</td>
+                <td class="num money" data-label="累计总佣金">{{fmt(r.c && r.c.earned)}}</td>
+                <td class="num money" data-label="已支付">{{fmt(r.c && r.c.paid)}}</td>
+                <td class="num money" data-label="质押">{{fmt(r.c && r.c.pledge)}}</td>
+                <td class="num money red" data-label="待支付">{{fmt(r.c && r.c.payable)}}</td></tr>
               <tr v-if="!ovResPaged.length"><td colspan="6" class="empty">{{ovResRows.length?'无匹配结果':'暂无数据'}}</td></tr>
             </tbody>
           </table></div>
@@ -181,11 +181,11 @@ Pages['page-reportcenter'] = {
           <div class="table-wrap"><table class="grid rc-comm">
             <thead><tr><th style="width:56px">序号</th><th>合伙人</th><th>累计总佣金</th><th>已支付</th><th>质押</th><th>待支付</th></tr></thead>
             <tbody>
-              <tr v-for="(r,i) in ovRegPaged" :key="r.p.id"><td>{{(pageReg-1)*pageSizeReg+i+1}}</td><td>{{r.p.name}}</td>
-                <td class="num money">{{fmt(r.c && r.c.earned)}}</td>
-                <td class="num money">{{fmt(r.c && r.c.paid)}}</td>
-                <td class="num money">{{fmt(r.c && r.c.pledge)}}</td>
-                <td class="num money red">{{fmt(r.c && r.c.payable)}}</td></tr>
+              <tr v-for="(r,i) in ovRegPaged" :key="r.p.id"><td data-label="序号">{{(pageReg-1)*pageSizeReg+i+1}}</td><td data-label="合伙人">{{r.p.name}}</td>
+                <td class="num money" data-label="累计总佣金">{{fmt(r.c && r.c.earned)}}</td>
+                <td class="num money" data-label="已支付">{{fmt(r.c && r.c.paid)}}</td>
+                <td class="num money" data-label="质押">{{fmt(r.c && r.c.pledge)}}</td>
+                <td class="num money red" data-label="待支付">{{fmt(r.c && r.c.payable)}}</td></tr>
               <tr v-if="!ovRegPaged.length"><td colspan="6" class="empty">{{ovRegRows.length?'无匹配结果':'暂无数据'}}</td></tr>
             </tbody>
           </table></div>
@@ -211,7 +211,7 @@ Pages['page-reportcenter'] = {
           <div class="table-wrap"><table class="grid">
             <thead><tr><th>序号</th><th>客户名</th><th>资源级别</th></tr></thead>
             <tbody>
-              <tr v-for="(c,i) in custLines"><td>{{i+1}}</td><td>{{c.name}}</td><td>{{c.level}} 级</td></tr>
+              <tr v-for="(c,i) in custLines"><td data-label="序号">{{i+1}}</td><td data-label="客户名">{{c.name}}</td><td data-label="资源级别">{{c.level}} 级</td></tr>
             </tbody>
           </table></div>
         </div>
@@ -221,7 +221,7 @@ Pages['page-reportcenter'] = {
           <div class="table-wrap"><table class="grid">
             <thead><tr><th>序号</th><th>客户名</th><th>销售净额</th><th>对应佣金</th><th>质押原因</th><th>完成时间</th></tr></thead>
             <tbody>
-              <tr v-for="(p,i) in pledges"><td>{{i+1}}</td><td>{{p.custName}}</td><td class="num money">{{fmt(p.net)}}</td><td class="num money">{{fmt(p.commission)}}</td><td>{{p.reasons.join('、')}}</td><td>{{p.finishTime}}</td></tr>
+              <tr v-for="(p,i) in pledges"><td data-label="序号">{{i+1}}</td><td data-label="客户名">{{p.custName}}</td><td class="num money" data-label="销售净额">{{fmt(p.net)}}</td><td class="num money" data-label="对应佣金">{{fmt(p.commission)}}</td><td data-label="质押原因">{{p.reasons.join('、')}}</td><td data-label="完成时间">{{p.finishTime}}</td></tr>
             </tbody>
           </table></div>
         </div>

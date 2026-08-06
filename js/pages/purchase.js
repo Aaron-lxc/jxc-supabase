@@ -46,6 +46,21 @@ Pages['page-purchase'] = {
   },
   methods: {
     fmtMoney: U.fmtMoney,
+    rowFields(p) {
+      return [
+        { label: '订单号', value: p.no },
+        { label: '商品类型', value: S.name('goodsTypes', p.typeId) },
+        { label: '商品名称', value: S.name('goods', p.goodsId) },
+        { label: '供应商', value: S.name('suppliers', p.supplierId) },
+        { label: '单位', value: S.name('units', p.unitId) },
+        { label: '采购数量', value: p.qty },
+        { label: '采购价', value: U.fmtMoney(p.price) },
+        { label: '金额', value: U.fmtMoney(p.amount) },
+        { label: '入库仓库', value: S.name('warehouses', p.whId) },
+        { label: '支付方式', value: p.payMethod || '—' },
+        { label: '入库时间', value: p.inTime }
+      ];
+    },
     openNew() {
       this.editing = null;
       this.form = { typeId: '', goodsId: '', qty: null, price: null, whId: '', payMethod: '' };
@@ -96,7 +111,8 @@ Pages['page-purchase'] = {
         <button class="btn btn-primary" @click="openNew">+ 新增采购单</button>
       </div>
       <div class="table-wrap">
-      <table class="grid">
+      <template v-if="!$root.isMobile">
+      <table class="grid wide-table">
         <thead><tr>
           <th>序号</th><th>订单号</th><th>商品类型</th><th>商品名称</th><th>供应商</th><th>单位</th>
           <th class="num">采购数量</th><th class="num">采购价</th><th class="num">金额</th><th>入库仓库</th><th>支付方式</th><th>入库时间</th><th>操作</th>
@@ -117,11 +133,21 @@ Pages['page-purchase'] = {
           <tr v-if="!paged.length"><td colspan="13" class="empty">暂无数据</td></tr>
         </tbody>
       </table>
+      </template>
+      <div v-else class="row-cards">
+        <div v-for="p in paged" :key="p.id" class="row-card" @click="$root.openRow(p, rowFields(p), '采购单详情')">
+          <div class="rc-title">{{p.no}}</div>
+          <div class="rc-sub">{{S.name('suppliers', p.supplierId)}}</div>
+          <div class="rc-row"><span>金额</span><b class="money">{{fmtMoney(p.amount)}}</b></div>
+          <div class="rc-row"><span>入库时间</span><span>{{p.inTime}}</span></div>
+        </div>
+        <div v-if="!paged.length" class="empty">暂无数据</div>
+      </div>
       </div>
       <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
     </div>
 
-    <x-modal v-if="showForm" :title="editing?'修改采购单':'新增采购单（保存后自动入库）'" :width="640" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'修改采购单':'新增采购单（保存后自动入库）'" :width="640" :fullscreen="$root.isMobile" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>商品类型<b class="req">*</b></label>
           <x-combobox v-model="form.typeId" :options="formTypeOpts" style="width:100%"/></div>

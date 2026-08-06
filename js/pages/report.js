@@ -18,7 +18,15 @@ Pages['page-report'] = {
       pageGoods: 1, pageSizeGoods: 10,
       pageSup: 1, pageSizeSup: 10,
       pageExp: 1, pageSizeExp: 10,
-      pageAR: 1, pageSizeAR: 10
+      pageAR: 1, pageSizeAR: 10,
+      /* 手机端查询窗折叠状态（每表独立） */
+      fResFilter: { showFilter: false },
+      fRegFilter: { showFilter: false },
+      fPayFilter: { showFilter: false },
+      fGoodsFilter: { showFilter: false },
+      fSupFilter: { showFilter: false },
+      fExpFilter: { showFilter: false },
+      fARFilter: { showFilter: false }
     };
   },
   computed: {
@@ -299,20 +307,23 @@ Pages['page-report'] = {
     <div class="card">
       <h3>资源合伙人佣金统计 <span class="muted" style="font-weight:400">同一合伙人可同时担任一/二/三级，分级列示并小计</span></h3>
       <div class="toolbar">
-        <input type="text" v-model="fResName" placeholder="资源合伙人（模糊）" style="width:200px">
+        <div v-if="! $root.isMobile || fResFilter.showFilter" style="display:contents">
+          <input type="text" v-model="fResName" placeholder="资源合伙人（模糊）" style="width:200px">
+        </div>
+        <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fResFilter,'showFilter',!fResFilter.showFilter)">筛选</button>
         <button class="btn btn-sm" @click="exportRes">导出</button>
       </div>
       <table class="grid">
         <thead><tr><th>序号</th><th>资源合伙人</th><th>级别</th><th class="num">客户数</th><th class="num">销售净额</th><th class="num">佣金比例</th><th class="num">佣金</th></tr></thead>
         <tbody>
           <tr v-for="(r,i) in resRowsPaged" :key="r.name+r.level+i" :style="r.isSub?'background:#f8fafc;font-weight:700':''">
-            <td>{{r.isSub?'':i+1}}</td><td>{{r.name}}</td><td>{{r.level}}</td>
-            <td class="num">{{r.custCount}}</td><td class="num money">{{fmtMoney(r.sales)}}</td>
-            <td class="num">{{r.rate==='-'?'-':r.rate+'%'}}</td><td class="num money">{{fmtMoney(r.commission)}}</td>
+            <td data-label="序号">{{r.isSub?'':i+1}}</td><td data-label="资源合伙人">{{r.name}}</td><td data-label="级别">{{r.level}}</td>
+            <td class="num" data-label="客户数">{{r.custCount}}</td><td class="num money" data-label="销售净额">{{fmtMoney(r.sales)}}</td>
+            <td class="num" data-label="佣金比例">{{r.rate==='-'?'-':r.rate+'%'}}</td><td class="num money" data-label="佣金">{{fmtMoney(r.commission)}}</td>
           </tr>
           <tr v-if="!resRowsPaged.length"><td colspan="7" class="empty">该时间范围内暂无资源佣金</td></tr>
           <tr v-if="resRowsPaged.length" style="background:#eff6ff;font-weight:700">
-            <td colspan="6" style="text-align:right">资源佣金总计</td><td class="num money red">￥{{fmtMoney(resTotal)}}</td></tr>
+            <td colspan="6" style="text-align:right">资源佣金总计</td><td class="num money red" data-label="佣金">￥{{fmtMoney(resTotal)}}</td></tr>
         </tbody>
       </table>
       <x-pager :total="resRowsF.length" v-model:page="pageRes" v-model:size="pageSizeRes"/>
@@ -322,20 +333,23 @@ Pages['page-report'] = {
     <div class="card">
       <h3>区域合伙人佣金统计</h3>
       <div class="toolbar">
-        <input type="text" v-model="fRegName" placeholder="区域合伙人（模糊）" style="width:200px">
+        <div v-if="! $root.isMobile || fRegFilter.showFilter" style="display:contents">
+          <input type="text" v-model="fRegName" placeholder="区域合伙人（模糊）" style="width:200px">
+        </div>
+        <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fRegFilter,'showFilter',!fRegFilter.showFilter)">筛选</button>
         <button class="btn btn-sm" @click="exportReg">导出</button>
       </div>
       <table class="grid">
         <thead><tr><th>序号</th><th>区域合伙人</th><th>负责区域</th><th class="num">客户数</th><th class="num">销售净额</th><th class="num">佣金比例</th><th class="num">佣金</th></tr></thead>
         <tbody>
           <tr v-for="(r,i) in regRowsPaged" :key="r.name+i">
-            <td>{{i+1}}</td><td>{{r.name}}</td><td>{{r.region||'-'}}</td>
-            <td class="num">{{r.custCount}}</td><td class="num money">{{fmtMoney(r.sales)}}</td>
-            <td class="num">{{r.rate}}%</td><td class="num money">{{fmtMoney(r.commission)}}</td>
+            <td data-label="序号">{{i+1}}</td><td data-label="区域合伙人">{{r.name}}</td><td data-label="负责区域">{{r.region||'-'}}</td>
+            <td class="num" data-label="客户数">{{r.custCount}}</td><td class="num money" data-label="销售净额">{{fmtMoney(r.sales)}}</td>
+            <td class="num" data-label="佣金比例">{{r.rate}}%</td><td class="num money" data-label="佣金">{{fmtMoney(r.commission)}}</td>
           </tr>
           <tr v-if="!regRowsPaged.length"><td colspan="7" class="empty">该时间范围内暂无区域佣金</td></tr>
           <tr v-if="regRowsPaged.length" style="background:#eff6ff;font-weight:700">
-            <td colspan="6" style="text-align:right">区域佣金总计</td><td class="num money red">￥{{fmtMoney(regTotal)}}</td></tr>
+            <td colspan="6" style="text-align:right">区域佣金总计</td><td class="num money red" data-label="佣金">￥{{fmtMoney(regTotal)}}</td></tr>
         </tbody>
       </table>
       <x-pager :total="regRowsF.length" v-model:page="pageReg" v-model:size="pageSizeReg"/>
@@ -345,8 +359,11 @@ Pages['page-report'] = {
     <div class="card">
       <h3>佣金支付与质押统计 <span class="muted" style="font-weight:400">全期口径；质押 = 每个客户最后一单佣金 + 未支付货款单佣金，防退货/跑单超额</span></h3>
       <div class="toolbar">
-        <input type="text" v-model="fPayName" placeholder="姓名（模糊）" style="width:180px">
-        <x-combobox v-model="fPayType" :options="payTypeOpts" placeholder="全部类型" style="width:160px"></x-combobox>
+        <div v-if="! $root.isMobile || fPayFilter.showFilter" style="display:contents">
+          <input type="text" v-model="fPayName" placeholder="姓名（模糊）" style="width:180px">
+          <x-combobox v-model="fPayType" :options="payTypeOpts" placeholder="全部类型" style="width:160px"></x-combobox>
+        </div>
+        <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fPayFilter,'showFilter',!fPayFilter.showFilter)">筛选</button>
         <button class="btn btn-sm" @click="exportPay">导出</button>
       </div>
       <table class="grid">
@@ -354,23 +371,23 @@ Pages['page-report'] = {
           <th class="num">质押中（暂扣）</th><th class="num">质押单数</th><th class="num">当前可支付</th></tr></thead>
         <tbody>
           <tr v-for="(r,i) in payRowsPaged" :key="r.type+r.name">
-            <td>{{i+1}}</td>
-            <td><span class="tag" :class="r.type==='资源'?'tag-blue':'tag-green'">{{r.type}}合伙人</span></td>
-            <td>{{r.name}}</td>
-            <td class="num money">{{fmtMoney(r.earned)}}</td>
-            <td class="num money green-t">{{fmtMoney(r.paid)}}</td>
-            <td class="num money orange">{{fmtMoney(r.pledge)}}</td>
-            <td class="num">{{r.cnt}}</td>
-            <td class="num money"><b>{{fmtMoney(r.payable)}}</b></td>
+            <td data-label="序号">{{i+1}}</td>
+            <td data-label="类型"><span class="tag" :class="r.type==='资源'?'tag-blue':'tag-green'">{{r.type}}合伙人</span></td>
+            <td data-label="姓名">{{r.name}}</td>
+            <td class="num money" data-label="累计应得佣金">{{fmtMoney(r.earned)}}</td>
+            <td class="num money green-t" data-label="累计已支付">{{fmtMoney(r.paid)}}</td>
+            <td class="num money orange" data-label="质押中（暂扣）">{{fmtMoney(r.pledge)}}</td>
+            <td class="num" data-label="质押单数">{{r.cnt}}</td>
+            <td class="num money" data-label="当前可支付"><b>{{fmtMoney(r.payable)}}</b></td>
           </tr>
           <tr v-if="!payRowsPaged.length"><td colspan="8" class="empty">暂无佣金数据</td></tr>
           <tr v-if="payRowsPaged.length" style="background:#eff6ff;font-weight:700">
             <td colspan="3" style="text-align:right">合计</td>
-            <td class="num money">￥{{fmtMoney(payTotal.earned)}}</td>
-            <td class="num money green-t">￥{{fmtMoney(payTotal.paid)}}</td>
-            <td class="num money orange">￥{{fmtMoney(payTotal.pledge)}}</td>
-            <td class="num">-</td>
-            <td class="num money red">￥{{fmtMoney(payTotal.payable)}}</td>
+            <td class="num money" data-label="累计应得佣金">￥{{fmtMoney(payTotal.earned)}}</td>
+            <td class="num money green-t" data-label="累计已支付">￥{{fmtMoney(payTotal.paid)}}</td>
+            <td class="num money orange" data-label="质押中（暂扣）">￥{{fmtMoney(payTotal.pledge)}}</td>
+            <td class="num" data-label="质押单数">-</td>
+            <td class="num money red" data-label="当前可支付">￥{{fmtMoney(payTotal.payable)}}</td>
           </tr>
         </tbody>
       </table>
@@ -383,21 +400,24 @@ Pages['page-report'] = {
       <div class="card" style="margin-bottom:0">
         <h3>商品销售汇总（净额口径）</h3>
         <div class="toolbar">
-          <input type="text" v-model="fGoods" placeholder="商品（模糊）" style="width:150px">
-          <x-combobox v-model="fGoodsType" :options="goodsTypeOpts" placeholder="全部分类" style="width:140px"></x-combobox>
+          <div v-if="! $root.isMobile || fGoodsFilter.showFilter" style="display:contents">
+            <input type="text" v-model="fGoods" placeholder="商品（模糊）" style="width:150px">
+            <x-combobox v-model="fGoodsType" :options="goodsTypeOpts" placeholder="全部分类" style="width:140px"></x-combobox>
+          </div>
+          <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fGoodsFilter,'showFilter',!fGoodsFilter.showFilter)">筛选</button>
           <button class="btn btn-sm" @click="exportGoods">导出</button>
         </div>
         <table class="grid">
           <thead><tr><th>商品</th><th>分类</th><th class="num">销量</th><th class="num">销售额</th><th class="num">毛利</th></tr></thead>
           <tbody>
-            <tr v-for="(r,i) in goodsRowsPaged" :key="r.name+i"><td>{{r.name}}</td><td>{{r.type}}</td><td class="num">{{r.qty}}</td>
-              <td class="num money">{{fmtMoney(r.amt)}}</td><td class="num money green-t">{{fmtMoney(r.profit)}}</td></tr>
+            <tr v-for="(r,i) in goodsRowsPaged" :key="r.name+i"><td data-label="商品">{{r.name}}</td><td data-label="分类">{{r.type}}</td><td class="num" data-label="销量">{{r.qty}}</td>
+              <td class="num money" data-label="销售额">{{fmtMoney(r.amt)}}</td><td class="num money green-t" data-label="毛利">{{fmtMoney(r.profit)}}</td></tr>
             <tr v-if="!goodsRowsPaged.length"><td colspan="5" class="empty">暂无数据</td></tr>
             <tr v-if="goodsRowsPaged.length" style="background:#eff6ff;font-weight:700">
               <td colspan="2" style="text-align:right">合计</td>
-              <td class="num">{{goodsTotal.qty}}</td>
-              <td class="num money">{{fmtMoney(goodsTotal.amt)}}</td>
-              <td class="num money green-t">{{fmtMoney(goodsTotal.profit)}}</td>
+              <td class="num" data-label="销量">{{goodsTotal.qty}}</td>
+              <td class="num money" data-label="销售额">{{fmtMoney(goodsTotal.amt)}}</td>
+              <td class="num money green-t" data-label="毛利">{{fmtMoney(goodsTotal.profit)}}</td>
             </tr>
           </tbody>
         </table>
@@ -407,20 +427,23 @@ Pages['page-report'] = {
       <div class="card" style="margin-bottom:0">
         <h3>供应商采购汇总</h3>
         <div class="toolbar">
-          <input type="text" v-model="fSup" placeholder="供应商（模糊）" style="width:180px">
+          <div v-if="! $root.isMobile || fSupFilter.showFilter" style="display:contents">
+            <input type="text" v-model="fSup" placeholder="供应商（模糊）" style="width:180px">
+          </div>
+          <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fSupFilter,'showFilter',!fSupFilter.showFilter)">筛选</button>
           <button class="btn btn-sm" @click="exportSupplier">导出</button>
         </div>
         <table class="grid">
           <thead><tr><th>供应商</th><th class="num">采购单数</th><th class="num">采购数量</th><th class="num">采购金额</th></tr></thead>
           <tbody>
-            <tr v-for="(r,i) in supplierRowsPaged" :key="r.name+i"><td>{{r.name}}</td><td class="num">{{r.count}}</td>
-              <td class="num">{{fmtNum(r.qty)}}</td><td class="num money">{{fmtMoney(r.amt)}}</td></tr>
+            <tr v-for="(r,i) in supplierRowsPaged" :key="r.name+i"><td data-label="供应商">{{r.name}}</td><td class="num" data-label="采购单数">{{r.count}}</td>
+              <td class="num" data-label="采购数量">{{fmtNum(r.qty)}}</td><td class="num money" data-label="采购金额">{{fmtMoney(r.amt)}}</td></tr>
             <tr v-if="!supplierRowsPaged.length"><td colspan="4" class="empty">暂无数据</td></tr>
             <tr v-if="supplierRowsPaged.length" style="background:#eff6ff;font-weight:700">
-              <td style="text-align:right">合计</td>
-              <td class="num">{{supTotal.count}}</td>
-              <td class="num">{{fmtNum(supTotal.qty)}}</td>
-              <td class="num money">{{fmtMoney(supTotal.amt)}}</td>
+              <td style="text-align:right" data-label="合计">合计</td>
+              <td class="num" data-label="采购单数">{{supTotal.count}}</td>
+              <td class="num" data-label="采购数量">{{fmtNum(supTotal.qty)}}</td>
+              <td class="num money" data-label="采购金额">{{fmtMoney(supTotal.amt)}}</td>
             </tr>
           </tbody>
         </table>
@@ -433,18 +456,21 @@ Pages['page-report'] = {
       <div class="card" style="margin-bottom:0">
         <h3>运营成本汇总（已计算）</h3>
         <div class="toolbar">
-          <x-combobox v-model="fExpCat" :options="expCatOpts" placeholder="全部分类" style="width:180px"></x-combobox>
+          <div v-if="! $root.isMobile || fExpFilter.showFilter" style="display:contents">
+            <x-combobox v-model="fExpCat" :options="expCatOpts" placeholder="全部分类" style="width:180px"></x-combobox>
+          </div>
+          <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fExpFilter,'showFilter',!fExpFilter.showFilter)">筛选</button>
           <button class="btn btn-sm" @click="exportExpense">导出</button>
         </div>
         <table class="grid">
           <thead><tr><th>类目</th><th class="num">笔数</th><th class="num">金额</th></tr></thead>
           <tbody>
-            <tr v-for="(r,i) in expenseRowsPaged" :key="r.name+i"><td>{{r.name}}</td><td class="num">{{r.count}}</td><td class="num money">{{fmtMoney(r.amt)}}</td></tr>
+            <tr v-for="(r,i) in expenseRowsPaged" :key="r.name+i"><td data-label="类目">{{r.name}}</td><td class="num" data-label="笔数">{{r.count}}</td><td class="num money" data-label="金额">{{fmtMoney(r.amt)}}</td></tr>
             <tr v-if="!expenseRowsPaged.length"><td colspan="3" class="empty">暂无数据</td></tr>
             <tr v-if="expenseRowsPaged.length" style="background:#eff6ff;font-weight:700">
-              <td style="text-align:right">合计</td>
-              <td class="num">{{expTotal.count}}</td>
-              <td class="num money">{{fmtMoney(expTotal.amt)}}</td>
+              <td style="text-align:right" data-label="合计">合计</td>
+              <td class="num" data-label="笔数">{{expTotal.count}}</td>
+              <td class="num money" data-label="金额">{{fmtMoney(expTotal.amt)}}</td>
             </tr>
           </tbody>
         </table>
@@ -454,19 +480,22 @@ Pages['page-report'] = {
       <div class="card" style="margin-bottom:0">
         <h3>应收账款（全部未支付，不限时间）</h3>
         <div class="toolbar">
-          <input type="text" v-model="fCust" placeholder="客户（模糊）" style="width:180px">
+          <div v-if="! $root.isMobile || fARFilter.showFilter" style="display:contents">
+            <input type="text" v-model="fCust" placeholder="客户（模糊）" style="width:180px">
+          </div>
+          <button class="btn btn-sm" v-if="$root.isMobile" @click="$set(fARFilter,'showFilter',!fARFilter.showFilter)">筛选</button>
           <button class="btn btn-sm" @click="exportAR">导出</button>
         </div>
         <table class="grid">
           <thead><tr><th>客户</th><th class="num">累计未支付</th><th class="num">其中超期</th></tr></thead>
           <tbody>
-            <tr v-for="(r,i) in arRowsPaged" :key="r.name+i"><td>{{r.name}}</td><td class="num money">{{fmtMoney(r.arrears)}}</td>
-              <td class="num money" :class="{red:r.overdue>0}">{{fmtMoney(r.overdue)}}</td></tr>
+            <tr v-for="(r,i) in arRowsPaged" :key="r.name+i"><td data-label="客户">{{r.name}}</td><td class="num money" data-label="累计未支付">{{fmtMoney(r.arrears)}}</td>
+              <td class="num money" data-label="其中超期" :class="{red:r.overdue>0}">{{fmtMoney(r.overdue)}}</td></tr>
             <tr v-if="!arRowsPaged.length"><td colspan="3" class="empty">暂无应收账款</td></tr>
             <tr v-if="arRowsPaged.length" style="background:#eff6ff;font-weight:700">
-              <td style="text-align:right">合计</td>
-              <td class="num money">{{fmtMoney(arTotal.arrears)}}</td>
-              <td class="num money" :class="{red:arTotal.overdue>0}">{{fmtMoney(arTotal.overdue)}}</td>
+              <td style="text-align:right" data-label="合计">合计</td>
+              <td class="num money" data-label="累计未支付">{{fmtMoney(arTotal.arrears)}}</td>
+              <td class="num money" data-label="其中超期" :class="{red:arTotal.overdue>0}">{{fmtMoney(arTotal.overdue)}}</td>
             </tr>
           </tbody>
         </table>

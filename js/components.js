@@ -3,14 +3,41 @@ window.AppComponents = {};
 
 /* 弹窗 */
 AppComponents['x-modal'] = {
-  props: ['title', 'width'],
+  props: ['title', 'width', 'fullscreen', 'position'],  /* fullscreen:Boolean  position:'center'|'bottom' */
   emits: ['close'],
+  computed: {
+    boxStyle() {
+      if (this.fullscreen) return {};
+      if (this.position === 'bottom') return { width: '100%', maxWidth: '100%' };
+      return { width: (this.width || 640) + 'px' };
+    }
+  },
   template: `
   <div class="modal-mask" @mousedown.self="$emit('close')">
-    <div class="modal-box" :style="{width:(width||640)+'px'}">
+    <div class="modal-box" :class="[{'fs':fullscreen,'sheet':position==='bottom'}]" :style="boxStyle">
       <div class="modal-head"><span>{{title}}</span><button class="btn-x" @click="$emit('close')">×</button></div>
       <div class="modal-body"><slot></slot></div>
       <div class="modal-foot"><slot name="foot"></slot></div>
+    </div>
+  </div>`
+};
+
+/* 右侧滑入详情抽屉（行详情，手机端为主） */
+AppComponents['x-drawer'] = {
+  props: { title: String, fields: { type: Array, default: () => [] }, open: Boolean },
+  emits: ['close'],
+  template: `
+  <div class="drawer-mask" v-if="open" @click.self="$emit('close')">
+    <div class="drawer-panel">
+      <div class="drawer-head"><span>{{title}}</span><button class="btn-x" @click="$emit('close')">×</button></div>
+      <div class="drawer-body">
+        <div class="kv-grid">
+          <div v-for="(f,i) in fields" :key="i" :class="{full: f.full}">
+            <label>{{f.label}}</label><span>{{f.value}}</span>
+          </div>
+        </div>
+        <div class="drawer-foot"><button class="btn btn-primary" style="width:100%" @click="$emit('close')">关闭</button></div>
+      </div>
     </div>
   </div>`
 };
@@ -37,11 +64,11 @@ AppComponents['x-pager'] = {
         <option v-for="n in sizes" :key="n" :value="n">{{n}} 条</option>
       </select>
     </label>
-    <button :disabled="page<=1" @click="$emit('update:page', 1)">首页</button>
+    <button class="pg-first" :disabled="page<=1" @click="$emit('update:page', 1)">首页</button>
     <button :disabled="page<=1" @click="$emit('update:page', page-1)">上一页</button>
     <button class="cur">{{page}}</button>
     <button :disabled="page>=pages" @click="$emit('update:page', page+1)">下一页</button>
-    <button :disabled="page>=pages" @click="$emit('update:page', pages)">末页</button>
+    <button class="pg-last" :disabled="page>=pages" @click="$emit('update:page', pages)">末页</button>
   </div>`
 };
 
@@ -63,7 +90,7 @@ AppComponents['x-status'] = {
 AppComponents['dict-page'] = {
   props: {
     coll: String,       /* 集合名 */
-    label: String,      /* 名称列标题，如"商品类型" */
+    label: String,       /* 名称列标题，如"商品类型" */
     title: String       /* 页面标题 */
   },
   data() {
@@ -111,10 +138,10 @@ AppComponents['dict-page'] = {
       <thead><tr><th>序号</th><th>{{label}}</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
       <tbody>
         <tr v-for="(r,i) in paged" :key="r.id">
-          <td>{{(page-1)*pageSize+i+1}}</td>
-          <td>{{r.name}}</td>
-          <td>{{r.createTime}}</td>
-          <td><x-status :v="r.status"/></td>
+          <td><span class="cell-label">序号</span>{{(page-1)*pageSize+i+1}}</td>
+          <td><span class="cell-label">{{label}}</span>{{r.name}}</td>
+          <td><span class="cell-label">创建时间</span>{{r.createTime}}</td>
+          <td><span class="cell-label">状态</span><x-status :v="r.status"/></td>
           <td class="ops">
             <span class="link" @click="openEdit(r)">修改</span>
             <span class="link danger" @click="del(r)">删除</span>

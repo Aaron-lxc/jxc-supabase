@@ -60,12 +60,17 @@ Pages['page-warehouse'] = {
         </tr></thead>
         <tbody>
           <tr v-for="(w,i) in paged" :key="w.id">
-            <td>{{(page-1)*pageSize+i+1}}</td><td>{{w.name}}</td><td>{{w.address}}</td><td>{{w.manager}}</td><td>{{w.phone}}</td>
-            <td class="num money">{{fmtMoney(w.rent)}}</td>
-            <td>{{w.expireDate||'-'}} <span v-if="daysLeft(w)!==null"><span v-if="daysLeft(w)<=60" class="tag" :class="daysLeft(w)<=30?'tag-red':'tag-orange'">{{daysLeft(w)<0?'已到期':'剩'+daysLeft(w)+'天'}}</span></span></td>
-            <td>{{w.landlord||'-'}}</td><td>{{w.createTime}}</td>
-            <td><x-status :v="w.status"/></td>
-            <td class="ops">
+            <td data-label="序号">{{(page-1)*pageSize+i+1}}</td>
+            <td data-label="仓库名称">{{w.name}}</td>
+            <td data-label="仓库地址">{{w.address}}</td>
+            <td data-label="负责人">{{w.manager}}</td>
+            <td data-label="联系电话">{{w.phone}}</td>
+            <td class="num money" data-label="每月租金">{{fmtMoney(w.rent)}}</td>
+            <td data-label="到期时间">{{w.expireDate||'-'}} <span v-if="daysLeft(w)!==null"><span v-if="daysLeft(w)<=60" class="tag" :class="daysLeft(w)<=30?'tag-red':'tag-orange'">{{daysLeft(w)<0?'已到期':'剩'+daysLeft(w)+'天'}}</span></span></td>
+            <td data-label="房东/联系电话">{{w.landlord||'-'}}</td>
+            <td data-label="创建时间">{{w.createTime}}</td>
+            <td data-label="状态"><x-status :v="w.status"/></td>
+            <td class="ops" data-label="操作">
               <span class="link" @click="openEdit(w)">编辑</span>
               <span class="link danger" @click="del(w)">删除</span>
               <span class="link" :class="w.status==='已启用'?'warn':'green'" @click="toggle(w)">{{w.status==='已启用'?'停用':'启用'}}</span>
@@ -78,7 +83,7 @@ Pages['page-warehouse'] = {
       <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
     </div>
 
-    <x-modal v-if="showForm" :title="editing?'编辑仓库':'新增仓库'" :width="640" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'编辑仓库':'新增仓库'" :width="640" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>仓库名称<b class="req">*</b></label><input type="text" v-model="form.name"></div>
         <div class="form-item"><label>负责人</label><input type="text" v-model="form.manager"></div>

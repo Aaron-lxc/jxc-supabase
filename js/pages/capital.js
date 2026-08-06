@@ -68,11 +68,11 @@ Pages['page-capital'] = {
       <table class="grid">
         <thead><tr><th>序号</th><th>编号</th><th>股东名称</th><th>支付方式</th><th class="num">金额</th><th>日期</th><th>备注</th><th>操作人</th><th v-if="!ro">操作</th></tr></thead>
         <tbody>
-          <tr v-for="(r,i) in paged"><td>{{(page-1)*pageSize+i+1}}</td><td>{{r.no}}</td>
-            <td>{{r.investor}}</td><td>{{r.method||'-'}}</td>
-            <td class="num money">{{fmtMoney(r.amount)}}</td><td>{{r.date}}</td>
-            <td>{{r.remark||'-'}}</td><td>{{r.operator||'-'}}</td>
-            <td v-if="!ro" class="ops"><span class="link danger" @click="del(r)">删除</span></td></tr>
+          <tr v-for="(r,i) in paged"><td data-label="序号">{{(page-1)*pageSize+i+1}}</td><td data-label="编号">{{r.no}}</td>
+            <td data-label="股东名称">{{r.investor}}</td><td data-label="支付方式">{{r.method||'-'}}</td>
+            <td class="num money" data-label="金额">{{fmtMoney(r.amount)}}</td><td data-label="日期">{{r.date}}</td>
+            <td data-label="备注">{{r.remark||'-'}}</td><td data-label="操作人">{{r.operator||'-'}}</td>
+            <td v-if="!ro" class="ops" data-label="操作"><span class="link danger" @click="del(r)">删除</span></td></tr>
           <tr v-if="!paged.length"><td colspan="9" class="empty">暂无注资记录</td></tr>
         </tbody>
       </table>
@@ -85,13 +85,13 @@ Pages['page-capital'] = {
       <table class="grid">
         <thead><tr><th>序号</th><th>股东名称</th><th class="num">累计注资</th></tr></thead>
         <tbody>
-          <tr v-for="(r,i) in byInvestor"><td>{{i+1}}</td><td>{{r.investor}}</td><td class="num money">{{fmtMoney(r.amount)}}</td></tr>
+          <tr v-for="(r,i) in byInvestor"><td data-label="序号">{{i+1}}</td><td data-label="股东名称">{{r.investor}}</td><td class="num money" data-label="累计注资">{{fmtMoney(r.amount)}}</td></tr>
           <tr v-if="!byInvestor.length"><td colspan="3" class="empty">暂无注资</td></tr>
         </tbody>
       </table>
     </div>
 
-    <x-modal v-if="showForm" title="新增股东注资" :width="560" @close="showForm=false">
+    <x-modal v-if="showForm" title="新增股东注资" :width="560" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>股东名称<b class="req">*</b></label><input type="text" v-model="form.investor" placeholder="如：股东张三 / 公司增资"></div>
         <div class="form-item"><label>支付方式<b class="req">*</b></label><x-combobox v-model="form.method" :options="methodOpts" placeholder="请选择"/></div>

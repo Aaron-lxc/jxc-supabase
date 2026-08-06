@@ -34,6 +34,26 @@ const CustomerList = {
   },
   methods: {
     fmtMoney: U.fmtMoney,
+    rowFields(c) {
+      return [
+        { label: '客户编号', value: c.code },
+        { label: '客户名称', value: c.name },
+        { label: '区域', value: S.name('regions', c.regionId) },
+        { label: '类型', value: S.name('custTypes', c.typeId) },
+        { label: '级别', value: S.name('custLevels', c.levelId) },
+        { label: '支付方式', value: c.payMethod },
+        { label: '支付周期', value: c.payCycle + (c.payDay ? '/' + c.payDay + '号' : '') },
+        { label: '税点', value: (c.taxRate || 0) + '%' },
+        { label: '减免', value: c.taxExempt || '否' },
+        { label: '一级资源', value: this.rpName(c.r1) },
+        { label: '二级资源', value: this.rpName(c.r2) },
+        { label: '三级资源', value: this.rpName(c.r3) },
+        { label: '区域合伙人', value: c.regionPartnerId ? S.name('regionPartners', c.regionPartnerId) : '-' },
+        { label: '累计欠款', value: U.fmtMoney(this.arrears(c)) },
+        { label: '创建时间', value: c.createTime },
+        { label: '状态', value: c.status }
+      ];
+    },
     arrears(c) { return S.custArrears(c.id); },
     rpName(id) { return id ? S.name('resourcePartners', id) : '-'; },
     /* 该客户已完成销售单产生的税点成本合计（仅计入成本侧，不影响销售额与佣金基数） */
@@ -128,7 +148,8 @@ const CustomerList = {
       <button class="btn btn-primary" @click="openNew">+ 新增客户</button>
     </div>
     <div class="table-wrap">
-    <table class="grid">
+    <template v-if="!$root.isMobile">
+    <table class="grid wide-table">
       <thead><tr>
         <th>客户编号</th><th>客户名称</th><th>区域</th><th>类型</th><th>级别</th>
         <th>支付方式</th><th>支付周期</th><th class="num">税点</th><th>减免</th><th>一级资源</th><th>二级资源</th><th>三级资源</th><th>区域合伙人</th>
@@ -157,10 +178,20 @@ const CustomerList = {
         <tr v-if="!paged.length"><td colspan="17" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
+    </template>
+    <div v-else class="row-cards">
+      <div v-for="c in paged" :key="c.id" class="row-card" @click="$root.openRow(c, rowFields(c), '客户详情')">
+        <div class="rc-title">{{c.name}}</div>
+        <div class="rc-sub">{{S.name('custLevels', c.levelId)}}</div>
+        <div class="rc-row"><span>累计欠款</span><b class="money" :class="{red: arrears(c)>0}">{{fmtMoney(arrears(c))}}</b></div>
+        <div class="rc-row"><span>状态</span><span>{{c.status}}</span></div>
+      </div>
+      <div v-if="!paged.length" class="empty">暂无数据</div>
+    </div>
     </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-    <x-modal v-if="showForm" :title="editing?'修改客户':'新增客户'" :width="760" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'修改客户':'新增客户'" :width="760" :fullscreen="$root.isMobile" @close="showForm=false">
       <div class="form-grid cols3">
         <div class="form-item"><label>客户名称<b class="req">*</b></label><input type="text" v-model="form.name"></div>
         <div class="form-item"><label>区域名称<b class="req">*</b></label>

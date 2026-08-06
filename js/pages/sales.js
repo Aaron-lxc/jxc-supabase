@@ -87,6 +87,22 @@ const SaleList = {
   },
   methods: {
     fmtMoney: U.fmtMoney,
+    rowFields(s) {
+      return [
+        { label: '销售单号', value: s.no },
+        { label: '客户名称', value: S.name('customers', s.customerId) },
+        { label: '仓库名称', value: S.name('warehouses', s.whId) },
+        { label: '商品', value: this.itemsSummary(s) },
+        { label: '数量', value: this.qtySum(s) },
+        { label: '金额', value: U.fmtMoney(s.total) },
+        { label: '税点费用', value: U.fmtMoney(S.saleTaxCost(s)) },
+        { label: '累计欠款', value: U.fmtMoney(this.custArrears(s)) },
+        { label: '配送费', value: U.fmtMoney(S.saleDeliveryCost(s)) },
+        { label: '客户备注', value: s.custRemark || '-' },
+        { label: '状态', value: s.status },
+        { label: '创建时间', value: s.createTime }
+      ];
+    },
     itemsSummary(s) {
       const its = s.items || [];
       if (!its.length) return '-';
@@ -248,7 +264,8 @@ const SaleList = {
       <button class="btn btn-primary" @click="openNew">+ 新增销售单</button>
     </div>
     <div class="table-wrap">
-    <table class="grid">
+    <template v-if="!$root.isMobile">
+    <table class="grid wide-table">
       <thead><tr>
         <th>序号</th><th>销售单号</th><th>客户名称</th><th>仓库名称</th><th>商品</th>
         <th class="num">数量</th><th class="num">金额</th><th class="num">税点费用</th><th class="num">累计欠款</th><th class="num">配送费</th><th>客户备注</th><th>状态</th><th>创建时间</th><th>操作</th>
@@ -279,11 +296,22 @@ const SaleList = {
         <tr v-if="!paged.length"><td colspan="14" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
+    </template>
+    <div v-else class="row-cards">
+      <div v-for="s in paged" :key="s.id" class="row-card" @click="$root.openRow(s, rowFields(s), '销售单详情')">
+        <div class="rc-title">{{s.no}}</div>
+        <div class="rc-sub">{{S.name('customers', s.customerId)}}</div>
+        <div class="rc-row"><span>金额</span><b class="money">{{fmtMoney(s.total)}}</b></div>
+        <div class="rc-row"><span>状态</span><span>{{s.status}}</span></div>
+        <div class="rc-row"><span>创建时间</span><span>{{s.createTime}}</span></div>
+      </div>
+      <div v-if="!paged.length" class="empty">暂无数据</div>
+    </div>
     </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
     <!-- 新增/修改销售单 -->
-    <x-modal v-if="showForm" :title="editing?'修改销售单':'新增销售单'" :width="860" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'修改销售单':'新增销售单'" :width="860" :fullscreen="$root.isMobile" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>客户名称<b class="req">*</b></label>
           <x-combobox v-model="form.customerId" :options="custOpts" placeholder="请选择（可输入检索）" @update:modelValue="onCustChange"/></div>
@@ -440,6 +468,17 @@ const ReturnList = {
   },
   methods: {
     fmtMoney: U.fmtMoney,
+    rowFields(r) {
+      return [
+        { label: '退货单号', value: r.no },
+        { label: '销售单号', value: r.saleNo },
+        { label: '客户名称', value: S.name('customers', r.customerId) },
+        { label: '仓库', value: S.name('warehouses', r.whId) },
+        { label: '退货明细', value: this.itemsDesc(r) },
+        { label: '退货金额', value: U.fmtMoney(r.total) },
+        { label: '退货时间', value: r.createTime }
+      ];
+    },
     itemsDesc(r) {
       return (r.items || []).map(it => S.name('goods', it.goodsId) + '×' + it.qty).join('、');
     },
@@ -475,7 +514,8 @@ const ReturnList = {
       <button class="btn btn-primary" @click="openNew">+ 新增退货</button>
     </div>
     <div class="table-wrap">
-    <table class="grid">
+    <template v-if="!$root.isMobile">
+    <table class="grid wide-table">
       <thead><tr><th>序号</th><th>退货单号</th><th>销售单号</th><th>客户名称</th><th>仓库</th><th>退货明细</th><th class="num">退货金额</th><th>退货时间</th></tr></thead>
       <tbody>
         <tr v-for="(r,i) in paged" :key="r.id">
@@ -483,13 +523,23 @@ const ReturnList = {
           <td>{{S.name('customers',r.customerId)}}</td><td>{{S.name('warehouses',r.whId)}}</td>
           <td>{{itemsDesc(r)}}</td><td class="num money red">{{fmtMoney(r.total)}}</td><td>{{r.createTime}}</td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="8" class="empty">暂无退货记录</td></tr>
-      </tbody>
-    </table>
-    </div>
+          <tr v-if="!paged.length"><td colspan="8" class="empty">暂无退货记录</td></tr>
+        </tbody>
+      </table>
+      </template>
+      <div v-else class="row-cards">
+        <div v-for="r in paged" :key="r.id" class="row-card" @click="$root.openRow(r, rowFields(r), '退货单详情')">
+          <div class="rc-title">{{r.no}}</div>
+          <div class="rc-sub">{{S.name('customers', r.customerId)}}</div>
+          <div class="rc-row"><span>退货金额</span><b class="money red">{{fmtMoney(r.total)}}</b></div>
+          <div class="rc-row"><span>退货时间</span><span>{{r.createTime}}</span></div>
+        </div>
+        <div v-if="!paged.length" class="empty">暂无数据</div>
+      </div>
+      </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-    <x-modal v-if="showForm" title="新增退货（依据已完成的销售单）" :width="720" @close="showForm=false">
+    <x-modal v-if="showForm" title="新增退货（依据已完成的销售单）" :width="720" :fullscreen="$root.isMobile" @close="showForm=false">
       <div class="form-item">
         <label>选择销售单<b class="req">*</b></label>
         <x-combobox v-model="saleId" :options="saleOpts" placeholder="请选择已完成的销售单（可输入单号/客户检索）"/>
@@ -550,6 +600,25 @@ const SettleList = {
   },
   methods: {
     fmtMoney: U.fmtMoney,
+    rowFields(r) {
+      return [
+        { label: '销售单号', value: r.no },
+        { label: '客户名称', value: r.cust },
+        { label: '账期', value: r.cycle },
+        { label: '销售金额', value: U.fmtMoney(r.total) },
+        { label: '退货金额', value: U.fmtMoney(r.returned) },
+        { label: '税点费用', value: U.fmtMoney(S.saleTaxCost(r.s)) },
+        { label: '应收净额(含税)', value: U.fmtMoney(S.salePayable(r.s)) },
+        { label: '支付方式', value: r.s.payMethod || '-' },
+        { label: '实际收款', value: r.s.actualPaid ? U.fmtMoney(r.s.actualPaid) : '-' },
+        { label: '手续费', value: r.s.fee ? U.fmtMoney(r.s.fee) : '-' },
+        { label: '配送费', value: r.delivery ? U.fmtMoney(r.delivery) : '-' },
+        { label: '应付日期', value: r.due },
+        { label: '超期', value: r.overdue > 0 ? '超期' + r.overdue + '天' : '-' },
+        { label: '支付状态', value: r.payStatus },
+        { label: '支付时间', value: r.payTime || '-' }
+      ];
+    },
     markPaid(r) {
       this.cur = r;
       this.settleForm = { method: r.s.payMethod || '', actualPaid: S.salePayable(r.s), deliveryFee: r.s.deliveryFee || 0 };
@@ -600,7 +669,8 @@ const SettleList = {
       <button class="btn" @click="exportData">导出</button>
     </div>
     <div class="table-wrap">
-    <table class="grid">
+    <template v-if="!$root.isMobile">
+    <table class="grid wide-table">
       <thead><tr>
         <th>序号</th><th>销售单号</th><th>客户名称</th><th>账期</th>
         <th class="num">销售金额</th><th class="num">退货金额</th><th class="num">税点费用</th><th class="num">应收净额(含税)</th>
@@ -629,13 +699,23 @@ const SettleList = {
             </template>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="17" class="empty">暂无已完成的销售单</td></tr>
-      </tbody>
-    </table>
-    </div>
+          <tr v-if="!paged.length"><td colspan="17" class="empty">暂无已完成的销售单</td></tr>
+        </tbody>
+      </table>
+      </template>
+      <div v-else class="row-cards">
+        <div v-for="r in paged" :key="r.no" class="row-card" @click="$root.openRow(r, rowFields(r), '结算详情')">
+          <div class="rc-title">{{r.no}}</div>
+          <div class="rc-sub">{{r.cust}}</div>
+          <div class="rc-row"><span>应收净额</span><b class="money">{{fmtMoney(S.salePayable(r.s))}}</b></div>
+          <div class="rc-row"><span>支付状态</span><span>{{r.payStatus}}</span></div>
+        </div>
+        <div v-if="!paged.length" class="empty">暂无数据</div>
+      </div>
+      </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-    <x-modal v-if="showSettle" title="销售收款结算" :width="520" @close="showSettle=false">
+    <x-modal v-if="showSettle" title="销售收款结算" :width="520" :fullscreen="$root.isMobile" @close="showSettle=false">
       <div class="form-grid">
         <div class="form-item"><label>销售单号</label><input type="text" :value="cur && cur.s ? cur.s.no : ''" disabled></div>
         <div class="form-item"><label>客户名称</label><input type="text" :value="cur?S.name('customers',cur.s.customerId):''" disabled></div>

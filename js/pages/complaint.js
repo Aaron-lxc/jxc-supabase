@@ -94,14 +94,14 @@ const ComplaintList = {
         <th>投诉描述</th><th>投诉时间</th><th>状态</th><th>操作</th>
       </tr></thead>
       <tbody>
-        <tr v-for="(x,i) in paged" :key="x.id">
-          <td>{{(page-1)*pageSize+i+1}}</td><td>{{x.no}}</td><td>{{S.name('complaintTypes',x.typeId)}}</td>
-          <td>{{S.name('customers',x.customerId)}}</td>
-          <td>{{x.regionPartnerId ? S.name('regionPartners',x.regionPartnerId) : '-'}}</td>
-          <td>{{resNames(x)||'-'}}</td>
-          <td style="max-width:220px;white-space:normal">{{x.desc}}</td>
-          <td>{{x.time}}</td><td><x-status :v="x.status"/></td>
-          <td class="ops">
+          <tr v-for="(x,i) in paged" :key="x.id">
+          <td data-label="序号">{{(page-1)*pageSize+i+1}}</td><td data-label="投诉单">{{x.no}}</td><td data-label="投诉类型">{{S.name('complaintTypes',x.typeId)}}</td>
+          <td data-label="客户名称">{{S.name('customers',x.customerId)}}</td>
+          <td data-label="区域合伙人">{{x.regionPartnerId ? S.name('regionPartners',x.regionPartnerId) : '-'}}</td>
+          <td data-label="资源合伙人">{{resNames(x)||'-'}}</td>
+          <td style="max-width:220px;white-space:normal" data-label="投诉描述">{{x.desc}}</td>
+          <td data-label="投诉时间">{{x.time}}</td><td data-label="状态"><x-status :v="x.status"/></td>
+          <td class="ops" data-label="操作">
             <span class="link" @click="openEdit(x)">修改</span>
             <span class="link danger" @click="del(x)">删除</span>
             <span v-if="x.status==='未处理'" class="link green" @click="handle(x)">处理</span>
@@ -113,7 +113,7 @@ const ComplaintList = {
     </div>
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
-    <x-modal v-if="showForm" :title="editing?'修改投诉单':'新增投诉单'" :width="640" @close="showForm=false">
+    <x-modal v-if="showForm" :title="editing?'修改投诉单':'新增投诉单'" :width="640" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>投诉类型<b class="req">*</b></label>
           <x-combobox v-model="form.typeId" :options="formTypeOpts" style="width:100%"/></div>
