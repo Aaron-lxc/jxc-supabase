@@ -205,24 +205,57 @@ AppComponents['x-combobox'] = {
       if (left + width > vw - 8) left = Math.max(8, vw - width - 8);
       this.pos = { top: Math.round(r.bottom) + 2, left, width, maxW };
     },
-    onScroll() { if (this.open) this.updatePos(); },
+    isInputInViewport() {
+      const el = this.$el && this.$el.querySelector ? this.$el.querySelector('.cb-input') : null;
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      const vw = window.innerWidth || document.documentElement.clientWidth;
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      return r.top < vh && r.bottom > 0 && r.left < vw && r.right > 0;
+    },
+    onScroll() {
+      if (!this.open) return;
+      // 如果输入框已滚出视口，直接关闭面板避免漂浮
+      if (!this.isInputInViewport()) { this.open = false; this.cleanup(); return; }
+      this.updatePos();
+    },
     onResize() { if (this.open) this.updatePos(); },
+    findScrollParents(el) {
+      const res = [];
+      let p = el && el.parentElement;
+      while (p) {
+        const s = window.getComputedStyle(p);
+        if (/auto|scroll/.test(s.overflowY) || /auto|scroll/.test(s.overflowX)) res.push(p);
+        p = p.parentElement;
+      }
+      return res;
+    },
     cleanup() {
+      if (this._scrollEls) {
+        this._scrollEls.forEach(e => e.removeEventListener('scroll', this.onScroll, true));
+        this._scrollEls = [];
+      }
       window.removeEventListener('scroll', this.onScroll, true);
       window.removeEventListener('resize', this.onResize);
+    },
+    bindListeners() {
+      this.cleanup();
+      const el = this.$el && this.$el.querySelector ? this.$el.querySelector('.cb-input') : null;
+      this._scrollEls = this.findScrollParents(el);
+      this._scrollEls.forEach(e => e.addEventListener('scroll', this.onScroll, true));
+      window.addEventListener('scroll', this.onScroll, true);
+      window.addEventListener('resize', this.onResize);
     },
     onFocus() {
       if (this.disabled) return;
       this.open = true; this.kw = '';
-      this.$nextTick(() => this.updatePos());
-      window.addEventListener('scroll', this.onScroll, true);
-      window.addEventListener('resize', this.onResize);
+      this.$nextTick(() => { this.updatePos(); this.bindListeners(); });
     },
-    onInput(e) { this.kw = e.target.value; this.open = true; this.$nextTick(() => this.updatePos()); },
+    onInput(e) { this.kw = e.target.value; this.open = true; this.$nextTick(() => { this.updatePos(); this.bindListeners(); }); },
     toggle() {
       if (this.disabled) return;
       this.open = !this.open; this.kw = '';
-      if (this.open) this.$nextTick(() => this.updatePos()); else this.cleanup();
+      if (this.open) this.$nextTick(() => { this.updatePos(); this.bindListeners(); }); else this.cleanup();
     },
     pick(o) { this.$emit('update:modelValue', o.value); this.open = false; this.kw = ''; this.cleanup(); },
     onBlur() { setTimeout(() => { this.open = false; this.cleanup(); }, 120); }
