@@ -3,7 +3,7 @@ window.Pages = window.Pages || {};
 
 Pages['page-settings'] = {
   data() {
-    return { busy: '', pwd1: '', pwd2: '', wsName: '', tabbarDef: ['sales', 'goods', 'customers', 'partners', 'purchase'] };
+    return { busy: '', pwd1: '', pwd2: '', wsName: '', tabbarDef: ['sales', 'goods', 'partners', 'customers', 'purchase'] };
   },
   computed: {
     S() { return window.S; },

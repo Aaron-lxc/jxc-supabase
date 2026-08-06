@@ -105,7 +105,7 @@
       wsList() { return Cloud.state.workspaces; },
       menu() { return P.menus(); },
       tabItems() {
-        const def = ['sales', 'goods', 'customers', 'partners', 'purchase'];
+        const def = ['sales', 'goods', 'partners', 'customers', 'purchase'];
         const cfg = (S.db && S.db.settings && Array.isArray(S.db.settings.tabbar) && S.db.settings.tabbar.length)
           ? S.db.settings.tabbar : def;
         const map = this.menu.reduce((acc, m) => { acc[m.key] = m; return acc; }, {});

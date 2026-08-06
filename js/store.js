@@ -142,6 +142,16 @@ window.S = {
     (db.openingFunds || []).forEach(x => {
       if (!x.payMethod) x.payMethod = (window.PAY_METHODS && window.PAY_METHODS.indexOf(x.type) >= 0) ? x.type : '现金';
     });
+    /* 迁移：底部导航若已保存且 customers 在 partners 之前，把 partners 提前到 customers 之前，
+       与系统菜单顺序（合伙人管理在客户管理之前）保持一致；保留用户原有的模块选择与顺序。 */
+    if (Array.isArray(db.settings.tabbar) && db.settings.tabbar.length) {
+      const ci = db.settings.tabbar.indexOf('customers');
+      const pi = db.settings.tabbar.indexOf('partners');
+      if (ci >= 0 && pi >= 0 && ci < pi) {
+        db.settings.tabbar.splice(pi, 1);
+        db.settings.tabbar.splice(ci, 0, 'partners');
+      }
+    }
   },
 
 

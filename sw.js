@@ -2,7 +2,7 @@
    注意：业务页面(js/pages/*)与体积较大的 echarts/xlsx 改为按需加载，
    不在此处预拉取（否则安装时会一次性下载，抵消懒加载收益）；
    它们会在首次被请求时由 fetch 处理器自动缓存。 */
-const CACHE = 'jxc-v3';
+const CACHE = 'jxc-v4';
 const ASSETS = [
   './', './index.html', './css/style.css', './manifest.json', './icon.svg',
   './icon-192.png', './icon-512.png',
