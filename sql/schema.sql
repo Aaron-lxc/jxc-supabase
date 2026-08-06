@@ -117,6 +117,8 @@ returns text language sql immutable as $$
     when 'purchases'          then 'purchase'
     when 'stocks'             then 'inventory'
     when 'stockChecks'        then 'inventory'
+    when 'losses'             then 'loss'
+    when 'overflows'          then 'overflow'
     when 'sales'              then 'sales'
     when 'returns'            then 'sales'
     when 'expenseCats'        then 'finance'

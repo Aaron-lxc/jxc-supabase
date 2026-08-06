@@ -45,11 +45,13 @@ Pages['page-report'] = {
       const purchases = S.db.purchases.filter(p => U.inRange(p.inTime, this.d1, this.d2));
       const purAmt = U.round2(purchases.reduce((a, p) => a + Number(p.amount), 0));
       const purQty = purchases.reduce((a, p) => a + Number(p.qty), 0);
-      const opCost = U.round2(S.db.expenses.filter(x => x.status === '已计算' && U.inRange(x.createTime, this.d1, this.d2)).reduce((a, x) => a + Number(x.amount), 0));
+      const lossCost = U.round2(S.db.losses.filter(l => U.inRange(l.time, this.d1, this.d2)).reduce((a, l) => a + Number(l.amount || 0), 0));
+      const overflowGain = U.round2(S.db.overflows.filter(o => U.inRange(o.time, this.d1, this.d2)).reduce((a, o) => a + Number(o.amount || 0), 0));
+      const opCost = U.round2(S.db.expenses.filter(x => x.status === '已计算' && U.inRange(x.createTime, this.d1, this.d2)).reduce((a, x) => a + Number(x.amount), 0)) + lossCost;
       const resComm = S.totalResourceCommission(this.d1, this.d2);
       const regComm = S.totalRegionCommission(this.d1, this.d2);
-      const netProfit = U.round2(profit - opCost - resComm - regComm);
-      return { orderCount: sales.length, gross, returned, net, cost, taxCost, deliveryCost, profit, purQty, purAmt, opCost, resComm, regComm, netProfit };
+      const netProfit = U.round2(profit - opCost - resComm - regComm + overflowGain);
+      return { orderCount: sales.length, gross, returned, net, cost, taxCost, deliveryCost, profit, purQty, purAmt, opCost, resComm, regComm, netProfit, lossCost, overflowGain };
     },
     /* 佣金支付与质押总账（全期口径，含资源 + 区域合伙人） */
     payRows() {
@@ -479,6 +481,21 @@ Pages['page-report'] = {
           </tbody>
         </table>
         <x-pager :total="arRowsF.length" v-model:page="pageAR" v-model:size="pageSizeAR"/>
+      </div>
+    </div>
+
+    <div class="report-grid">
+      <!-- 报损报溢汇总 -->
+      <div class="card" style="margin-bottom:0">
+        <h3>报损报溢汇总（{{d1}} ~ {{d2}}）</h3>
+        <table class="grid">
+          <thead><tr><th>项目</th><th class="num">金额</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td data-label="项目">报损损失</td><td class="num money red" data-label="金额">-￥{{fmtMoney(overview.lossCost)}}</td><td data-label="说明">库存盘亏，计入运营成本</td></tr>
+            <tr><td data-label="项目">报溢收益</td><td class="num money green-t" data-label="金额">+￥{{fmtMoney(overview.overflowGain)}}</td><td data-label="说明">库存盘盈，已并入净利润</td></tr>
+            <tr style="background:#eff6ff;font-weight:700"><td data-label="项目">净盘盈</td><td class="num money" data-label="金额">{{fmtMoney(U.round2(overview.overflowGain - overview.lossCost))}}</td><td data-label="说明">报溢 − 报损</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>`

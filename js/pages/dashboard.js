@@ -55,7 +55,9 @@ Pages['page-dashboard'] = {
       const rentSum = U.round2(en('warehouses').reduce((a, w) => a + Number(w.rent || 0), 0));
       /* 累计销售/成本 */
       const totalSales = U.round2(db.sales.filter(s => s.status === '已完成').reduce((a, s) => a + S.saleNet(s), 0));
-      const opCost = U.round2(db.expenses.filter(x => x.status === '已计算').reduce((a, x) => a + Number(x.amount), 0));
+      const lossCost = U.round2(db.losses.reduce((a, l) => a + Number(l.amount || 0), 0));
+      const overflowGain = U.round2(db.overflows.reduce((a, o) => a + Number(o.amount || 0), 0));
+      const opCost = U.round2(db.expenses.filter(x => x.status === '已计算').reduce((a, x) => a + Number(x.amount), 0)) + lossCost;
       const resComm = S.totalResourceCommission(null, null);
       const regComm = S.totalRegionCommission(null, null);
       const taxCost = S.totalTaxCost(null, null);
@@ -73,9 +75,10 @@ Pages['page-dashboard'] = {
         rp, regionPartnerTotal: en('regionPartners').length,
         invQty, invCost: U.round2(invCost), invValue: U.round2(invValue), invProfit: U.round2(invValue - invCost), invByType,
         rentSum,
-        totalSales, totalCost: U.round2(opCost + resComm + regComm + taxCost + deliveryCost), opCost, resComm, regComm, taxCost, deliveryCost,
+        totalSales, totalCost: U.round2(opCost + resComm + regComm + taxCost + deliveryCost - overflowGain), opCost, resComm, regComm, taxCost, deliveryCost,
         totalExpense: opCost, totalArrears,
         cmpTotal: db.complaints.length, cmpByType,
+        lossCost, overflowGain,
         totalPurchase: U.round2(db.purchases.reduce((a, p) => a + Number(p.amount), 0)),
         totalReceipts: U.round2(db.sales.filter(s => s.payStatus === '已支付').reduce((a, s) => a + (Number(s.actualPaid) || S.salePayable(s)), 0)),
         receiptByMethod: (() => {
@@ -407,6 +410,8 @@ Pages['page-dashboard'] = {
         <div class="sub">已完成销售单扣除退货后的净额</div></div>
       <div class="stat-card c3 clickable" @click="go('finance')"><div class="t">累计成本</div><div class="v money">￥{{fmtMoney(stats.totalCost)}}</div>
         <div class="sub">日常运营 ￥{{fmtMoney(stats.opCost)}} ｜ 税点成本 ￥{{fmtMoney(stats.taxCost)}} ｜ 配送费成本 ￥{{fmtMoney(stats.deliveryCost)}}<br>资源佣金 ￥{{fmtMoney(stats.resComm)}} ｜ 区域佣金 ￥{{fmtMoney(stats.regComm)}}</div></div>
+      <div class="stat-card c2 clickable" @click="go('inventory')"><div class="t">报损损失 / 报溢收益</div><div class="v money red">-￥{{fmtMoney(stats.lossCost)}}</div>
+        <div class="sub">报损损失 ￥{{fmtMoney(stats.lossCost)}} ｜ 报溢收益 <b class="green-t">￥{{fmtMoney(stats.overflowGain)}}</b></div></div>
       <div class="stat-card c3 clickable" @click="go('commission')"><div class="t">累计佣金</div><div class="v money">￥{{fmtMoney(stats.resComm + stats.regComm)}}</div>
         <div class="sub">资源 ￥{{fmtMoney(stats.resComm)}} ｜ 区域 ￥{{fmtMoney(stats.regComm)}}</div></div>
       <div class="stat-card c2 clickable" @click="go('purchase')"><div class="t">累计采购金额</div><div class="v money">￥{{fmtMoney(stats.totalPurchase)}}</div>

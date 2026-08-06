@@ -9,6 +9,8 @@ window.P = {
     { key: 'warehouse',  label: '仓库管理',  ico: '🏬' },
     { key: 'purchase',   label: '采购管理',  ico: '🛒' },
     { key: 'inventory',  label: '库存管理',  ico: '📋' },
+    { key: 'loss',       label: '报损管理',  ico: '📉', hidden: true },
+    { key: 'overflow',   label: '报溢管理',  ico: '📈', hidden: true },
     { key: 'sales',      label: '销售管理',  ico: '💰' },
     { key: 'opening',    label: '期初管理',  ico: '🗓️' },
     { key: 'capital',    label: '注资管理',  ico: '🏦' },
@@ -34,7 +36,7 @@ window.P = {
   defaultPermissions() {
     return {
       dashboard: 'view',       goods: 'edit', customers: 'edit', partners: 'view',
-      warehouse: 'view', purchase: 'edit', inventory: 'edit', sales: 'edit',
+      warehouse: 'view', purchase: 'edit', inventory: 'edit', sales: 'edit', loss: 'edit', overflow: 'edit',
       opening: 'none', capital: 'none',
       finance: 'none', complaint: 'edit', report: 'view',
       commission: 'none', settings: 'none'
@@ -76,7 +78,7 @@ window.P = {
   menus() {
     // 纯接收人（非管理者）独占报表中心；管理者保留全部菜单并额外带报表中心入口
     if (this.isRecipient() && !this.isManager()) return [{ key: 'reportcenter', label: '佣金报表', ico: '📊' }];
-    const list = this.MODULES.filter(m => this.canView(m.key))
+    const list = this.MODULES.filter(m => !m.hidden && this.canView(m.key))
       .map(m => ({ key: m.key, label: m.label, ico: m.ico }));
     if (this.isManager()) {
       list.push({ ...this.MEMBER_MENU });

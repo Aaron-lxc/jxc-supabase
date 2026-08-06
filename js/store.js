@@ -19,6 +19,7 @@ window.S = {
       warehouses: [],
       purchases: [],
       stocks: [], stockChecks: [],
+      losses: [], overflows: [],
       sales: [], returns: [],
       expenseCats: [], expenses: [],
       complaintTypes: [], complaints: [],
@@ -245,6 +246,82 @@ window.S = {
   },
   goodsTotalQty(goodsId) {
     return this.db.stocks.filter(s => s.goodsId === goodsId).reduce((a, b) => a + b.qty, 0);
+  },
+
+  /* ------- 报损 / 报溢（库存管理下的两个独立核算单） -------
+     报损：库存减少（损耗）；报溢：库存增加（盘盈）。
+     订单号关联采购入库单 orderNo；金额 amount = price * qty 自动计算。
+     报损退款金额计入经营成本损失；报溢金额作为盘盈收益。 */
+  addLoss(l) {
+    l.id = this.genId();
+    l.no = this.genNo('LS');
+    l.time = l.time || U.now();
+    l.amount = U.round2(Number(l.qty) * Number(l.price));
+    l.operator = Cloud.state.user ? Cloud.state.user.name : '';
+    this.db.losses.push(l);
+    const rec = this.stockRec(l.whId, l.goodsId, true);
+    rec.qty -= Number(l.qty);
+    if (rec.qty < 0) rec.qty = 0;   // 防御性：损耗不允许负库存
+    return l;
+  },
+  deleteLoss(id) {
+    const l = this.byId('losses', id);
+    if (!l) return '单据不存在';
+    const rec = this.stockRec(l.whId, l.goodsId, false);
+    if (rec) rec.qty += Number(l.qty);
+    this.db.losses = this.db.losses.filter(x => x.id !== id);
+    return null;
+  },
+  updateLoss(id, patch) {
+    const l = this.byId('losses', id);
+    if (!l) return '单据不存在';
+    const orec = this.stockRec(l.whId, l.goodsId, false);
+    if (orec) orec.qty += Number(l.qty);          // 回滚旧批次
+    const newQty = Number(patch.qty), newPrice = Number(patch.price);
+    if (!newQty || newQty <= 0) return '请填写报损数量';
+    if (newPrice == null || newPrice < 0) return '请填写报损单价';
+    const nrec = this.stockRec(patch.whId, patch.goodsId, true);
+    nrec.qty -= newQty; if (nrec.qty < 0) nrec.qty = 0;
+    l.orderNo = patch.orderNo || ''; l.typeId = patch.typeId; l.goodsId = patch.goodsId;
+    l.supplierId = patch.supplierId; l.unitId = patch.unitId; l.qty = newQty; l.price = newPrice;
+    l.amount = U.round2(newQty * newPrice); l.whId = patch.whId;
+    l.refundMethod = patch.refundMethod || ''; l.time = patch.time || l.time;
+    return null;
+  },
+  addOverflow(o) {
+    o.id = this.genId();
+    o.no = this.genNo('BY');
+    o.time = o.time || U.now();
+    o.amount = U.round2(Number(o.qty) * Number(o.price));
+    o.operator = Cloud.state.user ? Cloud.state.user.name : '';
+    this.db.overflows.push(o);
+    const rec = this.stockRec(o.whId, o.goodsId, true);
+    rec.qty += Number(o.qty);
+    return o;
+  },
+  deleteOverflow(id) {
+    const o = this.byId('overflows', id);
+    if (!o) return '单据不存在';
+    const rec = this.stockRec(o.whId, o.goodsId, false);
+    if (rec) { rec.qty -= Number(o.qty); if (rec.qty < 0) rec.qty = 0; }
+    this.db.overflows = this.db.overflows.filter(x => x.id !== id);
+    return null;
+  },
+  updateOverflow(id, patch) {
+    const o = this.byId('overflows', id);
+    if (!o) return '单据不存在';
+    const orec = this.stockRec(o.whId, o.goodsId, false);
+    if (orec) { orec.qty -= Number(o.qty); if (orec.qty < 0) orec.qty = 0; }  // 回滚旧批次
+    const newQty = Number(patch.qty), newPrice = Number(patch.price);
+    if (!newQty || newQty <= 0) return '请填写报溢数量';
+    if (newPrice == null || newPrice < 0) return '请填写报溢单价';
+    const nrec = this.stockRec(patch.whId, patch.goodsId, true);
+    nrec.qty += newQty;
+    o.orderNo = patch.orderNo || ''; o.typeId = patch.typeId; o.goodsId = patch.goodsId;
+    o.supplierId = patch.supplierId; o.unitId = patch.unitId; o.qty = newQty; o.price = newPrice;
+    o.amount = U.round2(newQty * newPrice); o.whId = patch.whId;
+    o.payMethod = patch.payMethod || ''; o.time = patch.time || o.time;
+    return null;
   },
 
   /* ------- 采购 ------- */
