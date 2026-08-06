@@ -386,7 +386,7 @@ Pages['page-report'] = {
       <div class="form-hint">佣金支付操作入口在「合伙人管理 - 详情」内，支持记录清单与累计已支付统计。</div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="report-grid">
       <!-- 商品销售汇总 -->
       <div class="card" style="margin-bottom:0">
         <h3>商品销售汇总（净额口径）</h3>
@@ -436,7 +436,7 @@ Pages['page-report'] = {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+    <div class="report-grid">
       <!-- 运营成本 -->
       <div class="card" style="margin-bottom:0">
         <h3>运营成本汇总（已计算）</h3>
