@@ -450,8 +450,7 @@ Pages['page-dashboard'] = {
           <button class="btn btn-sm" @click="exportRank">导出</button>
         </span>
       </h3>
-      <div class="tbl-scroll">
-      <table class="grid keep-table">
+      <table class="grid">
         <thead><tr><th style="width:60px">排名</th><th v-for="c in ranking.cols" :class="{num:c.num}">{{c.label}}</th></tr></thead>
         <tbody>
           <tr v-for="(r,i) in top10" :key="r.name">
@@ -469,7 +468,6 @@ Pages['page-dashboard'] = {
           </tr>
         </tbody>
       </table>
-      </div>
     </div>
 
     <!-- 预警事项 -->
@@ -483,8 +481,7 @@ Pages['page-dashboard'] = {
               <button class="btn btn-sm" @click="exportAlert('stock')">导出</button>
             </span>
           </div>
-          <div class="tbl-scroll">
-          <table class="grid keep-table">
+          <table class="grid">
             <thead><tr><th>序号</th><th>商品名称</th><th class="num">库存数量</th><th class="num">最低库存</th><th class="num">缺口</th></tr></thead>
             <tbody>
               <tr v-for="(r,i) in alertRows('stock',expanded.stock)"><td data-label="序号">{{i+1}}</td><td data-label="商品名称">{{r.name}}</td>
@@ -492,7 +489,6 @@ Pages['page-dashboard'] = {
               <tr v-if="!stockAlerts.length"><td colspan="5" class="empty">暂无库存预警</td></tr>
             </tbody>
           </table>
-          </div>
         </div>
         <div>
           <div class="section-title">超期未支付预警 <span class="muted">（按超期欠款从大到小）</span>
@@ -501,8 +497,7 @@ Pages['page-dashboard'] = {
               <button class="btn btn-sm" @click="exportAlert('pay')">导出</button>
             </span>
           </div>
-          <div class="tbl-scroll">
-          <table class="grid keep-table">
+          <table class="grid">
             <thead><tr><th>序号</th><th>客户名称</th><th>账期</th><th>应付日期</th><th class="num">超期天数</th><th class="num">超期未支付金额</th><th class="num">累计未支付金额</th></tr></thead>
             <tbody>
               <tr v-for="(r,i) in alertRows('pay',expanded.pay)"><td data-label="序号">{{i+1}}</td><td data-label="客户名称">{{r.name}}</td>
@@ -512,7 +507,6 @@ Pages['page-dashboard'] = {
               <tr v-if="!payAlerts.length"><td colspan="7" class="empty">暂无超期未支付预警</td></tr>
             </tbody>
           </table>
-          </div>
         </div>
       </div>
       <div style="margin-top:14px">
@@ -522,8 +516,7 @@ Pages['page-dashboard'] = {
             <button class="btn btn-sm" @click="exportAlert('wh')">导出</button>
           </span>
         </div>
-        <div class="tbl-scroll">
-        <table class="grid keep-table">
+        <table class="grid">
           <thead><tr><th>序号</th><th>仓库名称</th><th>仓库地址</th><th>负责人</th><th>联系电话</th><th class="num">每月租金</th><th>到期时间</th><th>剩余天数</th><th>房东/联系电话</th></tr></thead>
           <tbody>
             <tr v-for="(w,i) in alertRows('wh',expanded.wh)"><td data-label="序号">{{i+1}}</td><td data-label="仓库名称">{{w.name}}</td><td data-label="仓库地址">{{w.address}}</td><td data-label="负责人">{{w.manager}}</td><td data-label="联系电话">{{w.phone}}</td>
@@ -533,7 +526,6 @@ Pages['page-dashboard'] = {
             <tr v-if="!whAlerts.length"><td colspan="9" class="empty">暂无仓库信息</td></tr>
           </tbody>
         </table>
-        </div>
       </div>
     </div>
 

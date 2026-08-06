@@ -162,7 +162,7 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
   .topbar { gap: 8px; padding-top: calc(8px + env(safe-area-inset-top)); }
   .tb-left, .tb-right { flex-wrap: wrap; align-items: center; gap: 6px; }
   .tb-right .muted { width: 100%; order: 3; }
-  .stat-grid { grid-template-columns: repeat(1, 1fr); gap: 8px; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .filter-grid { grid-template-columns: repeat(2, 1fr); }
   .form-grid, .form-grid.cols3 { grid-template-columns: 1fr; }
   .card { padding: 12px; }
@@ -175,33 +175,16 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
   .ws-item { flex-direction: column; align-items: stretch; gap: 8px; }
   .ws-item .btn { width: 100%; }
 
-  /* ===== 通用表格卡片化（data-label）：窄/中表自动转卡片；超宽表 .wide-table 走双视图；.keep-table 保留表格并内嵌横滑 ===== */
-  table.grid:not(.wide-table):not(.keep-table) { background: transparent; }
-  table.grid:not(.wide-table):not(.keep-table) > thead { display: none; }
-  table.grid:not(.wide-table):not(.keep-table) tr { display: block; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
-  table.grid:not(.wide-table):not(.keep-table) td { display: flex; justify-content: space-between; gap: 12px; padding: 7px 12px; border: none; white-space: normal; text-align: right; }
-  table.grid:not(.wide-table):not(.keep-table) td::before { content: attr(data-label); color: #64748b; font-weight: 600; flex: 0 0 40%; text-align: left; }
-  table.grid:not(.wide-table):not(.keep-table) td.num { text-align: right; }
-  table.grid:not(.wide-table):not(.keep-table) td .cell-label,
-  table.grid:not(.wide-table):not(.keep-table) td .cell-label { display: inline; color: #64748b; font-weight: 600; flex: 0 0 40%; text-align: left; }
+  /* ===== 通用表格卡片化（data-label）：窄/中表自动转卡片；超宽表 .wide-table 走双视图 ===== */
+  table.grid:not(.wide-table) { background: transparent; }
+  table.grid:not(.wide-table) > thead { display: none; }
+  table.grid:not(.wide-table) tr { display: block; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+  table.grid:not(.wide-table) td { display: flex; justify-content: space-between; gap: 12px; padding: 7px 12px; border: none; white-space: normal; text-align: right; }
+  table.grid:not(.wide-table) td::before { content: attr(data-label); color: #64748b; font-weight: 600; flex: 0 0 40%; text-align: left; }
+  table.grid:not(.wide-table) td.num { text-align: right; }
+  table.grid:not(.wide-table) td .cell-label,
+  table.grid:not(.wide-table) td .cell-label { display: inline; color: #64748b; font-weight: 600; flex: 0 0 40%; text-align: left; }
   .table-wrap { margin-bottom: 4px; }
-
-  /* 每张表各自内嵌横滑：保留表头，默认显示约 4 列，手指在单表内左右滑动看全部列 */
-  .tbl-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    min-width: 0;                 /* Grid/Flex 子项允许收缩，横向滚动落在表内而非整页 */
-    touch-action: pan-x;          /* 横向滑动手势优先作用于表内，不带动页面上下滚 */
-    overscroll-behavior-x: contain;
-  }
-  table.grid.keep-table { width: max-content; table-layout: auto; }
-  table.grid.keep-table > thead { display: table-header-group; }
-  table.grid.keep-table th, table.grid.keep-table td {
-    min-width: max(90px, 25vw);   /* 手机端默认约显示 4 列，其余列横向滑出，避免右侧空白 */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
 
   /* ===== 底部 Tab 栏（APP 化导航） ===== */
   .tabbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 180;
@@ -300,13 +283,11 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
 .x-combobox .cb-arrow { padding: 0 8px; color: #64748b; cursor: pointer; user-select: none; }
 .x-combobox.disabled { opacity: .5; }
 .x-combobox.disabled .cb-control { cursor: not-allowed; }
-/* 注意：下拉面板经 <teleport to="body"> 渲染在 body 下，已脱离 .x-combobox，
-   故此处用独立类选择器 .cb-panel/.cb-opt/.cb-empty，不再用 .x-combobox 后代选择器 */
-.cb-panel { position: fixed; top: 0; left: 0; z-index: 3000; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; margin-top: 2px; max-height: 280px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
-.cb-opt { padding: 6px 10px; cursor: pointer; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cb-opt:hover { background: #eff6ff; }
-.cb-opt.sel { background: #dbeafe; color: #1d4ed8; }
-.cb-empty { padding: 10px; color: #94a3b8; text-align: center; font-size: 12px; }
+.x-combobox .cb-panel { position: fixed; top: 0; left: 0; z-index: 3000; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; margin-top: 2px; max-height: 280px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.x-combobox .cb-opt { padding: 6px 10px; cursor: pointer; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.x-combobox .cb-opt:hover { background: #eff6ff; }
+.x-combobox .cb-opt.sel { background: #dbeafe; color: #1d4ed8; }
+.x-combobox .cb-empty { padding: 10px; color: #94a3b8; text-align: center; font-size: 12px; }
 .toolbar .x-combobox { width: 130px; }
 .form-item .x-combobox { width: 100%; }
 .item-rows .x-combobox { width: 100%; }

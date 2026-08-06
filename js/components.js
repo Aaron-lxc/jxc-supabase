@@ -8,17 +8,13 @@ AppComponents['x-modal'] = {
   computed: {
     boxStyle() {
       if (this.fullscreen) return {};
-      var m = this.$root && this.$root.isMobile;
-      if (this.position === 'bottom') {
-        if (m) return { width: '100%', maxWidth: '100%' };   /* 手机端：底部全屏弹层 */
-        return { width: (this.width || 520) + 'px' };          /* 电脑端：按 width 居中，不再铺满 */
-      }
+      if (this.position === 'bottom') return { width: '100%', maxWidth: '100%' };
       return { width: (this.width || 640) + 'px' };
     }
   },
   template: `
   <div class="modal-mask" @mousedown.self="$emit('close')">
-    <div class="modal-box" :class="[{'fs':fullscreen,'sheet':position==='bottom' && $root.isMobile}]" :style="boxStyle">
+    <div class="modal-box" :class="[{'fs':fullscreen,'sheet':position==='bottom'}]" :style="boxStyle">
       <div class="modal-head"><span>{{title}}</span><button class="btn-x" @click="$emit('close')">×</button></div>
       <div class="modal-body"><slot></slot></div>
       <div class="modal-foot"><slot name="foot"></slot></div>
@@ -232,12 +228,10 @@ AppComponents['x-combobox'] = {
         :placeholder="placeholder" :disabled="disabled">
       <span class="cb-arrow" @mousedown.prevent="toggle">▾</span>
     </div>
-    <teleport to="body">
-      <div class="cb-panel" v-if="open" :style="{top:pos.top+'px',left:pos.left+'px',minWidth:pos.width+'px'}">
-        <div class="cb-opt" v-for="o in filtered" :key="(o.value===null||o.value==='')?'_all':o.value"
-          :class="{sel:o.value===modelValue}" @mousedown.prevent="pick(o)">{{o.label}}</div>
-        <div class="cb-empty" v-if="!filtered.length">无匹配项</div>
-      </div>
-    </teleport>
+    <div class="cb-panel" v-if="open" :style="{top:pos.top+'px',left:pos.left+'px',minWidth:pos.width+'px'}">
+      <div class="cb-opt" v-for="o in filtered" :key="(o.value===null||o.value==='')?'_all':o.value"
+        :class="{sel:o.value===modelValue}" @mousedown.prevent="pick(o)">{{o.label}}</div>
+      <div class="cb-empty" v-if="!filtered.length">无匹配项</div>
+    </div>
   </div>`
 };
