@@ -2,7 +2,7 @@
    注意：业务页面(js/pages/*)与体积较大的 echarts/xlsx 改为按需加载，
    不在此处预拉取（否则安装时会一次性下载，抵消懒加载收益）；
    它们会在首次被请求时由 fetch 处理器自动缓存。 */
-const CACHE = 'jxc-v2';
+const CACHE = 'jxc-v3';
 const ASSETS = [
   './', './index.html', './css/style.css', './manifest.json', './icon.svg',
   './icon-192.png', './icon-512.png',
@@ -29,14 +29,15 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return fetch(req); // 跨域（Supabase API）不缓存，直接走网络
 
+  /* 网络优先策略：每次都向服务器取最新资源，本地缓存仅作无网兜底。
+     这样后续所有 CSS/JS 改动都会在用户手机自动生效，无需清缓存或加版本号。 */
   e.respondWith(
-    caches.match(req).then(cached => {
-      if (cached) return cached;
-      return fetch(req).then(resp => {
+    fetch(req)
+      .then(resp => {
         const copy = resp.clone();
         caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
         return resp;
-      }).catch(() => cached);
-    })
+      })
+      .catch(() => caches.match(req))
   );
 });
