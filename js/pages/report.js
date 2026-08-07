@@ -109,7 +109,7 @@ Pages['page-report'] = {
     regTotal() { return U.round2(this.regRowsF.reduce((a, r) => a + r.commission, 0)); },
     goodsRows() {
       const acc = {};
-      this.doneSales.forEach(s => (s.items || []).forEach((it, idx) => {
+      S.db.sales.filter(s => s.status === '已完成').forEach(s => (s.items || []).forEach((it, idx) => {
         const g = S.byId('goods', it.goodsId); if (!g) return;
         const netQty = it.qty - S.saleReturnedQty(s.id, idx);
         if (!acc[g.id]) acc[g.id] = { name: g.name, type: S.name('goodsTypes', g.typeId), qty: 0, amt: 0, cost: 0 };
@@ -123,7 +123,7 @@ Pages['page-report'] = {
     },
     supplierRows() {
       const acc = {};
-      S.db.purchases.filter(p => U.inRange(p.inTime, this.d1, this.d2)).forEach(p => {
+      S.db.purchases.forEach(p => {
         const n = S.name('suppliers', p.supplierId);
         if (!acc[n]) acc[n] = { name: n, qty: 0, amt: 0, count: 0 };
         acc[n].qty += Number(p.qty); acc[n].amt += Number(p.amount); acc[n].count++;
@@ -132,13 +132,15 @@ Pages['page-report'] = {
     },
     expenseRows() {
       const acc = {};
-      S.db.expenses.filter(x => x.status === '已计算' && U.inRange(x.createTime, this.d1, this.d2)).forEach(x => {
+      S.db.expenses.filter(x => x.status === '已计算').forEach(x => {
         const n = S.name('expenseCats', x.catId);
         if (!acc[n]) acc[n] = { name: n, amt: 0, count: 0 };
         acc[n].amt += Number(x.amount); acc[n].count++;
       });
       return Object.values(acc).map(r => ({ ...r, amt: U.round2(r.amt) })).sort((a, b) => b.amt - a.amt);
     },
+    lossCostAll() { return U.round2(S.db.losses.reduce((a, l) => a + Number(l.amount || 0), 0)); },
+    overflowGainAll() { return U.round2(S.db.overflows.reduce((a, o) => a + Number(o.amount || 0), 0)); },
     arRows() {
       return S.db.customers
         .map(c => ({ name: c.name, arrears: S.custArrears(c.id), overdue: S.custOverdueArrears(c.id) }))
@@ -289,7 +291,7 @@ Pages['page-report'] = {
       <div class="toolbar">
         <label>统计时间范围</label>
         <input type="date" v-model="d1"> - <input type="date" v-model="d2">
-        <span class="muted">所有报表均按该时间范围统计（销售按完成时间、采购按入库时间、运营支出按创建时间）</span>
+        <span class="muted">经营总览、资源/区域佣金、应收账款按所选时间范围统计；商品销售汇总、供应商采购汇总、运营成本汇总、报损报溢汇总为全期累计（不限时间）</span>
       </div>
     </div>
 
@@ -487,13 +489,13 @@ Pages['page-report'] = {
     <div class="report-grid">
       <!-- 报损报溢汇总 -->
       <div class="card" style="margin-bottom:0">
-        <h3>报损报溢汇总（{{d1}} ~ {{d2}}）</h3>
+        <h3>报损报溢汇总（全期累计）</h3>
         <table class="grid">
           <thead><tr><th>项目</th><th class="num">金额</th><th>说明</th></tr></thead>
           <tbody>
-            <tr><td data-label="项目">报损损失</td><td class="num money red" data-label="金额">-￥{{fmtMoney(overview.lossCost)}}</td><td data-label="说明">库存盘亏，计入运营成本</td></tr>
-            <tr><td data-label="项目">报溢收益</td><td class="num money green-t" data-label="金额">+￥{{fmtMoney(overview.overflowGain)}}</td><td data-label="说明">库存盘盈，已并入净利润</td></tr>
-            <tr style="background:#eff6ff;font-weight:700"><td data-label="项目">净盘盈</td><td class="num money" data-label="金额">{{fmtMoney(U.round2(overview.overflowGain - overview.lossCost))}}</td><td data-label="说明">报溢 − 报损</td></tr>
+            <tr><td data-label="项目">报损损失</td><td class="num money red" data-label="金额">-￥{{fmtMoney(lossCostAll)}}</td><td data-label="说明">库存盘亏，计入运营成本</td></tr>
+            <tr><td data-label="项目">报溢收益</td><td class="num money green-t" data-label="金额">+￥{{fmtMoney(overflowGainAll)}}</td><td data-label="说明">库存盘盈，已并入净利润</td></tr>
+            <tr style="background:#eff6ff;font-weight:700"><td data-label="项目">净盘盈</td><td class="num money" data-label="金额">{{fmtMoney(U.round2(overflowGainAll - lossCostAll))}}</td><td data-label="说明">报溢 − 报损</td></tr>
           </tbody>
         </table>
       </div>

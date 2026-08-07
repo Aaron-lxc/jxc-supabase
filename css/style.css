@@ -3,8 +3,10 @@ html, body { height: 100%; }
 body {
   font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
   font-size: 13px; color: #1f2937; background: #f1f5f9;
-  -webkit-user-select: none; user-select: none;
+  -webkit-user-select: text; user-select: text;
 }
+/* 交互控件不触发文本选择，避免移动端误选干扰操作；卡片/表格等正文内容可正常选中复制 */
+.btn, .menu-item, .tab, .tabs, .toolbar, .pager, .topbar, .link, .tag, .modal-foot, .nav-overlay, .ops { -webkit-user-select: none; user-select: none; }
 input, textarea { -webkit-user-select: text; user-select: text; }
 
 /* ---------- 布局 ---------- */
