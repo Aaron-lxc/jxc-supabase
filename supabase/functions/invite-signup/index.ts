@@ -54,7 +54,16 @@ Deno.serve(async (req) => {
       return json(403, { error: '该项目仅接受受邀注册，请向管理员索取邀请后再注册。' }, corsHeaders);
     }
 
-    // 2) 用 service_role 创建用户（强制邮箱确认，避免卡在验证邮件）
+    // 2) 先查询该邮箱是否已注册：已注册则跳过创建，直接接受邀请
+    //    （适用于「停用 / 删除成员后重新邀请」场景：auth 用户仍在，新建会报邮箱冲突）
+    const { data: existing } = await supabase.auth.admin.getUserByEmail(lower);
+    if (existing && existing.user) {
+      const { error: accErr } = await supabase.rpc('accept_invite', { invite_id: inv.id });
+      if (accErr) throw accErr;
+      return json(200, { ok: true, already: true }, corsHeaders);
+    }
+
+    // 3) 未注册才用 service_role 创建用户（强制邮箱确认，避免卡在验证邮件）
     const { data: created, error: createErr } = await supabase.auth.admin.createUser({
       email: lower,
       password,
@@ -67,7 +76,7 @@ Deno.serve(async (req) => {
     const uid = created.user && created.user.id;
     if (!uid) return json(500, { error: '创建用户失败' }, corsHeaders);
 
-    // 3) 把邀请转为 workspace_members（security definer，不受 manager 限制）
+    // 4) 把邀请转为 workspace_members（security definer，不受 manager 限制）
     const { error: accErr } = await supabase.rpc('accept_invite', { invite_id: inv.id });
     if (accErr) throw accErr;
 
@@ -85,7 +94,7 @@ function json(code: number, body: any, headers: Record<string, string>) {
 }
 
 function zhAuth(m: string): string {
-  if (/User already registered/i.test(m)) return '该邮箱已注册，请直接登录';
+  if (/already registered|already been registered/i.test(m)) return '该邮箱已注册，请直接登录';
   if (/Password should be at least/i.test(m)) return '密码太短，至少 6 位';
   return m;
 }
