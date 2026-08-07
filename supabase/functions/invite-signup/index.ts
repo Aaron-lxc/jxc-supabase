@@ -31,6 +31,26 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (invErr) throw invErr;
     if (!inv) {
+      // 幂等兜底：找不到"待接受"邀请时，先确认该邮箱是否已在首次请求中注册并加入账套。
+      // 典型场景：客户端重复提交导致首次已创建用户并消耗邀请，第二次再请求会走到这里；
+      // 若确已注册且已是成员，则视为成功，前端直接去登录，避免误报 403。
+      const { data: anyInv } = await supabase
+        .from('invites')
+        .select('workspace_id, status')
+        .eq('email', lower)
+        .maybeSingle();
+      if (anyInv && anyInv.workspace_id) {
+        const { data: u } = await supabase.auth.admin.getUserByEmail(lower);
+        if (u && u.user) {
+          const { data: member } = await supabase
+            .from('workspace_members')
+            .select('id')
+            .eq('workspace_id', anyInv.workspace_id)
+            .eq('user_id', u.user.id)
+            .maybeSingle();
+          if (member) return json(200, { ok: true, already: true }, corsHeaders);
+        }
+      }
       return json(403, { error: '该项目仅接受受邀注册，请向管理员索取邀请后再注册。' }, corsHeaders);
     }
 

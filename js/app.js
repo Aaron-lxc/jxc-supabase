@@ -231,6 +231,7 @@
         } catch (e) { this.fail(e, '登录后加载失败'); }
       },
       async doSignup() {
+        if (this.busy) return;   // 防重入：移动端连点/双触发时忽略重复请求，避免重复注册消耗邀请后误报 403
         try {
           if (!this.aEmail || !this.aPwd) return alert('请填写邮箱和密码');
           this.err = ''; this.busy = true;
