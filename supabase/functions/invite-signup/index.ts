@@ -93,17 +93,14 @@ function json(code: number, body: any, headers: Record<string, string>) {
   });
 }
 
-// 当前 Edge Function 使用的 supabase-js@2 中 auth.admin.getUserByEmail 不存在，
-// 用 service_role 直接查 auth.users 表代替。
+// supabase-js@2 在 Deno 中不存在 auth.admin.getUserByEmail，
+// 且 auth.users 表不对外暴露 PostgREST 查询（Invalid schema: auth）。
+// 改用官方 Auth Admin API 的 listUsers() 再按邮箱过滤。
 async function getUserByEmail(supabase: any, email: string) {
-  const { data, error } = await supabase
-    .schema('auth')
-    .from('users')
-    .select('id, email')
-    .eq('email', email)
-    .maybeSingle();
+  const { data, error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
   if (error) throw error;
-  return data;
+  const lower = String(email).trim().toLowerCase();
+  return (data?.users || []).find((u: any) => String(u.email).trim().toLowerCase() === lower) || null;
 }
 
 function zhAuth(m: string): string {
