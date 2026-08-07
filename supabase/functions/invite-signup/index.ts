@@ -40,13 +40,13 @@ Deno.serve(async (req) => {
         .eq('email', lower)
         .maybeSingle();
       if (anyInv && anyInv.workspace_id) {
-        const { data: u } = await supabase.auth.admin.getUserByEmail(lower);
-        if (u && u.user) {
+        const existingUser = await getUserByEmail(supabase, lower);
+        if (existingUser) {
           const { data: member } = await supabase
             .from('workspace_members')
             .select('id')
             .eq('workspace_id', anyInv.workspace_id)
-            .eq('user_id', u.user.id)
+            .eq('user_id', existingUser.id)
             .maybeSingle();
           if (member) return json(200, { ok: true, already: true }, corsHeaders);
         }
@@ -56,8 +56,8 @@ Deno.serve(async (req) => {
 
     // 2) 先查询该邮箱是否已注册：已注册则跳过创建，直接接受邀请
     //    （适用于「停用 / 删除成员后重新邀请」场景：auth 用户仍在，新建会报邮箱冲突）
-    const { data: existing } = await supabase.auth.admin.getUserByEmail(lower);
-    if (existing && existing.user) {
+    const existingUser = await getUserByEmail(supabase, lower);
+    if (existingUser) {
       const { error: accErr } = await supabase.rpc('accept_invite', { invite_id: inv.id });
       if (accErr) throw accErr;
       return json(200, { ok: true, already: true }, corsHeaders);
@@ -91,6 +91,19 @@ function json(code: number, body: any, headers: Record<string, string>) {
     status: code,
     headers: { ...headers, 'Content-Type': 'application/json' },
   });
+}
+
+// 当前 Edge Function 使用的 supabase-js@2 中 auth.admin.getUserByEmail 不存在，
+// 用 service_role 直接查 auth.users 表代替。
+async function getUserByEmail(supabase: any, email: string) {
+  const { data, error } = await supabase
+    .schema('auth')
+    .from('users')
+    .select('id, email')
+    .eq('email', email)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
 }
 
 function zhAuth(m: string): string {
