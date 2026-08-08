@@ -117,12 +117,11 @@
       myRole() { return P.roleLabel(P.role()); },
       wsName2() { return Cloud.state.ws ? Cloud.state.ws.name : ''; },
       meEmail() { return Cloud.state.user ? Cloud.state.user.email : ''; },
-      /* 是否允许创建账套：全局无账套（引导）放开；之后仅自己是创建者/管理员的用户可建 */
+      /* 是否允许创建账套：仅账套创建者(owner)可建；全局无账套（引导）放开首个 */
       canCreateWs() {
         const mine = Cloud.state.workspaces || [];
         if (Cloud.state.globalHasWs === false) return true; // 全局无账套（首个引导）允许
-        if (!mine.length) return false;                     // 全局有账套但自己无账套 → 未受邀
-        return mine.some(w => w.role === '创建者' || w.role === '管理员');
+        return mine.some(w => w.role === 'owner');
       }
     },
 

@@ -142,16 +142,15 @@ window.Cloud = {
   },
 
   async createWorkspace(name) {
-    // 权限闸门：全局无账套（引导场景）允许任意已登录用户创建首个账套；
-    // 一旦已有账套，只有「在某账套是创建者/管理员」的用户才能新建。
+    // 权限闸门：全局无账套（引导）放开首个账套；之后仅账套创建者(owner)可新建
     try {
       const { data: hasAny, error: e1 } = await this.sb.rpc('any_workspace_exists');
       if (e1) return { error: this._dbErr(e1) };
       if (hasAny) {
         const mine = this.state.workspaces || [];
-        const can = mine.some(w => w.role === '创建者' || w.role === '管理员');
+        const can = mine.some(w => w.role === 'owner');
         if (!can) {
-          return { error: '你尚未被邀请为账套管理员，无法创建账套。请联系账套创建者邀请你并授予管理员权限。' };
+          return { error: '只有账套创建者可以创建新账套。' };
         }
       }
     } catch (e) { return { error: this._dbErr(e) }; }

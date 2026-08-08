@@ -351,6 +351,16 @@ begin
   if auth.uid() is null then raise exception '未登录'; end if;
   if coalesce(trim(ws_name),'') = '' then raise exception '账套名称不能为空'; end if;
 
+  -- 仅账套创建者(owner)可新建账套：全局已有账套时，要求调用者在某已启用账套中为 owner
+  if exists(select 1 from public.workspaces) then
+    if not exists(
+      select 1 from public.workspace_members m
+      where m.user_id = auth.uid() and m.status = '已启用' and m.role = 'owner'
+    ) then
+      raise exception '只有账套创建者可以创建新账套';
+    end if;
+  end if;
+
   insert into public.workspaces (name, owner_id) values (trim(ws_name), auth.uid())
   returning id into new_id;
 
