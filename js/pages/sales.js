@@ -187,20 +187,20 @@ const SaleList = {
       const err = S.finishSale(s);
       if (err) alert(err);
     },
-    /* 按模版设置生成销售单 HTML，打印与预览共用 */
+    /* 按模版设置生成销售单 HTML，打印与预览共用；所有用户可控字段经 U.esc 转义，防存储型 XSS */
     buildHTML(s) {
       const t = this.tpl, cust = S.byId('customers', s.customerId) || {};
       const H = [];
-      H.push(`<h2>${t.head.company ? (S.db.settings.company || '') + ' ' : ''}${t.title}</h2>`);
-      if (t.head.no) H.push(`<div class="p-sub">单号：${s.no}</div>`);
+      H.push(`<h2>${t.head.company ? U.esc(S.db.settings.company || '') + ' ' : ''}${U.esc(t.title)}</h2>`);
+      if (t.head.no) H.push(`<div class="p-sub">单号：${U.esc(s.no)}</div>`);
       const info = [];
-      if (t.head.customer) info.push(`<span>客户名称：${cust.name || ''}</span>`);
-      if (t.head.custPhone) info.push(`<span>联系电话：${cust.phone || '-'}</span>`);
-      if (t.head.custAddress) info.push(`<span>客户地址：${cust.address || '-'}</span>`);
-      if (t.head.wh) info.push(`<span>发货仓库：${S.name('warehouses', s.whId)}</span>`);
-      if (t.head.createTime) info.push(`<span>下单时间：${s.createTime}</span>`);
-      if (t.head.finishTime) info.push(`<span>完成时间：${s.finishTime || '-'}</span>`);
-      if (t.head.status) info.push(`<span>单据状态：${s.status}${s.payStatus ? ' / ' + s.payStatus : ''}</span>`);
+      if (t.head.customer) info.push(`<span>客户名称：${U.esc(cust.name || '')}</span>`);
+      if (t.head.custPhone) info.push(`<span>联系电话：${U.esc(cust.phone || '-')}</span>`);
+      if (t.head.custAddress) info.push(`<span>客户地址：${U.esc(cust.address || '-')}</span>`);
+      if (t.head.wh) info.push(`<span>发货仓库：${U.esc(S.name('warehouses', s.whId))}</span>`);
+      if (t.head.createTime) info.push(`<span>下单时间：${U.esc(s.createTime)}</span>`);
+      if (t.head.finishTime) info.push(`<span>完成时间：${U.esc(s.finishTime || '-')}</span>`);
+      if (t.head.status) info.push(`<span>单据状态：${U.esc(s.status)}${s.payStatus ? ' / ' + U.esc(s.payStatus) : ''}</span>`);
       if (info.length) H.push(`<div class="p-info">${info.join('')}</div>`);
 
       const th = ['<th>序号</th>', '<th>商品名称</th>'];
@@ -211,11 +211,11 @@ const SaleList = {
       if (t.cols.price) th.push('<th>单价</th>');
       if (t.cols.amount) th.push('<th>金额</th>');
       const body = (s.items || []).map((it, i) => {
-        const td = [`<td>${i + 1}</td>`, `<td>${S.name('goods', it.goodsId)}</td>`];
-        if (t.cols.sku) td.push(`<td>${it.sku || ''}</td>`);
+        const td = [`<td>${i + 1}</td>`, `<td>${U.esc(S.name('goods', it.goodsId))}</td>`];
+        if (t.cols.sku) td.push(`<td>${U.esc(it.sku || '')}</td>`);
         td.push(`<td>${it.qty}</td>`);
-        if (t.cols.unit) td.push(`<td>${S.name('units', it.unitId)}</td>`);
-        if (t.cols.priceType) td.push(`<td>${it.priceType || ''}</td>`);
+        if (t.cols.unit) td.push(`<td>${U.esc(S.name('units', it.unitId))}</td>`);
+        if (t.cols.priceType) td.push(`<td>${U.esc(it.priceType || '')}</td>`);
         if (t.cols.price) td.push(`<td>${U.fmtMoney(it.price)}</td>`);
         if (t.cols.amount) td.push(`<td>${U.fmtMoney(it.amount)}</td>`);
         return `<tr>${td.join('')}</tr>`;
@@ -227,12 +227,12 @@ const SaleList = {
       const f2 = [];
       if (t.foot.returned) f2.push(`<span>已退货金额：￥${U.fmtMoney(S.saleReturnedAmt(s.id))}</span>`);
       if (t.foot.net) f2.push(`<span>本单净额：￥${U.fmtMoney(S.saleNet(s))}</span>`);
-      if (t.foot.due) f2.push(`<span>应付日期：${S.saleDueDate(s)}</span>`);
+      if (t.foot.due) f2.push(`<span>应付日期：${U.esc(S.saleDueDate(s))}</span>`);
       if (t.foot.arrears) f2.push(`<span><b>客户累计欠款（含税应付）：￥${U.fmtMoney(S.custArrears(s.customerId))}</b></span>`);
-      if (t.foot.tax) f2.push(`<span>税点费用（${s.taxRate || 0}%）：￥${U.fmtMoney(S.saleTaxCost(s))}</span>`);
+      if (t.foot.tax) f2.push(`<span>税点费用（${U.esc(s.taxRate || 0)}%）：￥${U.fmtMoney(S.saleTaxCost(s))}</span>`);
       if (t.foot.taxPayable) f2.push(`<span><b>含税应付合计：￥${U.fmtMoney(S.salePayable(s))}</b></span>`);
       if (t.foot.delivery) f2.push(`<span>配送费（不计入应收，计入成本）：￥${U.fmtMoney(S.saleDeliveryCost(s))}</span>`);
-      if (t.foot.remark && s.custRemark) f2.push(`<span>客户备注：${s.custRemark}</span>`);
+      if (t.foot.remark && s.custRemark) f2.push(`<span>客户备注：${U.esc(s.custRemark)}</span>`);
       if (f2.length) H.push(`<div class="p-info">${f2.join('')}</div>`);
 
       const sign = [];

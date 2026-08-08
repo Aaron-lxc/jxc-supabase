@@ -50,7 +50,17 @@ window.U = {
 
   fmtNum(n) { return (Number(n) || 0).toLocaleString('zh-CN'); },
 
-  round2(n) { return Math.round((Number(n) || 0) * 100) / 100; },
+  /* HTML 转义：防止把用户输入（客户名/商品名/备注等）当作标签执行，防存储型 XSS */
+  esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  },
+  /* 金额保留 2 位小数；加 1e-8 修正 Math.round(x*100) 的浮点下偏（如 1.005 不再被舍成 1.00） */
+  round2(n) { return Math.round(((Number(n) || 0) + 1e-8) * 100) / 100; },
 
   kw(text, kw) { /* 模糊匹配 */
     if (!kw) return true;

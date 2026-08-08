@@ -175,13 +175,13 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
   .ws-item { flex-direction: column; align-items: stretch; gap: 8px; }
   .ws-item .btn { width: 100%; }
 
-  /* ===== 通用表格卡片化（data-label）：窄/中表自动转卡片；超宽表 .wide-table 走双视图 ===== */
-  table.grid:not(.wide-table) { background: transparent; }
-  table.grid:not(.wide-table) > thead { display: none; }
-  table.grid:not(.wide-table) tr { display: block; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
-  table.grid:not(.wide-table) td { display: flex; justify-content: space-between; gap: 12px; padding: 7px 12px; border: none; white-space: normal; text-align: right; word-break: keep-all; }
-  table.grid:not(.wide-table) td::before { content: attr(data-label); color: #64748b; font-weight: 600; flex: 0 0 auto; max-width: 35%; text-align: left; }
-  table.grid:not(.wide-table) td.num { text-align: right; }
+  /* 通用表格卡片化（data-label）：移动端窄屏下所有 .grid 表格自动转卡片视图 */
+  table.grid { background: transparent; }
+  table.grid > thead { display: none; }
+  table.grid tr { display: block; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 10px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+  table.grid td { display: flex; justify-content: space-between; gap: 12px; padding: 7px 12px; border: none; white-space: normal; text-align: right; word-break: keep-all; }
+  table.grid td::before { content: attr(data-label); color: #64748b; font-weight: 600; flex: 0 0 auto; max-width: 35%; text-align: left; }
+  table.grid td.num { text-align: right; }
   .table-wrap { margin-bottom: 4px; }
 
   /* ===== 底部 Tab 栏（APP 化导航） ===== */
