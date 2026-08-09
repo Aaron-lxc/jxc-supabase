@@ -126,19 +126,35 @@ const SaleList = {
       const c = v ? S.byId('customers', v) : null;
       if (c) { this.form.taxRate = c.taxRate || 0; this.form.taxExempt = c.taxExempt || '否'; }
     },
-    blankItem() { return { goodsId: '', sku: '', qty: null, unitId: '', priceType: '零售价', price: null, amount: 0 }; },
+    blankItem() { return { goodsId: '', sku: '', qty: null, unitId: '', priceType: '零售价', price: null, amount: 0, lotKey: '' }; },
     addItem() { this.form.items.push(this.blankItem()); },
     rmItem(i) { this.form.items.splice(i, 1); if (!this.form.items.length) this.addItem(); },
     onGoodsChange(it) {
       const g = it.goodsId ? S.byId('goods', it.goodsId) : null;
       if (g) { it.sku = g.sku; it.unitId = g.unitId; it.price = g[PRICE_FIELD[it.priceType]]; }
       else { it.sku = ''; it.unitId = ''; it.price = null; }
+      /* 默认选中最早到期批次（FEFO）；无批次则空（直接扣减） */
+      const rec = (this.form && this.form.whId && g) ? S.stockRec(this.form.whId, it.goodsId, false) : null;
+      const lots = (rec && rec.lots) ? S._sortLotsFEFO(g || {}, rec.lots) : [];
+      it.lotKey = lots.length ? (lots[0].batchNo || '') : '';
     },
     onPriceTypeChange(it) {
       const g = it.goodsId ? S.byId('goods', it.goodsId) : null;
       if (g) it.price = g[PRICE_FIELD[it.priceType]];
     },
     stockOf(it) { return this.form.whId && it.goodsId ? S.stockQty(this.form.whId, it.goodsId) : ''; },
+    /* 批次下拉选项：该仓库+商品下的所有批次（按 FEFO 到期升序），支持模糊查（x-combobox 按 label 过滤） */
+    lotOptions(it) {
+      if (!this.form || !this.form.whId || !it.goodsId) return [{ value: '', label: '（请先选仓库与商品）' }];
+      const rec = S.stockRec(this.form.whId, it.goodsId, false);
+      const g = S.byId('goods', it.goodsId) || {};
+      const lots = (rec && rec.lots) ? rec.lots.slice() : [];
+      if (!lots.length) return [{ value: '', label: '（无批次，直接扣减）' }];
+      return S._sortLotsFEFO(g, lots).map(l => ({
+        value: l.batchNo || '',
+        label: (l.batchNo || '未分批次') + ' / 产 ' + (l.productionDate || '-') + ' / 到期 ' + (S.lotExpiryInfo(g, l).expiryDate || '-') + ' / 余 ' + l.qty
+      }));
+    },
     save() {
       const f = this.form;
       if (!f.customerId) return alert('请选择客户');
@@ -319,12 +335,13 @@ const SaleList = {
       <div class="section-title" style="margin-top:12px">商品明细 <span class="muted">（仅显示所选仓库有库存的商品）</span></div>
       <div class="item-rows table-wrap">
       <table class="grid">
-        <thead><tr><th style="min-width:180px">商品名称</th><th>SKU</th><th class="num">可用库存</th><th style="width:90px">数量</th><th>单位</th><th style="width:100px">价格类型</th><th style="width:100px">销售价格</th><th class="num">金额</th><th>操作</th></tr></thead>
+        <thead><tr><th style="min-width:180px">商品名称</th><th>SKU</th><th class="num">可用库存</th><th>批次</th><th style="width:90px">数量</th><th>单位</th><th style="width:100px">价格类型</th><th style="width:100px">销售价格</th><th class="num">金额</th><th>操作</th></tr></thead>
         <tbody>
           <tr v-for="(it,i) in form.items" :key="i">
             <td data-label="商品名称"><x-combobox v-model="it.goodsId" :options="whGoodsOpts" placeholder="请选择（可输入检索）" @update:modelValue="$nextTick(()=>onGoodsChange(it))"/></td>
             <td data-label="SKU">{{it.sku}}</td>
             <td class="num" data-label="可用库存">{{stockOf(it)}}</td>
+            <td data-label="批次"><x-combobox v-model="it.lotKey" :options="lotOptions(it)" placeholder="批次"/></td>
             <td data-label="数量"><input type="number" min="1" style="width:80px" v-model.number="it.qty"></td>
             <td data-label="单位">{{it.unitId ? S.name('units',it.unitId) : ''}}</td>
             <td data-label="价格类型"><x-combobox v-model="it.priceType" :options="priceTypeOpts" @update:modelValue="$nextTick(()=>onPriceTypeChange(it))"/></td>
@@ -355,7 +372,7 @@ const SaleList = {
         <span v-if="detail.payStatus">支付：<x-status :v="detail.payStatus"/></span>
       </div>
       <table class="grid">
-        <thead><tr><th>商品</th><th>SKU</th><th class="num">数量</th><th>单位</th><th>价格类型</th><th class="num">单价</th><th class="num">金额</th></tr></thead>
+        <thead><tr><th>商品</th><th>SKU</th><th class="num">数量</th><th>单位</th><th>价格类型</th><th class="num">单价</th><th class="num">金额</th><th>批次</th></tr></thead>
         <tbody>
           <tr v-for="it in detail.items">
             <td data-label="商品">{{S.name('goods',it.goodsId)}}</td>
@@ -365,6 +382,7 @@ const SaleList = {
             <td data-label="价格类型">{{it.priceType}}</td>
             <td class="num money" data-label="单价">{{fmtMoney(it.price)}}</td>
             <td class="num money" data-label="金额">{{fmtMoney(it.amount)}}</td>
+            <td data-label="批次">{{ it.alloc && it.alloc.length ? it.alloc.map(a=>(a.batchNo||'未分批次')+'×'+a.qty).join('、') : (it.lotKey||'—') }}</td>
           </tr>
         </tbody>
       </table>

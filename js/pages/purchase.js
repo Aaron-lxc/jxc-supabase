@@ -6,7 +6,7 @@ Pages['page-purchase'] = {
     return {
       q: { typeId: '', name: '', supplierId: '', d1: '', d2: '' },
       page: 1, pageSize: 10, showForm: false, editing: null,
-      form: { typeId: '', goodsId: '', qty: null, price: null, whId: '', payMethod: '' }
+      form: { typeId: '', goodsId: '', qty: null, price: null, whId: '', payMethod: '', productionDate: '', batchNo: '' }
     };
   },
   computed: {
@@ -58,17 +58,19 @@ Pages['page-purchase'] = {
         { label: '金额', value: U.fmtMoney(p.amount) },
         { label: '入库仓库', value: S.name('warehouses', p.whId) },
         { label: '支付方式', value: p.payMethod || '—' },
-        { label: '入库时间', value: p.inTime }
+        { label: '入库时间', value: p.inTime },
+        { label: '生产日期', value: p.productionDate || '—' },
+        { label: '批次号', value: p.batchNo || '—' }
       ];
     },
     openNew() {
       this.editing = null;
-      this.form = { typeId: '', goodsId: '', qty: null, price: null, whId: '', payMethod: '' };
+      this.form = { typeId: '', goodsId: '', qty: null, price: null, whId: '', payMethod: '', productionDate: '', batchNo: '' };
       this.showForm = true;
     },
     openEdit(p) {
       this.editing = p;
-      this.form = { typeId: p.typeId, goodsId: p.goodsId, qty: p.qty, price: p.price, whId: p.whId, payMethod: p.payMethod || '' };
+      this.form = { typeId: p.typeId, goodsId: p.goodsId, qty: p.qty, price: p.price, whId: p.whId, payMethod: p.payMethod || '', productionDate: p.productionDate || '', batchNo: p.batchNo || '' };
       this.showForm = true;
     },
     save() {
@@ -80,13 +82,15 @@ Pages['page-purchase'] = {
       const g = S.byId('goods', f.goodsId);
       if (this.editing) {
         const err = S.updatePurchase(this.editing.id, {
-          goodsId: g.id, qty: f.qty, price: f.price, whId: f.whId, payMethod: f.payMethod || ''
+          goodsId: g.id, qty: f.qty, price: f.price, whId: f.whId, payMethod: f.payMethod || '',
+          productionDate: f.productionDate || null, batchNo: f.batchNo || ''
         });
         if (err) return alert(err);
       } else {
         S.addPurchase({
           typeId: g.typeId, goodsId: g.id, supplierId: g.supplierId, unitId: g.unitId,
-          qty: Number(f.qty), price: Number(f.price), whId: f.whId, payMethod: f.payMethod || ''
+          qty: Number(f.qty), price: Number(f.price), whId: f.whId, payMethod: f.payMethod || '',
+          productionDate: f.productionDate || null, batchNo: f.batchNo || ''
         });
       }
       this.showForm = false;
@@ -151,6 +155,8 @@ Pages['page-purchase'] = {
           <x-combobox v-model="form.whId" :options="formWhOpts" style="width:100%"/></div>
         <div class="form-item"><label>支付方式</label>
           <x-combobox v-model="form.payMethod" :options="payMethodOpts" style="width:100%"/></div>
+        <div class="form-item"><label>生产日期</label><input type="date" v-model="form.productionDate"></div>
+        <div class="form-item"><label>批次号</label><input type="text" v-model="form.batchNo" placeholder="留空=采购单号"></div>
       </div>
       <div class="form-hint" style="margin-top:8px">入库时间自动记录为保存时刻（年月日时分秒），订单号自动生成（PO-年月日-xxxxx）。</div>
       <template #foot>

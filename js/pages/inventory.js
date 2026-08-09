@@ -37,28 +37,35 @@ Pages['page-inventory'] = {
       );
     },
 
-    /* ---------- 库存明细 ---------- */
+    /* ---------- 库存明细（批次级：每个 lot 一行） ---------- */
     rows() {
-      return S.db.stocks.map(s => {
+      const base = S.db.stocks.filter(s => {
         const g = S.byId('goods', s.goodsId) || {};
-        return {
-          id: s.id, rec: s, whId: s.whId, goodsId: s.goodsId,
-          whName: S.name('warehouses', s.whId), goodsName: g.name || '',
-          typeId: g.typeId, typeName: S.name('goodsTypes', g.typeId),
-          sku: g.sku || '', unitName: S.name('units', g.unitId),
-          supplierId: g.supplierId, supplierName: S.name('suppliers', g.supplierId),
-          qty: s.qty, minStock: g.minStock || 0,
-          cost: U.round2(s.qty * (g.purchasePrice || 0)),
-          value: U.round2(s.qty * (g.retailPrice || 0)),
-          lastInTime: s.lastInTime || '-', lastCheckTime: s.lastCheckTime || '-'
-        };
-      }).filter(r =>
-        (!this.q.whId || r.whId === this.q.whId) &&
-        (!this.q.typeId || r.typeId === this.q.typeId) &&
-        U.kw(r.goodsName, this.q.name) &&
-        (!this.q.supplierId || r.supplierId === this.q.supplierId) &&
-        U.inRange(r.lastInTime, this.q.lastInT1, this.q.lastInT2)
-      ).sort((a, b) => a.whName.localeCompare(b.whName) || a.goodsName.localeCompare(b.goodsName));
+        return (!this.q.whId || s.whId === this.q.whId) &&
+          (!this.q.typeId || g.typeId === this.q.typeId) &&
+          U.kw(g.name || '', this.q.name) &&
+          (!this.q.supplierId || g.supplierId === this.q.supplierId) &&
+          U.inRange(s.lastInTime || '', this.q.lastInT1, this.q.lastInT2);
+      });
+      const out = [];
+      base.forEach(s => {
+        const g = S.byId('goods', s.goodsId) || {};
+        const lots = (s.lots && s.lots.length) ? s.lots : [{ batchNo: null, productionDate: null, qty: s.qty, cost: g.purchasePrice || 0, legacy: true }];
+        lots.forEach(l => {
+          const ei = S.lotExpiryInfo(g, l);
+          out.push({
+            id: s.id + '|' + (l.batchNo || 'legacy'), rec: s, lot: l, whId: s.whId, goodsId: s.goodsId,
+            whName: S.name('warehouses', s.whId), goodsName: g.name || '', typeId: g.typeId, typeName: S.name('goodsTypes', g.typeId),
+            sku: g.sku || '', unitName: S.name('units', g.unitId), supplierName: S.name('suppliers', g.supplierId),
+            batchNo: l.batchNo || '未分批次', productionDate: l.productionDate || '-',
+            expiryDate: ei.expiryDate || '-', days: ei.expiryDate ? ei.days : '',
+            qty: l.qty, expiring: ei.expiring, minStock: g.minStock || 0,
+            cost: U.round2(l.qty * (g.purchasePrice || 0)), value: U.round2(l.qty * (g.retailPrice || 0)),
+            lastInTime: s.lastInTime || '-', lastCheckTime: s.lastCheckTime || '-'
+          });
+        });
+      });
+      return out.sort((a, b) => a.whName.localeCompare(b.whName) || a.goodsName.localeCompare(b.goodsName) || (a.expiryDate || '').localeCompare(b.expiryDate || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
     totals() {
@@ -138,6 +145,10 @@ Pages['page-inventory'] = {
         { label: 'SKU', value: r.sku || '-' },
         { label: '单位', value: r.unitName },
         { label: '供应商', value: r.supplierName },
+        { label: '批次号', value: r.batchNo },
+        { label: '生产日期', value: r.productionDate },
+        { label: '到期日', value: r.expiryDate },
+        { label: '临期天数', value: r.days },
         { label: '当前库存', value: r.qty },
         { label: '最低库存', value: r.minStock },
         { label: '库存成本', value: U.fmtMoney(r.cost) },
@@ -150,8 +161,8 @@ Pages['page-inventory'] = {
       if (!this.rows.length) return alert('当前筛选条件下没有库存记录');
       this.checkQ = { whId: '', goodsId: '' };
       this.checkRows = this.rows.map(r => ({
-        rec: r.rec, whId: r.whId, goodsId: r.goodsId, whName: r.whName, goodsName: r.goodsName, sku: r.sku,
-        unitName: r.unitName, qty: r.qty, actual: r.qty
+        rec: r.rec, lot: r.lot, whId: r.whId, goodsId: r.goodsId, whName: r.whName, goodsName: r.goodsName,
+        sku: r.sku, unitName: r.unitName, batchNo: r.batchNo, qty: r.qty, actual: r.qty
       }));
       this.showCheck = true;
     },
@@ -161,13 +172,19 @@ Pages['page-inventory'] = {
       this.checkRows.forEach(cr => {
         const actual = Number(cr.actual);
         if (isNaN(actual) || actual < 0) return;
-        if (actual !== cr.rec.qty) {
-          S.db.stockChecks.push({
-            id: S.genId(), whId: cr.rec.whId, goodsId: cr.rec.goodsId,
-            before: cr.rec.qty, after: actual, diff: actual - cr.rec.qty, time: t
-          });
-          cr.rec.qty = actual;
-          changed++;
+        if (cr.lot.legacy) {
+          if (actual !== cr.rec.qty) {
+            S.db.stockChecks.push({ id: S.genId(), whId: cr.rec.whId, goodsId: cr.rec.goodsId, before: cr.rec.qty, after: actual, diff: actual - cr.rec.qty, time: t });
+            cr.rec.qty = actual; changed++;
+          }
+        } else {
+          if (actual !== cr.lot.qty) {
+            S.db.stockChecks.push({ id: S.genId(), whId: cr.rec.whId, goodsId: cr.rec.goodsId, batchNo: cr.lot.batchNo || null, before: cr.lot.qty, after: actual, diff: actual - cr.lot.qty, time: t });
+            cr.lot.qty = actual;
+            cr.rec.lots = (cr.rec.lots || []).filter(x => x.qty > 0);
+            cr.rec.qty = U.round2((cr.rec.lots || []).reduce((a, x) => a + Number(x.qty || 0), 0));
+            changed++;
+          }
         }
         cr.rec.lastCheckTime = t;
       });
@@ -178,7 +195,8 @@ Pages['page-inventory'] = {
       U.exportExcel('库存明细.xlsx', this.rows.map((r, i) => ({
         '序号': i + 1, '仓库名称': r.whName, '商品名称': r.goodsName, '商品类型': r.typeName,
         'SKU': r.sku, '商品单位': r.unitName, '供应商': r.supplierName,
-        '当前库存': r.qty, '最低库存': r.minStock, '库存成本': r.cost, '库存价值': r.value,
+        '批次号': r.batchNo, '生产日期': r.productionDate, '到期日': r.expiryDate, '临期天数': r.days,
+        '当前库存': r.qty, '最低库存': r.minStock, '临期库存': r.expiring ? r.qty : 0, '库存成本': r.cost, '库存价值': r.value,
         '最后一次入库时间': r.lastInTime, '最近一次盘库时间': r.lastCheckTime
       })));
     },
@@ -283,20 +301,24 @@ Pages['page-inventory'] = {
       <table class="grid">
         <thead><tr>
           <th>序号</th><th>仓库名称</th><th>商品名称</th><th>商品类型</th><th>SKU</th><th>单位</th><th>供应商</th>
-          <th class="num">当前库存</th><th class="num">最低库存</th><th class="num">库存成本</th><th class="num">库存价值</th>
+          <th>批次号</th><th>生产日期</th><th>到期日</th><th class="num">临期天数</th>
+          <th class="num">当前库存</th><th class="num">最低库存</th><th class="num">临期库存</th><th class="num">库存成本</th><th class="num">库存价值</th>
           <th>最后入库时间</th><th>最近盘库时间</th>
         </tr></thead>
         <tbody>
           <tr v-for="(r,i) in paged" :key="r.id">
             <td data-label="序号">{{(page-1)*pageSize+i+1}}</td><td data-label="仓库名称">{{r.whName}}</td><td data-label="商品名称">{{r.goodsName}}</td><td data-label="商品类型">{{r.typeName}}</td>
             <td data-label="SKU">{{r.sku}}</td><td data-label="单位">{{r.unitName}}</td><td data-label="供应商">{{r.supplierName}}</td>
+            <td data-label="批次号">{{r.batchNo}}</td><td data-label="生产日期">{{r.productionDate}}</td><td data-label="到期日">{{r.expiryDate}}</td>
+            <td class="num" :class="{red: r.expiring}" data-label="临期天数">{{r.days}}</td>
             <td class="num" :class="{red: r.qty < r.minStock}" data-label="当前库存"><b>{{r.qty}}</b>
               <span v-if="r.qty < r.minStock" class="tag tag-red">低于下限</span></td>
             <td class="num" data-label="最低库存">{{r.minStock}}</td>
+            <td class="num" :class="{red: r.expiring}" data-label="临期库存">{{r.expiring ? r.qty : 0}}</td>
             <td class="num money" data-label="库存成本">{{fmtMoney(r.cost)}}</td><td class="num money" data-label="库存价值">{{fmtMoney(r.value)}}</td>
             <td data-label="最后入库时间">{{r.lastInTime}}</td><td data-label="最近盘库时间">{{r.lastCheckTime}}</td>
           </tr>
-          <tr v-if="!paged.length"><td colspan="13" class="empty">暂无库存记录（采购入库后自动生成）</td></tr>
+          <tr v-if="!paged.length"><td colspan="18" class="empty">暂无库存记录（采购入库后自动生成）</td></tr>
         </tbody>
       </table>
       </div>
@@ -405,18 +427,19 @@ Pages['page-inventory'] = {
       </div>
       <div class="item-rows table-wrap">
       <table class="grid">
-        <thead><tr><th>仓库</th><th>商品</th><th>SKU</th><th>单位</th><th class="num">账面库存</th><th class="num" style="width:110px">实际库存</th><th class="num">差异</th></tr></thead>
+        <thead><tr><th>仓库</th><th>商品</th><th>SKU</th><th>单位</th><th>批次号</th><th class="num">账面库存</th><th class="num" style="width:110px">实际库存</th><th class="num">差异</th></tr></thead>
         <tbody>
-          <tr v-for="cr in checkFiltered" :key="(cr.whId||'')+(cr.goodsId||'')+(cr.sku||'')">
+          <tr v-for="cr in checkFiltered" :key="(cr.whId||'')+(cr.goodsId||'')+(cr.sku||'')+(cr.batchNo||'')">
             <td data-label="仓库">{{cr.whName}}</td>
             <td data-label="商品">{{cr.goodsName}}</td>
             <td data-label="SKU">{{cr.sku}}</td>
             <td data-label="单位">{{cr.unitName}}</td>
+            <td data-label="批次号">{{cr.batchNo}}</td>
             <td class="num" data-label="账面库存">{{cr.qty}}</td>
             <td class="num" data-label="实际库存"><input type="number" min="0" style="width:90px" v-model.number="cr.actual"></td>
             <td class="num" data-label="差异" :class="{red: cr.actual-cr.qty<0, 'green-t': cr.actual-cr.qty>0}">{{(cr.actual||0)-cr.qty}}</td>
           </tr>
-          <tr v-if="!checkFiltered.length"><td colspan="7" class="empty">无匹配记录</td></tr>
+          <tr v-if="!checkFiltered.length"><td colspan="8" class="empty">无匹配记录</td></tr>
         </tbody>
       </table>
       </div>

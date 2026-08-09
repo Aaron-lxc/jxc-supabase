@@ -6,7 +6,7 @@ Pages['page-dashboard'] = {
     return {
       hd1: U.addDays(U.today(), -29), hd2: U.today(), metric: '销售金额',
       vd1: U.addDays(U.today(), -29), vd2: U.today(), rank: '在售商品销量排名',
-      showMore: false, expanded: { stock: false, pay: false, wh: false },
+      showMore: false, expanded: { stock: false, pay: false, wh: false, expiring: false },
       metricTotal: 0,
       metrics: ['销售数量', '销售金额', '新增客户数量', '各类型客户数量', '各级别客户数量', '资源合伙人数量', '区域合伙人数量', '收款金额', '欠款金额', '支出金额'],
       ranks: ['在售商品销量排名', '客户销量排名',
@@ -44,6 +44,19 @@ Pages['page-dashboard'] = {
         const g = S.byId('goods', st.goodsId); if (!g) return;
         invQty += st.qty; invCost += st.qty * g.purchasePrice; invValue += st.qty * g.retailPrice;
       });
+      /* 累计已临期：保质期>0 且 临期提醒>0 且 落入临期窗口的批次（批次级累加） */
+      let expQty = 0, expCost = 0, expValue = 0;
+      db.stocks.forEach(st => {
+        const g = S.byId('goods', st.goodsId); if (!g || g.shelfLife <= 0 || g.expireWarn <= 0) return;
+        (st.lots && st.lots.length ? st.lots : [{ productionDate: st.productionDate || null, qty: st.qty }])
+          .forEach(lot => {
+            const info = S.lotExpiryInfo(g, lot);
+            if (!info.expiryDate || !info.expiring) return;
+            expQty += (lot.qty || 0);
+            expCost += (lot.qty || 0) * (g.purchasePrice || 0);
+            expValue += (lot.qty || 0) * (g.retailPrice || 0);
+          });
+      });
       /* 库存按类型 */
       const invByType = {};
       db.stocks.forEach(st => {
@@ -74,6 +87,7 @@ Pages['page-dashboard'] = {
         custByType: grp('typeId', 'custTypes'), custByLevel: grp('levelId', 'custLevels'), custByRegion: grp('regionId', 'regions'),
         rp, regionPartnerTotal: en('regionPartners').length,
         invQty, invCost: U.round2(invCost), invValue: U.round2(invValue), invProfit: U.round2(invValue - invCost), invByType,
+        expiring: { qty: expQty, cost: U.round2(expCost), value: U.round2(expValue) },
         rentSum,
         totalSales, totalCost: U.round2(opCost + resComm + regComm + taxCost + deliveryCost - overflowGain), opCost, resComm, regComm, taxCost, deliveryCost,
         totalExpense: opCost, totalArrears,
@@ -130,6 +144,31 @@ Pages['page-dashboard'] = {
         })
         .filter(r => r.amt > 0)
         .sort((a, b) => b.amt - a.amt);
+    },
+    expiringAlerts() {
+      const out = [];
+      S.db.stocks.forEach(st => {
+        const g = S.byId('goods', st.goodsId); if (!g || g.shelfLife <= 0 || g.expireWarn <= 0) return;
+        const wh = S.byId('warehouses', st.whId);
+        (st.lots && st.lots.length ? st.lots : [{ batchNo: null, productionDate: st.productionDate || null, qty: st.qty }])
+          .forEach(lot => {
+            const info = S.lotExpiryInfo(g, lot);
+            if (!info.expiryDate || !info.expiring) return;
+            out.push({
+              seq: 0,
+              whName: wh ? wh.name : '—',
+              goodsName: g.name,
+              value: U.round2((lot.qty || 0) * (g.retailPrice || 0)),
+              expiryDate: info.expiryDate,
+              days: info.days,
+              manager: wh ? (wh.manager || '-') : '-',
+              phone: wh ? (wh.phone || '-') : '-'
+            });
+          });
+      });
+      out.sort((a, b) => a.days - b.days);
+      out.forEach((r, i) => { r.seq = i + 1; });
+      return out;
     },
     /* ---------- 纵向分析 ---------- */
     ranking() {
@@ -255,6 +294,10 @@ Pages['page-dashboard'] = {
       if (kind === 'stock') {
         name = '库存预警.xlsx'; rows = this.stockAlerts;
         cols = [['序号', (r, i) => i + 1], ['商品名称', r => r.name], ['库存数量', r => r.qty], ['最低库存', r => r.min], ['缺口', r => r.min - r.qty]];
+      } else if (kind === 'expiring') {
+        name = '临期预警.xlsx'; rows = this.expiringAlerts;
+        cols = [['序号', (r, i) => r.seq], ['仓库名称', r => r.whName], ['商品名称', r => r.goodsName], ['产品货值', r => r.value],
+          ['到期时间', r => r.expiryDate], ['临期天数', r => r.days], ['仓库负责人', r => r.manager], ['联系电话', r => r.phone]];
       } else if (kind === 'pay') {
         name = '超期未支付预警.xlsx'; rows = this.payAlerts;
         cols = [['序号', (r, i) => i + 1], ['客户名称', r => r.name], ['账期', r => r.period], ['应付日期', r => r.due || '-'],
@@ -271,7 +314,7 @@ Pages['page-dashboard'] = {
       }));
     },
     alertRows(key, all) {
-      const src = key === 'stock' ? this.stockAlerts : key === 'pay' ? this.payAlerts : this.whAlerts;
+      const src = key === 'stock' ? this.stockAlerts : key === 'pay' ? this.payAlerts : key === 'expiring' ? this.expiringAlerts : this.whAlerts;
       return all ? src : src.slice(0, 10);
     },
     /* ---------- 横向分析图 ---------- */
@@ -426,6 +469,7 @@ Pages['page-dashboard'] = {
         <div class="sub">股东累计注入资金</div></div>
       <div class="stat-card c4 clickable" @click="go('complaint')"><div class="t">累计投诉</div><div class="v">{{stats.cmpTotal}}</div><div class="sub">{{subText(stats.cmpByType,' 件')}}</div></div>
       <div class="stat-card c4 clickable" @click="go('inventory')"><div class="t">库存预警</div><div class="v">{{stockAlerts.length}} <span style="font-size:12px;color:#64748b">项</span></div><div class="sub">低于最低库存的商品数</div></div>
+      <div class="stat-card c4 clickable" @click="go('inventory')"><div class="t">累计已临期</div><div class="v">{{stats.expiring.qty}} <span style="font-size:12px;color:#64748b">件</span></div><div class="sub">成本 ￥{{fmtMoney(stats.expiring.cost)}} ｜ 货值 ￥{{fmtMoney(stats.expiring.value)}}</div></div>
       <div class="stat-card c4 clickable" @click="go('sales')"><div class="t">超期未支付客户</div><div class="v">{{payAlerts.length}} <span style="font-size:12px;color:#64748b">家</span></div><div class="sub">存在超期欠款的客户数</div></div>
     </div>
 
@@ -529,6 +573,23 @@ Pages['page-dashboard'] = {
               <td data-label="剩余天数"><span class="tag" :class="w.days<=30?'tag-red':(w.days<=60?'tag-orange':'tag-green')">{{w.days<0?'已到期':w.days+' 天'}}</span></td>
               <td data-label="房东/联系电话">{{w.landlord||'-'}}</td></tr>
             <tr v-if="!whAlerts.length"><td colspan="9" class="empty">暂无仓库信息</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px">
+        <div class="section-title">临期预警 <span class="muted">（按临期天数从小到大）</span>
+          <span style="float:right;font-weight:400">
+            <button class="btn btn-sm" @click="exportAlert('expiring')">导出</button>
+          </span>
+        </div>
+        <table class="grid">
+          <thead><tr><th>序号</th><th>仓库名称</th><th>商品名称</th><th class="num money">产品货值</th><th>到期时间</th><th class="num">临期天数</th><th>仓库负责人</th><th>联系电话</th></tr></thead>
+          <tbody>
+            <tr v-for="(r,i) in alertRows('expiring',true)"><td data-label="序号">{{r.seq}}</td><td data-label="仓库名称">{{r.whName}}</td><td data-label="商品名称">{{r.goodsName}}</td>
+              <td class="num money" data-label="产品货值">{{fmtMoney(r.value)}}</td><td data-label="到期时间">{{r.expiryDate}}</td>
+              <td class="num" data-label="临期天数"><span class="tag" :class="r.days<=0?'tag-red':(r.days<=7?'tag-orange':'tag-green')">{{r.days}} 天</span></td>
+              <td data-label="仓库负责人">{{r.manager}}</td><td data-label="联系电话">{{r.phone}}</td></tr>
+            <tr v-if="!expiringAlerts.length"><td colspan="8" class="empty">暂无临期预警</td></tr>
           </tbody>
         </table>
       </div>

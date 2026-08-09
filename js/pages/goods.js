@@ -41,12 +41,14 @@ const GoodsList = {
         { label: '大客价', value: U.fmtMoney(g.bigPrice) },
         { label: '批发价', value: U.fmtMoney(g.wholePrice) },
         { label: '最低库存', value: g.minStock },
+        { label: '保质期(天)', value: g.shelfLife ? g.shelfLife + ' 天' : '永不过期' },
+        { label: '临期提醒(天)', value: g.expireWarn ? '提前 ' + g.expireWarn + ' 天' : '不提醒' },
         { label: '创建时间', value: g.createTime },
         { label: '状态', value: g.status }
       ];
     },
     blank() {
-      return { name: '', typeId: '', sku: '', unitId: '', supplierId: '', purchasePrice: null, retailPrice: null, bigPrice: null, wholePrice: null, minStock: 0 };
+      return { name: '', typeId: '', sku: '', unitId: '', supplierId: '', purchasePrice: null, retailPrice: null, bigPrice: null, wholePrice: null, minStock: 0, shelfLife: 0, expireWarn: 0 };
     },
     openNew() { this.editing = null; this.form = this.blank(); this.showForm = true; },
     openEdit(g) { this.editing = g; this.form = { ...g }; this.showForm = true; },
@@ -62,7 +64,7 @@ const GoodsList = {
           name: f.name.trim(), typeId: f.typeId, sku: f.sku, unitId: f.unitId, supplierId: f.supplierId,
           purchasePrice: Number(f.purchasePrice), retailPrice: Number(f.retailPrice),
           bigPrice: Number(f.bigPrice) || Number(f.retailPrice), wholePrice: Number(f.wholePrice) || Number(f.retailPrice),
-          minStock: Number(f.minStock) || 0
+          minStock: Number(f.minStock) || 0, shelfLife: Number(f.shelfLife) || 0, expireWarn: Number(f.expireWarn) || 0
         });
       } else {
         S.db.goods.push({
@@ -70,7 +72,7 @@ const GoodsList = {
           unitId: f.unitId, supplierId: f.supplierId,
           purchasePrice: Number(f.purchasePrice), retailPrice: Number(f.retailPrice),
           bigPrice: Number(f.bigPrice) || Number(f.retailPrice), wholePrice: Number(f.wholePrice) || Number(f.retailPrice),
-          minStock: Number(f.minStock) || 0, createTime: U.now(), status: '已启用'
+          minStock: Number(f.minStock) || 0, shelfLife: Number(f.shelfLife) || 0, expireWarn: Number(f.expireWarn) || 0, createTime: U.now(), status: '已启用'
         });
       }
       this.showForm = false;
@@ -137,6 +139,8 @@ const GoodsList = {
         <div class="form-item"><label>供应商<b class="req">*</b></label>
           <x-combobox v-model="form.supplierId" :options="supplierOpts" placeholder="请选择（可输入检索）"/></div>
         <div class="form-item"><label>最低库存</label><input type="number" min="0" v-model.number="form.minStock"></div>
+        <div class="form-item"><label>保质期(天)</label><input type="number" min="0" v-model.number="form.shelfLife" placeholder="0=永不过期"></div>
+        <div class="form-item"><label>临期提醒(天)</label><input type="number" min="0" v-model.number="form.expireWarn" placeholder="0=不提醒"></div>
         <div class="form-item"><label>采购价<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="form.purchasePrice"></div>
         <div class="form-item"><label>零售价<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="form.retailPrice"></div>
         <div class="form-item"><label>大客价</label><input type="number" min="0" step="0.01" v-model.number="form.bigPrice"></div>

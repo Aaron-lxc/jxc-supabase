@@ -258,6 +258,78 @@ window.S = {
     return this.db.stocks.filter(s => s.goodsId === goodsId).reduce((a, b) => a + b.qty, 0);
   },
 
+  /* ------- 批次(lot) 内核：库存按 仓库+商品 聚合，内部按批次号(batchNo) 分桶 -------
+     每个 lot = { batchNo, productionDate, qty, cost }；batchNo 在同仓同货内唯一（空→自动=采购单号）。
+     FEFO = 先到期先出（按 生产日期+保质期 升序，同日再按 batchNo）。 */
+  ensureLot(rec, lot) {
+    if (!rec.lots) rec.lots = [];
+    let l = rec.lots.find(x => x.batchNo === lot.batchNo);
+    if (!l) { l = { batchNo: lot.batchNo, productionDate: lot.productionDate || null, qty: 0, cost: lot.cost || 0 }; rec.lots.push(l); }
+    return l;
+  },
+  addLotQty(rec, lot, qty) {
+    if (!rec.lots) rec.lots = [];
+    const l = this.ensureLot(rec, lot);
+    l.qty = U.round2(Number(l.qty || 0) + Number(qty));
+    if (l.cost == null) l.cost = lot.cost || 0;
+    rec.qty = U.round2((rec.lots || []).reduce((a, x) => a + Number(x.qty || 0), 0));
+    return l;
+  },
+  lotExpiryInfo(g, lot) {
+    const pd = lot.productionDate || null;
+    const expiry = (pd && g.shelfLife) ? U.addDays(pd, g.shelfLife) : null;
+    const days = expiry ? U.daysBetween(U.today(), expiry) : null;
+    const expiring = !!(g.shelfLife > 0 && g.expireWarn > 0 && days != null && days <= g.expireWarn);
+    return { productionDate: pd, expiryDate: expiry, days, expiring };
+  },
+  /* 按 FEFO(到期日升序) 排序 lots 副本；无生产日期视为不过期排最后 */
+  _sortLotsFEFO(g, lots) {
+    return lots.slice().sort((a, b) => {
+      const ea = a.productionDate ? U.addDays(a.productionDate, g.shelfLife || 0) : '9999-12-31';
+      const eb = b.productionDate ? U.addDays(b.productionDate, g.shelfLife || 0) : '9999-12-31';
+      if (ea !== eb) return ea < eb ? -1 : 1;
+      return (a.batchNo || '').localeCompare(b.batchNo || '');
+    });
+  },
+  /* 扣减库存：优先 selectedBatch 对应批次，不足则按 FEFO 向后 spill；返回 alloc=[{batchNo,qty}] */
+  consumeLotSelected(rec, g, qty, selectedBatch) {
+    qty = Number(qty) || 0;
+    if (!rec.lots || !rec.lots.length) {
+      rec.qty = Math.max(0, U.round2((Number(rec.qty) || 0) - qty));
+      return [{ batchNo: null, qty }];
+    }
+    const alloc = [];
+    let remain = qty;
+    const lots = this._sortLotsFEFO(g, rec.lots);
+    if (selectedBatch) {
+      const l = lots.find(x => x.batchNo === selectedBatch);
+      if (l) { const take = Math.min(remain, Number(l.qty) || 0); if (take > 0) { l.qty = U.round2(Number(l.qty) - take); alloc.push({ batchNo: l.batchNo, qty: take }); remain -= take; } }
+    }
+    for (const l of lots) {
+      if (remain <= 0) break;
+      if (Number(l.qty) <= 0) continue;
+      const take = Math.min(remain, Number(l.qty));
+      l.qty = U.round2(Number(l.qty) - take);
+      const ex = alloc.find(a => a.batchNo === l.batchNo);
+      if (ex) ex.qty = U.round2(ex.qty + take); else alloc.push({ batchNo: l.batchNo, qty: take });
+      remain -= take;
+    }
+    rec.lots = rec.lots.filter(l => Number(l.qty) > 0);
+    rec.qty = U.round2((rec.lots || []).reduce((a, x) => a + Number(x.qty || 0), 0));
+    return alloc;
+  },
+  /* 退货：按原销售 alloc 回写（调用处已按比例缩放） */
+  returnLotByAlloc(rec, g, alloc) {
+    (alloc || []).forEach(a => {
+      const qty = Number(a.qty) || 0;
+      if (!qty) return;
+      const l = (rec.lots || []).find(x => x.batchNo === a.batchNo);
+      if (l) l.qty = U.round2(Number(l.qty) + qty);
+      else { if (!rec.lots) rec.lots = []; rec.lots.push({ batchNo: a.batchNo || null, productionDate: a.productionDate || null, qty, cost: (g && g.purchasePrice) || 0 }); }
+    });
+    rec.qty = U.round2((rec.lots || []).reduce((a, x) => a + Number(x.qty || 0), 0));
+  },
+
   /* ------- 报损 / 报溢（库存管理下的两个独立核算单） -------
      报损：库存减少（损耗）；报溢：库存增加（盘盈）。
      订单号关联采购入库单 orderNo；金额 amount = price * qty 自动计算。
@@ -270,15 +342,15 @@ window.S = {
     l.operator = Cloud.state.user ? Cloud.state.user.name : '';
     this.db.losses.push(l);
     const rec = this.stockRec(l.whId, l.goodsId, true);
-    rec.qty -= Number(l.qty);
-    if (rec.qty < 0) rec.qty = 0;   // 防御性：损耗不允许负库存
+    const g = this.byId('goods', l.goodsId) || {};
+    this.consumeLotSelected(rec, g, Number(l.qty), null);  // FEFO 整扣（不强制选批）
     return l;
   },
   deleteLoss(id) {
     const l = this.byId('losses', id);
     if (!l) return '单据不存在';
     const rec = this.stockRec(l.whId, l.goodsId, false);
-    if (rec) rec.qty += Number(l.qty);
+    if (rec) { const g = this.byId('goods', l.goodsId) || {}; this.returnLotByAlloc(rec, g, [{ batchNo: null, qty: Number(l.qty) }]); }
     this.db.losses = this.db.losses.filter(x => x.id !== id);
     return null;
   },
@@ -286,12 +358,12 @@ window.S = {
     const l = this.byId('losses', id);
     if (!l) return '单据不存在';
     const orec = this.stockRec(l.whId, l.goodsId, false);
-    if (orec) orec.qty += Number(l.qty);          // 回滚旧批次
+    if (orec) { const g0 = this.byId('goods', l.goodsId) || {}; this.returnLotByAlloc(orec, g0, [{ batchNo: null, qty: Number(l.qty) }]); }  // 回滚旧批次
     const newQty = Number(patch.qty), newPrice = Number(patch.price);
     if (!newQty || newQty <= 0) return '请填写报损数量';
     if (newPrice == null || newPrice < 0) return '请填写报损单价';
     const nrec = this.stockRec(patch.whId, patch.goodsId, true);
-    nrec.qty -= newQty; if (nrec.qty < 0) nrec.qty = 0;
+    const gn = this.byId('goods', patch.goodsId) || {}; this.consumeLotSelected(nrec, gn, newQty, null);
     l.orderNo = patch.orderNo || ''; l.typeId = patch.typeId; l.goodsId = patch.goodsId;
     l.supplierId = patch.supplierId; l.unitId = patch.unitId; l.qty = newQty; l.price = newPrice;
     l.amount = U.round2(newQty * newPrice); l.whId = patch.whId;
@@ -306,14 +378,14 @@ window.S = {
     o.operator = Cloud.state.user ? Cloud.state.user.name : '';
     this.db.overflows.push(o);
     const rec = this.stockRec(o.whId, o.goodsId, true);
-    rec.qty += Number(o.qty);
+    this.addLotQty(rec, { batchNo: null, productionDate: null, cost: Number(o.price) || 0 }, Number(o.qty));
     return o;
   },
   deleteOverflow(id) {
     const o = this.byId('overflows', id);
     if (!o) return '单据不存在';
     const rec = this.stockRec(o.whId, o.goodsId, false);
-    if (rec) { rec.qty -= Number(o.qty); if (rec.qty < 0) rec.qty = 0; }
+    if (rec) { const g = this.byId('goods', o.goodsId) || {}; this.consumeLotSelected(rec, g, Number(o.qty), null); }
     this.db.overflows = this.db.overflows.filter(x => x.id !== id);
     return null;
   },
@@ -321,12 +393,12 @@ window.S = {
     const o = this.byId('overflows', id);
     if (!o) return '单据不存在';
     const orec = this.stockRec(o.whId, o.goodsId, false);
-    if (orec) { orec.qty -= Number(o.qty); if (orec.qty < 0) orec.qty = 0; }  // 回滚旧批次
+    if (orec) { const g0 = this.byId('goods', o.goodsId) || {}; this.consumeLotSelected(orec, g0, Number(o.qty), null); }  // 回滚旧批次
     const newQty = Number(patch.qty), newPrice = Number(patch.price);
     if (!newQty || newQty <= 0) return '请填写报溢数量';
     if (newPrice == null || newPrice < 0) return '请填写报溢单价';
     const nrec = this.stockRec(patch.whId, patch.goodsId, true);
-    nrec.qty += newQty;
+    this.addLotQty(nrec, { batchNo: null, productionDate: null, cost: newPrice }, newQty);
     o.orderNo = patch.orderNo || ''; o.typeId = patch.typeId; o.goodsId = patch.goodsId;
     o.supplierId = patch.supplierId; o.unitId = patch.unitId; o.qty = newQty; o.price = newPrice;
     o.amount = U.round2(newQty * newPrice); o.whId = patch.whId;
@@ -344,7 +416,7 @@ window.S = {
     p.payMethod = p.payMethod || '';
     this.db.purchases.push(p);
     const rec = this.stockRec(p.whId, p.goodsId, true);
-    rec.qty += Number(p.qty);
+    this.addLotQty(rec, { batchNo: p.batchNo || p.no, productionDate: p.productionDate || null, cost: Number(p.price) || 0 }, Number(p.qty));
     rec.lastInTime = p.inTime;
     return p;
   },
@@ -366,7 +438,8 @@ window.S = {
     if (oldWh && oldGoods) {
       const orec = this.stockRec(oldWh, oldGoods, false);
       if (!orec || orec.qty < oldQty) return '原库存不足以回滚（该批货可能已售出），无法修改';
-      orec.qty -= oldQty;
+      const g0 = this.byId('goods', oldGoods) || {};
+      this.consumeLotSelected(orec, g0, oldQty, null);  // 回滚旧批次(FEFO)
     }
     const g = this.byId('goods', patch.goodsId);
     if (!g) return '商品不存在';
@@ -374,11 +447,12 @@ window.S = {
     if (!newQty || newQty <= 0) return '请填写采购数量';
     if (newPrice == null || newPrice < 0) return '请填写采购价';
     const nrec = this.stockRec(patch.whId, patch.goodsId, true);
-    nrec.qty += newQty;
+    this.addLotQty(nrec, { batchNo: patch.batchNo || p.no, productionDate: patch.productionDate || null, cost: newPrice }, newQty);
     nrec.lastInTime = U.now();
     p.typeId = g.typeId; p.goodsId = g.id; p.supplierId = g.supplierId; p.unitId = g.unitId;
     p.qty = newQty; p.price = newPrice; p.amount = U.round2(newQty * newPrice);
-    p.whId = patch.whId; p.payMethod = patch.payMethod || '';
+    p.whId = patch.whId; p.productionDate = patch.productionDate || null; p.batchNo = patch.batchNo || p.no;
+    p.payMethod = patch.payMethod || '';
     return null;
   },
 
@@ -501,7 +575,8 @@ window.S = {
     }
     sale.items.forEach(it => {
       const rec = this.stockRec(sale.whId, it.goodsId, true);
-      rec.qty -= Number(it.qty);
+      const g = this.byId('goods', it.goodsId) || {};
+      it.alloc = this.consumeLotSelected(rec, g, it.qty, it.lotKey);
     });
     /* 完成瞬间固化税点快照：此后该单不再受客户档案税点变更影响 */
     if (sale.taxRate == null || sale.taxRate === '') {
@@ -536,7 +611,19 @@ window.S = {
       operator: Cloud.state.user ? Cloud.state.user.name : ''
     };
     this.db.returns.push(rt);
-    lines.forEach(l => { const rec = this.stockRec(sale.whId, l.goodsId, true); rec.qty += l.qty; });
+    lines.forEach(l => {
+      const it = sale.items[l.itemIdx];
+      const rec = this.stockRec(sale.whId, l.goodsId, true);
+      const g = this.byId('goods', l.goodsId) || {};
+      const alloc = (it.alloc && it.alloc.length) ? it.alloc : [{ batchNo: null, qty: Number(it.qty) || 0 }];
+      const factor = Number(it.qty) ? (Number(l.qty) / Number(it.qty)) : 0;
+      const scaled = alloc.map(a => ({ batchNo: a.batchNo, productionDate: a.productionDate || null, qty: U.round2(Number(a.qty) * factor) }));
+      const totalScaled = scaled.reduce((a, x) => a + x.qty, 0);
+      if (Math.abs(totalScaled - l.qty) > 0.001 && scaled.length) {
+        scaled[scaled.length - 1].qty = U.round2(scaled[scaled.length - 1].qty + (l.qty - totalScaled));
+      }
+      this.returnLotByAlloc(rec, g, scaled);
+    });
     return null;
   },
 
