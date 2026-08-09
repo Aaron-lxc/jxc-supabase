@@ -68,8 +68,8 @@ Pages['page-inventory'] = {
     prodQtySum() { return U.round2(this.prodRows.reduce((a, p) => a + Number(p.qty || 0), 0)); },
     prodAmountSum() { return U.round2(this.prodRows.reduce((a, p) => a + Number(p.amount || 0), 0)); },
     prodFormItemCost() { return U.round2((this.prodForm.items || []).reduce((a, it) => a + Number(it.amount || 0), 0)); },
-    prodFormCostPrice() { const q = Number(this.prodForm.qty) || 0; return q > 0 ? U.round2((this.prodFormItemCost() + (Number(this.prodForm.laborFee) || 0)) / q) : 0; },
-    prodFormAmount() { return U.round2(this.prodFormCostPrice() * (Number(this.prodForm.qty) || 0)); },
+    prodFormCostPrice() { const q = Number(this.prodForm.qty) || 0; return q > 0 ? U.round2((this.prodFormItemCost + (Number(this.prodForm.laborFee) || 0)) / q) : 0; },
+    prodFormAmount() { return U.round2(this.prodFormCostPrice * (Number(this.prodForm.qty) || 0)); },
     /* 发货仓该商品可选批次（仅显示有库存的批次） */
     fromWhBatchOpts() {
       if (!this.transferForm.fromWhId || !this.transferForm.goodsId) return [{ value: '', label: '请选择批次' }];
