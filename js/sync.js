@@ -16,7 +16,7 @@ window.Sync = {
     'custLevels', 'custTypes', 'regions', 'customers',
     'resourcePartners', 'regionPartners',
     'warehouses', 'purchases', 'stocks', 'stockChecks',
-    'sales', 'returns', 'transfers', 'expenseCats', 'expenses',
+    'sales', 'returns', 'transfers', 'productions', 'expenseCats', 'expenses',
     'complaintTypes', 'complaints',
     'resourceRates', 'regionRates', 'commissionPayments',
     'openingStocks', 'openingAr', 'openingAp', 'openingFunds', 'capitalInjections'

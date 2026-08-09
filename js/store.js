@@ -21,7 +21,7 @@ window.S = {
       stocks: [], stockChecks: [],
       losses: [], overflows: [],
       sales: [], returns: [],
-      transfers: [],
+      transfers: [], productions: [],
       expenseCats: [], expenses: [],
       complaintTypes: [], complaints: [],
       resourceRates: [], regionRates: [],
@@ -394,6 +394,114 @@ window.S = {
   /* 已生效调拨单的物流费合计（计入系统成本） */
   totalTransferLogisticsCost() {
     return U.round2((this.db.transfers || []).filter(t => t.status === '已生效').reduce((a, t) => a + (Number(t.logisticsFee) || 0), 0));
+  },
+
+  /* ------- 生产组装（库存管理下的独立核算单） -------
+     作用：以现有库存商品为原材料，加工组装成新商品，自动核算成本并入库；
+           未完成=草稿（不改库存），完成后消耗原材料库存、生成新商品(同步商品管理)、按批次入库新商品。
+     数据模型：{ id, no, goodsName, typeId, unitId, supplierId, sku,
+                items:[{ whId, goodsId, unitId, qty, price, amount, batchNo, productionDate, shelfLife, expiryDate, remark }],
+                laborFee, qty, costPrice, amount, retailPrice, bigPrice, wholesalePrice,
+                shelfLife, expireWarn, whId, batchNo, time, remark, status, producedGoodsId, createdGoods }
+     批次身份(batchNo)全程保留，不影响既有 FEFO / 临期计算。 */
+  genScBatch() {
+    const d = (U.today() || '').replace(/-/g, '');
+    let s = '';
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    return 'sc-' + d + '-' + s;
+  },
+  addProduction(d) {
+    d.id = this.genId();
+    d.no = this.genNo('SC');
+    d.status = '未完成';
+    d.time = d.time || U.today();
+    this.db.productions.push(d);
+    return d;
+  },
+  updateProduction(id, patch) {
+    const p = this.byId('productions', id);
+    if (!p) return '生产单不存在';
+    if (p.status === '已完成') return '已完成的生产单不能修改，请先删除后重开';
+    Object.assign(p, patch);
+    return null;
+  },
+  completeProduction(id) {
+    const p = this.byId('productions', id);
+    if (!p) return '生产单不存在';
+    if (p.status === '已完成') return '该生产单已完成，无需重复完成';
+    if (!p.goodsName || !p.goodsName.trim()) return '请填写新商品名称';
+    if (!p.typeId) return '请选择商品类型';
+    if (!p.unitId) return '请选择商品单位';
+    if (!p.whId) return '请选择入库仓库';
+    if (!p.qty || p.qty <= 0) return '请填写生产数量';
+    if (!p.items || !p.items.length) return '请至少添加一项所需商品';
+    for (const it of p.items) {
+      if (!it.whId) return '原材料「' + (it.goodsName || '') + '」未选择源仓库';
+      if (!it.goodsId) return '原材料未选择商品';
+      if (!it.batchNo && it.batchNo !== '__NONE__') return '原材料「' + (it.goodsName || '') + '」未选择批次';
+      if (!it.qty || it.qty <= 0) return '原材料「' + (it.goodsName || '') + '」数量无效';
+      const g = this.byId('goods', it.goodsId); if (!g) return '原材料商品不存在';
+      const rec = this.stockRec(it.whId, it.goodsId, false);
+      if (!rec) return '源仓库「' + this.name('warehouses', it.whId) + '」无「' + g.name + '」库存';
+      const realBatch = (it.batchNo && it.batchNo !== '__NONE__') ? it.batchNo : null;
+      const lot = (rec.lots || []).find(l => l.batchNo === realBatch);
+      const avail = lot ? lot.qty : 0;
+      if (avail < it.qty) return '源仓库「' + this.name('warehouses', it.whId) + '」批次「' + (realBatch || '未分批次') + '」余量不足（当前 ' + avail + '，需 ' + it.qty + '）';
+    }
+    for (const it of p.items) {
+      const g = this.byId('goods', it.goodsId);
+      const rec = this.stockRec(it.whId, it.goodsId, false);
+      const realBatch = (it.batchNo && it.batchNo !== '__NONE__') ? it.batchNo : null;
+      this.consumeLotSelected(rec, g, it.qty, realBatch);
+    }
+    let goods = this.db.goods.find(g => g.name === p.goodsName.trim() && g.typeId === p.typeId);
+    let created = false;
+    if (!goods) {
+      goods = {
+        id: this.genId(), code: this.genCode('GD'), name: p.goodsName.trim(), typeId: p.typeId, sku: p.sku || '',
+        unitId: p.unitId, supplierId: p.supplierId || null,
+        purchasePrice: Number(p.costPrice) || 0, retailPrice: Number(p.retailPrice) || 0,
+        bigPrice: Number(p.bigPrice) || Number(p.retailPrice) || 0, wholePrice: Number(p.wholesalePrice) || Number(p.retailPrice) || 0,
+        minStock: 0, shelfLife: Number(p.shelfLife) || 0, expireWarn: Number(p.expireWarn) || 0,
+        createTime: U.now(), status: '已启用'
+      };
+      this.db.goods.push(goods);
+      created = true;
+    }
+    const rec = this.stockRec(p.whId, goods.id, true);
+    this.addLotQty(rec, { batchNo: p.batchNo, productionDate: p.time || U.today(), cost: Number(p.costPrice) || 0 }, Number(p.qty));
+    rec.lastInTime = U.now();
+    p.status = '已完成';
+    p.producedGoodsId = goods.id;
+    p.createdGoods = created;
+    return null;
+  },
+  deleteProduction(id) {
+    const p = this.byId('productions', id);
+    if (!p) return '生产单不存在';
+    if (p.status === '已完成') {
+      for (const it of (p.items || [])) {
+        const g = this.byId('goods', it.goodsId); if (!g) continue;
+        const rec = this.stockRec(it.whId, it.goodsId, false);
+        if (rec) this.returnLotByAlloc(rec, g, [{ batchNo: (it.batchNo && it.batchNo !== '__NONE__') ? it.batchNo : null, qty: Number(it.qty) }]);
+      }
+      if (p.producedGoodsId) {
+        const prec = this.stockRec(p.whId, p.producedGoodsId, false);
+        if (prec) {
+          prec.lots = (prec.lots || []).filter(l => (l.batchNo || null) !== (p.batchNo || null));
+          prec.qty = U.round2((prec.lots || []).reduce((a, x) => a + Number(x.qty || 0), 0));
+          if (!prec.lots.length) this.db.stocks = this.db.stocks.filter(s => s.id !== prec.id);
+        }
+        if (p.createdGoods) {
+          const hasOtherStock = this.db.stocks.some(s => s.goodsId === p.producedGoodsId && (s.lots || []).length);
+          const hasSale = this.db.sales.some(s => (s.items || []).some(it => it.goodsId === p.producedGoodsId));
+          if (!hasOtherStock && !hasSale) this.db.goods = this.db.goods.filter(g => g.id !== p.producedGoodsId);
+        }
+      }
+    }
+    this.db.productions = this.db.productions.filter(x => x.id !== id);
+    return null;
   },
 
   /* ------- 报损 / 报溢（库存管理下的两个独立核算单） -------

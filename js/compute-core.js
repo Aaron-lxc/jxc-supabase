@@ -52,7 +52,7 @@
       custLevels: [], custTypes: [], regions: [], customers: [],
       resourcePartners: [], regionPartners: [],
       warehouses: [], purchases: [], stocks: [], stockChecks: [],
-      sales: [], returns: [],
+      sales: [], returns: [], productions: [],
       expenseCats: [], expenses: [],
       complaintTypes: [], complaints: [],
       resourceRates: [], regionRates: [], commissionPayments: [],
