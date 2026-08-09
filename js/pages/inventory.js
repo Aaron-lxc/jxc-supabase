@@ -13,7 +13,10 @@ Pages['page-inventory'] = {
       lossPage: 1, lossSize: 10, showLossForm: false, editingLoss: null, lossForm: {},
       // 报溢管理
       ovQ: { orderNo: '', typeId: '', name: '', supplierId: '', whId: '', t1: '', t2: '' },
-      ovPage: 1, ovSize: 10, showOvForm: false, editingOv: null, ovForm: {}
+      ovPage: 1, ovSize: 10, showOvForm: false, editingOv: null, ovForm: {},
+      // 调拨管理
+      transferQ: { name: '', fromWhId: '', toWhId: '', t1: '', t2: '' },
+      transferPage: 1, transferSize: 10, showTransferForm: false, editingTransfer: null, transferForm: {}
     };
   },
   computed: {
@@ -22,6 +25,40 @@ Pages['page-inventory'] = {
     canLossEdit() { return P.canEdit('loss'); },
     canOv() { return P.canView('overflow'); },
     canOvEdit() { return P.canEdit('overflow'); },
+    /* 调拨：复用库存管理权限 */
+    canTransfer() { return P.canView('inventory'); },
+    canTransferEdit() { return P.canEdit('inventory'); },
+    whPickOpts() { return S.db.warehouses.map(w => ({ value: w.id, label: w.name })); },
+    /* 发货仓已有库存的商品（联动下拉） */
+    fromWhGoodsOpts() {
+      if (!this.transferForm.fromWhId) return [{ value: '', label: '请先选择发货仓库' }];
+      const ids = new Set(S.db.stocks.filter(s => s.whId === this.transferForm.fromWhId && s.qty > 0).map(s => s.goodsId));
+      return [{ value: '', label: '请选择商品' }].concat(S.enabled('goods').filter(g => ids.has(g.id)).map(g => ({ value: g.id, label: g.name + '（' + g.sku + '）' })));
+    },
+
+    /* ---------- 调拨 ---------- */
+    transferRows() {
+      return S.db.transfers.filter(t =>
+        U.kw(S.name('goods', t.goodsId), this.transferQ.name) &&
+        (!this.transferQ.fromWhId || t.fromWhId === this.transferQ.fromWhId) &&
+        (!this.transferQ.toWhId || t.toWhId === this.transferQ.toWhId) &&
+        U.inRange(t.time, this.transferQ.t1, this.transferQ.t2)
+      ).slice().sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+    },
+    transferPaged() { return this.transferRows.slice((this.transferPage - 1) * this.transferSize, this.transferPage * this.transferSize); },
+    transferAmountSum() { return U.round2(this.transferRows.reduce((a, t) => a + Number(t.amount || 0), 0)); },
+    transferLogisticsSum() { return U.round2(this.transferRows.reduce((a, t) => a + Number(t.logisticsFee || 0), 0)); },
+    /* 发货仓该商品可选批次（仅显示有库存的批次） */
+    fromWhBatchOpts() {
+      if (!this.transferForm.fromWhId || !this.transferForm.goodsId) return [{ value: '', label: '请选择批次' }];
+      const rec = S.stockRec(this.transferForm.fromWhId, this.transferForm.goodsId, false);
+      if (!rec || !rec.lots || !rec.lots.length) return [{ value: '', label: '无批次库存' }];
+      return [{ value: '', label: '请选择批次' }].concat(rec.lots.filter(l => l.qty > 0)
+        .sort((a, b) => (a.productionDate || '').localeCompare(b.productionDate || ''))
+        .map(l => ({ value: l.batchNo == null ? '__NONE__' : l.batchNo, label: (l.batchNo || '未分批次') + ' / 产 ' + (l.productionDate || '-') + ' / 余 ' + l.qty })));
+    },
+    selTransferGoods() { return this.transferForm.goodsId ? S.byId('goods', this.transferForm.goodsId) : null; },
+    transferFormAmount() { return U.round2((Number(this.transferForm.qty) || 0) * (Number(this.transferForm.costPrice) || 0)); },
 
     /* 通用下拉 */
     whOpts() { return [{ value: '', label: '全部仓库' }].concat(S.db.warehouses.map(w => ({ value: w.id, label: w.name }))); },
@@ -132,6 +169,43 @@ Pages['page-inventory'] = {
       if (this.editingOv) return;
       const g = v ? S.byId('goods', v) : null;
       if (g) { this.ovForm.typeId = g.typeId; this.ovForm.supplierId = g.supplierId; this.ovForm.price = g.purchasePrice; }
+    },
+    'transferForm.fromWhId'(v) {
+      if (this.editingTransfer) return;
+      this.transferForm.goodsId = ''; this.transferForm.batchNo = '';
+      this.transferForm.costPrice = null; this.transferForm.productionDate = '';
+      this.transferForm.shelfLife = 0; this.transferForm.expiryDate = '';
+    },
+    'transferForm.goodsId'(v) {
+      if (this.editingTransfer) return;
+      this.transferForm.batchNo = '';
+      const g = v ? S.byId('goods', v) : null;
+      if (g) {
+        this.transferForm.shelfLife = g.shelfLife || 0;
+        this.transferForm.costPrice = g.purchasePrice;
+        this.transferForm.productionDate = ''; this.transferForm.expiryDate = '';
+      }
+    },
+    'transferForm.batchNo'(v) {
+      if (this.editingTransfer) return;
+      const realBatch = (v && v !== '__NONE__') ? v : null;
+      const rec = S.stockRec(this.transferForm.fromWhId, this.transferForm.goodsId, false);
+      const lot = rec && rec.lots ? rec.lots.find(l => l.batchNo === realBatch) : null;
+      const g = this.selTransferGoods;
+      if (lot) { this.transferForm.costPrice = lot.cost; this.transferForm.productionDate = lot.productionDate || ''; }
+      else if (g) { this.transferForm.costPrice = g.purchasePrice; this.transferForm.productionDate = ''; }
+      if (g) {
+        this.transferForm.shelfLife = g.shelfLife || 0;
+        this.transferForm.expiryDate = (lot && lot.productionDate) ? U.addDays(lot.productionDate, g.shelfLife || 0) : '';
+      }
+    },
+    'transferForm.qty'(v) {
+      if (this.editingTransfer) return;
+      this.transferForm.amount = U.round2((Number(v) || 0) * (Number(this.transferForm.costPrice) || 0));
+    },
+    'transferForm.costPrice'(v) {
+      if (this.editingTransfer) return;
+      this.transferForm.amount = U.round2((Number(this.transferForm.qty) || 0) * (Number(v) || 0));
     }
   },
   methods: {
@@ -273,6 +347,71 @@ Pages['page-inventory'] = {
         '供应商': S.name('suppliers', o.supplierId), '单位': S.name('units', o.unitId), '报溢单价': o.price, '报溢数量': o.qty,
         '报溢金额': o.amount, '报溢仓库': S.name('warehouses', o.whId), '支付方式': o.payMethod || '', '报溢时间': o.time
       })));
+    },
+    /* ---------- 调拨 ---------- */
+    openTransferNew() {
+      this.editingTransfer = null;
+      this.transferForm = { fromWhId: '', toWhId: '', goodsId: '', batchNo: '', qty: null, costPrice: null, amount: null, productionDate: '', shelfLife: 0, expiryDate: '', logisticsFee: null, time: U.today(), remark: '' };
+      this.showTransferForm = true;
+    },
+    openTransferEdit(t) {
+      this.editingTransfer = t;
+      this.transferForm = {
+        fromWhId: t.fromWhId, toWhId: t.toWhId, goodsId: t.goodsId,
+        batchNo: t.batchNo == null ? '__NONE__' : (t.batchNo || ''),
+        qty: t.qty, costPrice: t.costPrice, amount: t.amount,
+        productionDate: t.productionDate || '', shelfLife: t.shelfLife || 0, expiryDate: t.expiryDate || '',
+        logisticsFee: t.logisticsFee, time: t.time, remark: t.remark || ''
+      };
+      this.showTransferForm = true;
+    },
+    saveTransfer() {
+      const f = this.transferForm;
+      if (!f.fromWhId) return alert('请选择发货仓库');
+      if (!f.toWhId) return alert('请选择收货仓库');
+      if (f.fromWhId === f.toWhId) return alert('发货仓库与收货仓库不能相同');
+      if (!f.goodsId) return alert('请选择商品');
+      if (!f.batchNo && f.batchNo !== '__NONE__') return alert('请选择批次号');
+      if (!f.qty || f.qty <= 0) return alert('请填写调拨数量');
+      if (f.costPrice == null || f.costPrice < 0) return alert('请填写成本单价');
+      const g = S.byId('goods', f.goodsId);
+      const batchNo = (f.batchNo && f.batchNo !== '__NONE__') ? f.batchNo : null;
+      const amount = U.round2((Number(f.qty)) * (Number(f.costPrice)));
+      const expiryDate = (f.productionDate && g && g.shelfLife) ? U.addDays(f.productionDate, g.shelfLife) : '';
+      const data = {
+        fromWhId: f.fromWhId, toWhId: f.toWhId, goodsId: f.goodsId, batchNo,
+        qty: Number(f.qty), costPrice: Number(f.costPrice), amount,
+        productionDate: f.productionDate || null, shelfLife: Number(g ? g.shelfLife : 0) || 0,
+        expiryDate, logisticsFee: Number(f.logisticsFee) || 0, time: f.time, remark: f.remark
+      };
+      if (this.editingTransfer) {
+        const err = S.updateTransfer(this.editingTransfer.id, data);
+        if (err) return alert(err);
+      } else {
+        S.addTransfer(data);
+      }
+      this.showTransferForm = false; this.editingTransfer = null;
+    },
+    activateTransfer(t) {
+      if (!U.confirm('生效后将从「' + S.name('warehouses', t.fromWhId) + '」调拨 ' + t.qty + ' 件至「' + S.name('warehouses', t.toWhId) + '」，确定生效吗？')) return;
+      const err = S.activateTransfer(t.id); if (err) alert(err);
+    },
+    reverseTransfer(t) {
+      if (!U.confirm('撤销将回滚该调拨单的库存与物流费成本，确定撤销吗？')) return;
+      const err = S.reverseTransfer(t.id); if (err) alert(err);
+    },
+    delTransfer(t) {
+      if (!U.confirm('删除调拨单' + (t.status === '已生效' ? '将回滚对应库存' : '') + '，确定删除吗？')) return;
+      const err = S.deleteTransfer(t.id); if (err) alert(err);
+    },
+    exportTransfer() {
+      U.exportExcel('调拨明细.xlsx', this.transferRows.map((t, i) => ({
+        '序号': i + 1, '发货仓库': S.name('warehouses', t.fromWhId), '商品名称': S.name('goods', t.goodsId),
+        '批次号': t.batchNo || '未分批次', '数量': t.qty, '成本单价': t.costPrice, '成本金额': t.amount,
+        '生产日期': t.productionDate || '', '保质期(天)': t.shelfLife, '到期时间': t.expiryDate || '',
+        '物流费用': t.logisticsFee, '收货仓库': S.name('warehouses', t.toWhId), '调拨时间': t.time,
+        '状态': t.status, '备注': t.remark || ''
+      })));
     }
   },
   template: `
@@ -282,6 +421,7 @@ Pages['page-inventory'] = {
       <div class="tab" :class="{active:tab==='stock'}" @click="tab='stock'">库存明细</div>
       <div class="tab" v-if="canLoss" :class="{active:tab==='loss'}" @click="tab='loss'">报损管理</div>
       <div class="tab" v-if="canOv" :class="{active:tab==='overflow'}" @click="tab='overflow'">报溢管理</div>
+      <div class="tab" :class="{active:tab==='transfer'}" @click="tab='transfer'">调拨管理</div>
     </div>
 
     <!-- ===== 库存明细 ===== -->
@@ -417,6 +557,56 @@ Pages['page-inventory'] = {
       <x-pager :total="ovRows.length" v-model:page="ovPage" v-model:size="ovSize"/>
     </div>
 
+    <!-- ===== 调拨管理 ===== -->
+    <div v-show="tab==='transfer'" class="card">
+      <div class="toolbar">
+        <input type="text" v-model="transferQ.name" placeholder="商品名称模糊查询">
+        <x-combobox v-model="transferQ.fromWhId" :options="whOpts" style="width:140px" placeholder="发货仓库"/>
+        <x-combobox v-model="transferQ.toWhId" :options="whOpts" style="width:140px" placeholder="收货仓库"/>
+        <span class="muted">调拨时间</span><input type="date" v-model="transferQ.t1"> - <input type="date" v-model="transferQ.t2">
+        <div class="spacer"></div>
+        <span class="muted">成本金额合计 ￥{{fmtMoney(transferAmountSum)}} ｜ 物流费合计 ￥{{fmtMoney(transferLogisticsSum)}}</span>
+        <button class="btn" @click="exportTransfer">导出</button>
+        <button v-if="canTransferEdit" class="btn btn-primary" @click="openTransferNew">+ 新增调拨单</button>
+      </div>
+      <div class="table-wrap">
+      <table class="grid">
+        <thead><tr>
+          <th>序号</th><th>发货仓库</th><th>商品名称</th><th>批次号</th><th class="num">数量</th>
+          <th class="num">成本单价</th><th class="num">成本金额</th><th>生产日期</th><th class="num">保质期(天)</th>
+          <th>到期时间</th><th class="num">物流费用</th><th>收货仓库</th><th>调拨时间</th><th>状态</th><th>备注</th><th>操作</th>
+        </tr></thead>
+        <tbody>
+          <tr v-for="(t,i) in transferPaged" :key="t.id">
+            <td data-label="序号">{{(transferPage-1)*transferSize+i+1}}</td>
+            <td data-label="发货仓库">{{S.name('warehouses',t.fromWhId)}}</td>
+            <td data-label="商品名称">{{S.name('goods',t.goodsId)}}</td>
+            <td data-label="批次号">{{t.batchNo || '未分批次'}}</td>
+            <td class="num" data-label="数量">{{t.qty}}</td>
+            <td class="num money" data-label="成本单价">{{fmtMoney(t.costPrice)}}</td>
+            <td class="num money" data-label="成本金额">{{fmtMoney(t.amount)}}</td>
+            <td data-label="生产日期">{{t.productionDate || '-'}}</td>
+            <td class="num" data-label="保质期(天)">{{t.shelfLife || 0}}</td>
+            <td data-label="到期时间">{{t.expiryDate || '-'}}</td>
+            <td class="num money" data-label="物流费用">{{fmtMoney(t.logisticsFee)}}</td>
+            <td data-label="收货仓库">{{S.name('warehouses',t.toWhId)}}</td>
+            <td data-label="调拨时间">{{t.time}}</td>
+            <td data-label="状态"><x-status :v="t.status"/></td>
+            <td data-label="备注">{{t.remark || '-'}}</td>
+            <td class="ops" data-label="操作"><template v-if="canTransferEdit">
+              <span v-if="t.status!=='已生效'" class="link" @click="openTransferEdit(t)">修改</span>
+              <span v-if="t.status!=='已生效'" class="link danger" @click="delTransfer(t)">删除</span>
+              <span v-if="t.status!=='已生效'" class="link green" @click="activateTransfer(t)">生效</span>
+              <span v-if="t.status==='已生效'" class="link warn" @click="reverseTransfer(t)">撤销</span>
+            </template><span v-else class="muted">查看</span></td>
+          </tr>
+          <tr v-if="!transferPaged.length"><td colspan="16" class="empty">暂无调拨记录</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <x-pager :total="transferRows.length" v-model:page="transferPage" v-model:size="transferSize"/>
+    </div>
+
     <!-- 批量盘库弹窗 -->
     <x-modal v-if="showCheck" title="批量盘库（修改实际库存后提交，差异自动留痕）" :width="720" :fullscreen="$root.isMobile" position="bottom" @close="showCheck=false">
       <div class="toolbar">
@@ -498,6 +688,33 @@ Pages['page-inventory'] = {
       <template #foot>
         <button class="btn" @click="showOvForm=false">取消</button>
         <button class="btn btn-primary" @click="saveOv">保存</button>
+      </template>
+    </x-modal>
+
+    <!-- 调拨弹窗 -->
+    <x-modal v-if="showTransferForm" :title="editingTransfer?'修改调拨单':'新增调拨单'" :width="680" :fullscreen="$root.isMobile" position="bottom" @close="showTransferForm=false">
+      <div class="form-grid">
+        <div class="form-item"><label>发货仓库<b class="req">*</b></label>
+          <x-combobox v-model="transferForm.fromWhId" :options="whPickOpts" style="width:100%"/></div>
+        <div class="form-item"><label>收货仓库<b class="req">*</b></label>
+          <x-combobox v-model="transferForm.toWhId" :options="whPickOpts" style="width:100%"/></div>
+        <div class="form-item"><label>商品名称（发货仓库存）<b class="req">*</b></label>
+          <x-combobox v-model="transferForm.goodsId" :options="fromWhGoodsOpts" style="width:100%"/></div>
+        <div class="form-item"><label>批次号<b class="req">*</b></label>
+          <x-combobox v-model="transferForm.batchNo" :options="fromWhBatchOpts" style="width:100%"/></div>
+        <div class="form-item"><label>调拨数量<b class="req">*</b></label><input type="number" min="1" v-model.number="transferForm.qty"></div>
+        <div class="form-item"><label>成本单价（自动匹配，可编辑）<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="transferForm.costPrice"></div>
+        <div class="form-item"><label>成本金额（自动计算，可改）</label><input type="number" min="0" step="0.01" v-model.number="transferForm.amount"></div>
+        <div class="form-item"><label>生产日期（自动匹配）</label><input type="text" :value="transferForm.productionDate" disabled></div>
+        <div class="form-item"><label>保质期(天)（自动匹配）</label><input type="text" :value="transferForm.shelfLife" disabled></div>
+        <div class="form-item"><label>到期时间（自动计算）</label><input type="text" :value="transferForm.expiryDate" disabled></div>
+        <div class="form-item"><label>物流费用（计入调配物流费）</label><input type="number" min="0" step="0.01" v-model.number="transferForm.logisticsFee"></div>
+        <div class="form-item"><label>调拨时间<b class="req">*</b></label><input type="date" v-model="transferForm.time"></div>
+        <div class="form-item full"><label>备注</label><input type="text" v-model="transferForm.remark"></div>
+      </div>
+      <template #foot>
+        <button class="btn" @click="showTransferForm=false">取消</button>
+        <button class="btn btn-primary" @click="saveTransfer">保存</button>
       </template>
     </x-modal>
   </div>`

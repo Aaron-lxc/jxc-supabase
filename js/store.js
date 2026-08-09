@@ -21,6 +21,7 @@ window.S = {
       stocks: [], stockChecks: [],
       losses: [], overflows: [],
       sales: [], returns: [],
+      transfers: [],
       expenseCats: [], expenses: [],
       complaintTypes: [], complaints: [],
       resourceRates: [], regionRates: [],
@@ -328,6 +329,71 @@ window.S = {
       else { if (!rec.lots) rec.lots = []; rec.lots.push({ batchNo: a.batchNo || null, productionDate: a.productionDate || null, qty, cost: (g && g.purchasePrice) || 0 }); }
     });
     rec.qty = U.round2((rec.lots || []).reduce((a, x) => a + Number(x.qty || 0), 0));
+  },
+
+  /* ------- 调拨单（库存管理下的独立核算单） -------
+     作用：不同仓库间按批次调拨商品；未生效=草稿（不改库存），生效后搬库存并计物流费，可撤销回滚。
+     数据模型：{ id, no, fromWhId, toWhId, goodsId, batchNo, qty, costPrice, amount,
+                productionDate, shelfLife, expiryDate, logisticsFee, time, status, remark }
+     批次身份(batchNo)全程保留，不影响既有 FEFO / 临期计算。 */
+  addTransfer(d) {
+    d.id = this.genId();
+    d.no = this.genNo('DB');
+    d.status = '未生效';
+    d.time = d.time || U.today();
+    this.db.transfers.push(d);
+    return d;
+  },
+  updateTransfer(id, patch) {
+    const t = this.byId('transfers', id);
+    if (!t) return '调拨单不存在';
+    if (t.status === '已生效') return '已生效的调拨单不能修改，请先撤销';
+    Object.assign(t, patch);
+    return null;
+  },
+  activateTransfer(id) {
+    const t = this.byId('transfers', id);
+    if (!t) return '调拨单不存在';
+    if (t.status === '已生效') return '该调拨单已生效，无需重复生效';
+    if (t.fromWhId === t.toWhId) return '发货仓库与收货仓库不能相同';
+    const g = this.byId('goods', t.goodsId); if (!g) return '商品不存在';
+    const fromRec = this.stockRec(t.fromWhId, t.goodsId, false);
+    if (!fromRec) return '发货仓库无此商品库存';
+    const lot = (fromRec.lots || []).find(l => l.batchNo === t.batchNo);
+    const avail = lot ? lot.qty : 0;
+    if (avail < t.qty) return '发货仓库批次「' + (t.batchNo || '未分批次') + '」余量不足（当前 ' + avail + '，需 ' + t.qty + '）';
+    /* 从发货仓按批次扣减 */
+    this.consumeLotSelected(fromRec, g, t.qty, t.batchNo);
+    /* 向收货仓按原批次入库（保留 批次号/生产日期/成本） */
+    const toRec = this.stockRec(t.toWhId, t.goodsId, true);
+    this.addLotQty(toRec, { batchNo: t.batchNo, productionDate: t.productionDate || null, cost: Number(t.costPrice) || 0 }, t.qty);
+    t.status = '已生效';
+    return null;
+  },
+  reverseTransfer(id) {
+    const t = this.byId('transfers', id);
+    if (!t) return '调拨单不存在';
+    if (t.status !== '已生效') return '仅已生效的调拨单可撤销';
+    const g = this.byId('goods', t.goodsId); if (!g) return '商品不存在';
+    /* 收货仓退回该批次 */
+    const toRec = this.stockRec(t.toWhId, t.goodsId, false);
+    if (toRec) this.consumeLotSelected(toRec, g, t.qty, t.batchNo);
+    /* 发货仓补回该批次 */
+    const fromRec = this.stockRec(t.fromWhId, t.goodsId, true);
+    this.addLotQty(fromRec, { batchNo: t.batchNo, productionDate: t.productionDate || null, cost: Number(t.costPrice) || 0 }, t.qty);
+    t.status = '未生效';
+    return null;
+  },
+  deleteTransfer(id) {
+    const t = this.byId('transfers', id);
+    if (!t) return '调拨单不存在';
+    if (t.status === '已生效') { const err = this.reverseTransfer(id); if (err) return err; }
+    this.db.transfers = this.db.transfers.filter(x => x.id !== id);
+    return null;
+  },
+  /* 已生效调拨单的物流费合计（计入系统成本） */
+  totalTransferLogisticsCost() {
+    return U.round2((this.db.transfers || []).filter(t => t.status === '已生效').reduce((a, t) => a + (Number(t.logisticsFee) || 0), 0));
   },
 
   /* ------- 报损 / 报溢（库存管理下的两个独立核算单） -------

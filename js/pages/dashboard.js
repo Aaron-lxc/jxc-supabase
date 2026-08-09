@@ -75,6 +75,7 @@ Pages['page-dashboard'] = {
       const regComm = S.totalRegionCommission(null, null);
       const taxCost = S.totalTaxCost(null, null);
       const deliveryCost = S.totalDeliveryCost(null, null);
+      const transferLogistics = S.totalTransferLogisticsCost();
       /* 投诉 */
       const cmpByType = {};
       db.complaints.forEach(c => { const n = S.name('complaintTypes', c.typeId); cmpByType[n] = (cmpByType[n] || 0) + 1; });
@@ -89,7 +90,7 @@ Pages['page-dashboard'] = {
         invQty, invCost: U.round2(invCost), invValue: U.round2(invValue), invProfit: U.round2(invValue - invCost), invByType,
         expiring: { qty: expQty, cost: U.round2(expCost), value: U.round2(expValue) },
         rentSum,
-        totalSales, totalCost: U.round2(opCost + resComm + regComm + taxCost + deliveryCost - overflowGain), opCost, resComm, regComm, taxCost, deliveryCost,
+        totalSales, totalCost: U.round2(opCost + resComm + regComm + taxCost + deliveryCost + transferLogistics - overflowGain), opCost, resComm, regComm, taxCost, deliveryCost, transferLogistics,
         totalExpense: opCost, totalArrears,
         cmpTotal: db.complaints.length, cmpByType,
         lossCost, overflowGain,
@@ -452,7 +453,7 @@ Pages['page-dashboard'] = {
       <div class="stat-card c2 clickable" @click="go('sales')"><div class="t">累计销售额（净额）</div><div class="v money">￥{{fmtMoney(stats.totalSales)}}</div>
         <div class="sub">已完成销售单扣除退货后的净额</div></div>
       <div class="stat-card c3 clickable" @click="go('finance')"><div class="t">累计成本</div><div class="v money">￥{{fmtMoney(stats.totalCost)}}</div>
-        <div class="sub">日常运营 ￥{{fmtMoney(stats.opCost)}} ｜ 税点成本 ￥{{fmtMoney(stats.taxCost)}} ｜ 配送费成本 ￥{{fmtMoney(stats.deliveryCost)}}<br>资源佣金 ￥{{fmtMoney(stats.resComm)}} ｜ 区域佣金 ￥{{fmtMoney(stats.regComm)}}</div></div>
+        <div class="sub">日常运营 ￥{{fmtMoney(stats.opCost)}} ｜ 税点成本 ￥{{fmtMoney(stats.taxCost)}} ｜ 配送费成本 ￥{{fmtMoney(stats.deliveryCost)}}<br>资源佣金 ￥{{fmtMoney(stats.resComm)}} ｜ 区域佣金 ￥{{fmtMoney(stats.regComm)}} ｜ 调配物流费 ￥{{fmtMoney(stats.transferLogistics)}}</div></div>
       <div class="stat-card c2 clickable" @click="go('inventory')"><div class="t">报损损失 / 报溢收益</div><div class="v money red">-￥{{fmtMoney(stats.lossCost)}}</div>
         <div class="sub">报损损失 ￥{{fmtMoney(stats.lossCost)}} ｜ 报溢收益 <b class="green-t">￥{{fmtMoney(stats.overflowGain)}}</b></div></div>
       <div class="stat-card c3 clickable" @click="go('commission')"><div class="t">累计佣金</div><div class="v money">￥{{fmtMoney(stats.resComm + stats.regComm)}}</div>
@@ -579,13 +580,14 @@ Pages['page-dashboard'] = {
       <div style="margin-top:14px">
         <div class="section-title">临期预警 <span class="muted">（按临期天数从小到大）</span>
           <span style="float:right;font-weight:400">
+            <button class="btn btn-sm" @click="expanded.expiring=!expanded.expiring">{{expanded.expiring?'收起':'更多'}}</button>
             <button class="btn btn-sm" @click="exportAlert('expiring')">导出</button>
           </span>
         </div>
         <table class="grid">
           <thead><tr><th>序号</th><th>仓库名称</th><th>商品名称</th><th class="num money">产品货值</th><th>到期时间</th><th class="num">临期天数</th><th>仓库负责人</th><th>联系电话</th></tr></thead>
           <tbody>
-            <tr v-for="(r,i) in alertRows('expiring',true)"><td data-label="序号">{{r.seq}}</td><td data-label="仓库名称">{{r.whName}}</td><td data-label="商品名称">{{r.goodsName}}</td>
+            <tr v-for="(r,i) in alertRows('expiring',expanded.expiring)"><td data-label="序号">{{r.seq}}</td><td data-label="仓库名称">{{r.whName}}</td><td data-label="商品名称">{{r.goodsName}}</td>
               <td class="num money" data-label="产品货值">{{fmtMoney(r.value)}}</td><td data-label="到期时间">{{r.expiryDate}}</td>
               <td class="num" data-label="临期天数"><span class="tag" :class="r.days<=0?'tag-red':(r.days<=7?'tag-orange':'tag-green')">{{r.days}} 天</span></td>
               <td data-label="仓库负责人">{{r.manager}}</td><td data-label="联系电话">{{r.phone}}</td></tr>

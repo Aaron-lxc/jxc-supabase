@@ -40,6 +40,16 @@ Pages['page-warehouse'] = {
       if (!U.confirm('确定删除仓库「' + w.name + '」吗？')) return;
       S.db.warehouses = S.db.warehouses.filter(x => x.id !== w.id);
     },
+    /* 该仓库库存的成本总价 / 货值总价（按 qty×采购价 / qty×零售价 累加，只读计算列） */
+    whTotals(w) {
+      let cost = 0, value = 0;
+      S.db.stocks.filter(s => s.whId === w.id).forEach(s => {
+        const g = S.byId('goods', s.goodsId); if (!g) return;
+        cost += s.qty * (g.purchasePrice || 0);
+        value += s.qty * (g.retailPrice || 0);
+      });
+      return { cost: U.round2(cost), value: U.round2(value) };
+    },
     toggle(w) { w.status = w.status === '已启用' ? '未启用' : '已启用'; }
   },
   template: `
@@ -56,6 +66,7 @@ Pages['page-warehouse'] = {
       <table class="grid">
         <thead><tr>
           <th>序号</th><th>仓库名称</th><th>仓库地址</th><th>负责人</th><th>联系电话</th>
+          <th class="num">成本总价</th><th class="num">货值总价</th>
           <th class="num">每月租金</th><th>到期时间</th><th>房东/联系电话</th><th>创建时间</th><th>状态</th><th>操作</th>
         </tr></thead>
         <tbody>
@@ -65,6 +76,8 @@ Pages['page-warehouse'] = {
             <td data-label="仓库地址">{{w.address}}</td>
             <td data-label="负责人">{{w.manager}}</td>
             <td data-label="联系电话">{{w.phone}}</td>
+            <td class="num money" data-label="成本总价">{{fmtMoney(whTotals(w).cost)}}</td>
+            <td class="num money" data-label="货值总价">{{fmtMoney(whTotals(w).value)}}</td>
             <td class="num money" data-label="每月租金">{{fmtMoney(w.rent)}}</td>
             <td data-label="到期时间">{{w.expireDate||'-'}} <span v-if="daysLeft(w)!==null"><span v-if="daysLeft(w)<=60" class="tag" :class="daysLeft(w)<=30?'tag-red':'tag-orange'">{{daysLeft(w)<0?'已到期':'剩'+daysLeft(w)+'天'}}</span></span></td>
             <td data-label="房东/联系电话">{{w.landlord||'-'}}</td>
@@ -76,7 +89,7 @@ Pages['page-warehouse'] = {
               <span class="link" :class="w.status==='已启用'?'warn':'green'" @click="toggle(w)">{{w.status==='已启用'?'停用':'启用'}}</span>
             </td>
           </tr>
-          <tr v-if="!paged.length"><td colspan="11" class="empty">暂无数据</td></tr>
+          <tr v-if="!paged.length"><td colspan="13" class="empty">暂无数据</td></tr>
         </tbody>
       </table>
       </div>
