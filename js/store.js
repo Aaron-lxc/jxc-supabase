@@ -406,10 +406,18 @@ window.S = {
      批次身份(batchNo)全程保留，不影响既有 FEFO / 临期计算。 */
   genScBatch() {
     const d = (U.today() || '').replace(/-/g, '');
-    let s = '';
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
-    return 'sc-' + d + '-' + s;
+    const prefix = 'SC-' + d + '-';
+    // 取当日已有生产单批次号的最大序号 +1（00001 ~ 99999 顺序号）
+    let max = 0;
+    for (const p of (this.db.productions || [])) {
+      if (p.batchNo && p.batchNo.indexOf(prefix) === 0) {
+        const n = parseInt(p.batchNo.slice(prefix.length), 10);
+        if (!isNaN(n) && n > max) max = n;
+      }
+    }
+    let seq = max + 1;
+    if (seq > 99999) seq = 1;   // 超出上限回绕
+    return prefix + String(seq).padStart(5, '0');
   },
   addProduction(d) {
     d.id = this.genId();

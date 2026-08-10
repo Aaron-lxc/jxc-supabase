@@ -8,6 +8,7 @@ window.P = {
     { key: 'customers',  label: '客户管理',  ico: '👥' },
     { key: 'warehouse',  label: '仓库管理',  ico: '🏬' },
     { key: 'purchase',   label: '采购管理',  ico: '🛒' },
+    { key: 'production', label: '生产组装',  ico: '🏭' },
     { key: 'inventory',  label: '库存管理',  ico: '📋' },
     { key: 'loss',       label: '报损管理',  ico: '📉', hidden: true },
     { key: 'overflow',   label: '报溢管理',  ico: '📈', hidden: true },
@@ -36,7 +37,7 @@ window.P = {
   defaultPermissions() {
     return {
       dashboard: 'view',       goods: 'edit', customers: 'edit', partners: 'view',
-      warehouse: 'view', purchase: 'edit', inventory: 'edit', sales: 'edit', loss: 'edit', overflow: 'edit',
+      warehouse: 'view', purchase: 'edit', production: 'edit', inventory: 'edit', sales: 'edit', loss: 'edit', overflow: 'edit',
       opening: 'none', capital: 'none',
       finance: 'none', complaint: 'edit', report: 'view',
       commission: 'none', settings: 'none'
