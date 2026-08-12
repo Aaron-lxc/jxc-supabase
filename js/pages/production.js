@@ -73,8 +73,8 @@ Pages['page-production'] = {
     },
     saveProd() {
       const f = this.prodForm;
-      if (!f.goodsName || !f.goodsName.trim()) return alert('请填写新商品名称');
       if (!f.typeId) return alert('请选择商品类型');
+      if (!f.goodsName || !f.goodsName.trim()) return alert('请填写新商品名称');
       if (!f.unitId) return alert('请选择商品单位');
       if (!f.qty || f.qty <= 0) return alert('请填写生产数量');
       if (f.retailPrice == null || f.retailPrice < 0) return alert('请填写零售价');
@@ -107,7 +107,15 @@ Pages['page-production'] = {
     },
     /* 成品字段同步：下拉选商品 → 带入商品管理对应字段到表单并记基线；手改字段完工回写 goods */
     prodGoodsOpts() {
-      return [{ value: '', label: '不选（直接填写新商品）' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name })));
+      if (!this.prodForm.typeId) return [{ value: '', label: '请先选择商品类型' }];
+      return [{ value: '', label: '不选（直接填写新商品）' }].concat(
+        S.enabled('goods').filter(g => g.typeId === this.prodForm.typeId).map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))
+      );
+    },
+    onProdTypeChange() {
+      const g = this.prodForm.goodsId ? S.byId('goods', this.prodForm.goodsId) : null;
+      if (!g || g.typeId !== this.prodForm.typeId) this.prodForm.goodsId = '';
+      this.prodBase = this._snapBase();
     },
     onProdGoodsPick(id) {
       this.prodForm.goodsId = id || '';
@@ -261,14 +269,14 @@ Pages['page-production'] = {
     <x-modal v-if="showProdForm" :title="editingProd?'修改生产单':'新增生产单'" :width="1100" :fullscreen="$root.isMobile" position="bottom" @close="showProdForm=false">
       <div style="font-weight:600;margin:4px 0 8px;color:#334155">新商品信息（完成后同步至商品管理）</div>
       <div class="form-grid">
+        <div class="form-item"><label>商品类型<b class="req">*</b></label><x-combobox v-model="prodForm.typeId" :options="typeOpts" placeholder="请选择" @update:modelValue="onProdTypeChange"/></div>
         <div class="form-item" style="grid-column:1/-1"><label>商品名称<b class="req">*</b></label>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <x-combobox v-model="prodForm.goodsId" :options="prodGoodsOpts()" style="min-width:240px;flex:1" placeholder="选择已有商品（可不选）" @update:modelValue="onProdGoodsPick"/>
             <input type="text" v-model="prodForm.goodsName" @input="onProdNameInput" placeholder="或输入新商品名称" style="min-width:200px;flex:1">
           </div>
-          <div class="form-hint" style="margin-top:4px">下拉选择已有商品将自动带入类型/单位/价格/保质期等字段；不选择则直接填写新商品，完工后自动进入商品管理。手改任一字段，完工时仅回写被改动的字段到商品管理。</div>
+          <div class="form-hint" style="margin-top:4px">请先选择商品类型，下拉将只显示该类型的已有商品；选择后自动带入单位/价格/保质期等字段。不选择则直接填写新商品，完工后自动进入商品管理。手改任一字段，完工时仅回写被改动的字段到商品管理。</div>
         </div>
-        <div class="form-item"><label>商品类型<b class="req">*</b></label><x-combobox v-model="prodForm.typeId" :options="typeOpts" placeholder="请选择"/></div>
         <div class="form-item"><label>商品单位<b class="req">*</b></label><x-combobox v-model="prodForm.unitId" :options="unitOpts" placeholder="请选择"/></div>
         <div class="form-item"><label>供应商（默认自营）</label><x-combobox v-model="prodForm.supplierId" :options="supplierOpts" placeholder="请选择"/></div>
         <div class="form-item"><label>SKU</label><input type="text" v-model="prodForm.sku"></div>
