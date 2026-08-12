@@ -71,7 +71,7 @@ const ExpenseList = {
       <x-combobox v-model="q.catId" :options="catOpts" placeholder="全部类目"/>
       <x-combobox v-model="q.status" :options="statusOpts" placeholder="全部状态"/>
       <x-combobox v-model="q.payMethod" :options="payMethodOpts" placeholder="全部支付方式"/>
-      <input v-model="q.desc" placeholder="详细描述模糊查询" style="width:180px">
+      <input type="text" v-model="q.desc" placeholder="详细描述模糊查询">
       <label>创建时间</label><input type="date" v-model="q.d1"> - <input type="date" v-model="q.d2">
       <div class="spacer"></div>
       <span class="muted">已计算合计：￥{{fmtMoney(sumCalc)}}</span>
