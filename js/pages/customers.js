@@ -5,7 +5,7 @@ const CustomerList = {
   data() {
     return {
       q: { name: '', levelId: '', typeId: '', status: '', d1: '', d2: '' },
-      page: 1, pageSize: 10, showForm: false, editing: null, form: {}, detail: null
+      page: 1, pageSize: 10, showForm: false, editing: null, form: {}, detail: null, selIds: []
     };
   },
   computed: {
@@ -24,6 +24,7 @@ const CustomerList = {
     typeOptsAll() { return [{ value: '', label: '全部类型' }].concat(S.db.custTypes.map(t => ({ value: t.id, label: t.name }))); },
     statusOptsAll() { return [{ value: '', label: '全部状态' }, { value: '已启用', label: '已启用' }, { value: '未启用', label: '未启用' }]; },
     regionOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('regions').map(t => ({ value: t.id, label: t.name }))); },
+    allChecked() { return this.rows.length > 0 && this.selIds.length === this.rows.length; },
     typeOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('custTypes').map(t => ({ value: t.id, label: t.name }))); },
     levelOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('custLevels').map(t => ({ value: t.id, label: t.name }))); },
     rpOpts() { return [{ value: null, label: '无' }].concat(S.enabled('resourcePartners').map(p => ({ value: p.id, label: p.name }))); },
@@ -133,6 +134,20 @@ const CustomerList = {
         '区域合伙人': c.regionPartnerId ? S.name('regionPartners', c.regionPartnerId) : '-',
         '累计欠款': this.arrears(c), '创建时间': c.createTime, '状态': c.status
       })));
+    },
+    /* 批量评定：多选客户或评定全部 */
+    cleanSel() { const ids = new Set(S.db.customers.map(c => c.id)); this.selIds = this.selIds.filter(id => ids.has(id)); },
+    toggleAll(e) { this.selIds = e.target.checked ? this.rows.map(c => c.id) : []; },
+    evalSelected() {
+      if (!this.selIds.length) return alert('请先勾选要评定的客户');
+      const n = S.evalCustomerLevels(this.selIds);
+      alert('已重新评定 ' + n + ' 个选中客户');
+      this.cleanSel();
+    },
+    evalAll() {
+      const n = S.evalCustomerLevels(null);
+      alert('已评定全部客户 ' + n + ' 个');
+      this.selIds = [];
     }
   },
   template: `
@@ -144,18 +159,22 @@ const CustomerList = {
       <x-combobox v-model="q.status" :options="statusOptsAll" placeholder="全部状态"/>
       <label>创建时间</label><input type="date" v-model="q.d1"> - <input type="date" v-model="q.d2">
       <div class="spacer"></div>
+      <button class="btn" @click="evalSelected" :disabled="!selIds.length">重新评定（选中 {{selIds.length||0}}）</button>
+      <button class="btn" @click="evalAll">评定全部</button>
       <button class="btn" @click="exportData">导出</button>
       <button class="btn btn-primary" @click="openNew">+ 新增客户</button>
     </div>
     <div class="table-wrap">
     <table class="grid">
       <thead><tr>
+        <th style="width:38px"><input type="checkbox" :checked="allChecked" @change="toggleAll"></th>
         <th>客户编号</th><th>客户名称</th><th>区域</th><th>类型</th><th>级别</th>
         <th>支付方式</th><th>支付周期</th><th class="num">税点</th><th>减免</th><th>一级资源</th><th>二级资源</th><th>三级资源</th><th>区域合伙人</th>
         <th class="num">累计欠款</th><th>创建时间</th><th>状态</th><th>操作</th>
       </tr></thead>
       <tbody>
         <tr v-for="c in paged" :key="c.id">
+          <td data-label="选择"><input type="checkbox" :value="c.id" v-model="selIds"></td>
           <td data-label="客户编号">{{c.code}}</td><td data-label="客户名称">{{c.name}}</td>
           <td data-label="区域">{{S.name('regions',c.regionId)}}</td><td data-label="类型">{{S.name('custTypes',c.typeId)}}</td><td data-label="级别">{{S.name('custLevels',c.levelId)}}</td>
           <td data-label="支付方式">{{c.payMethod}}</td>
@@ -174,7 +193,7 @@ const CustomerList = {
             <span class="link" :class="c.status==='已启用'?'warn':'green'" @click="toggle(c)">{{c.status==='已启用'?'停用':'启用'}}</span>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="17" class="empty">暂无数据</td></tr>
+        <tr v-if="!paged.length"><td colspan="18" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
     </div>

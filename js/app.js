@@ -197,6 +197,15 @@
           return;
         }
         await S.init({ demo: true });
+        /* 客户级别月度兜底评定：打开应用时若本月尚未评定则自动评定一次（Supabase 定时任务失败时也能保证可用） */
+        try {
+          const ym = (U.today() || '').slice(0, 7);
+          if (ym && (!S.db.meta || S.db.meta.lastLevelEval !== ym)) {
+            S.db.meta = S.db.meta || {};
+            S.evalCustomerLevels(null);
+            S.db.meta.lastLevelEval = ym;
+          }
+        } catch (e) { /* 评定失败不影响正常使用 */ }
         this.cur = P.firstMenu();
         this.loadingPage = true;
         this.step = 'app';

@@ -38,6 +38,12 @@ window.Demo = {
       { name: '佛山净源设备', address: '佛山市顺德区容桂', contactBiz: '梁先生/13933330001', contactBizWechat: '', contactFin: '财务部/13933330002', contactFinWechat: 'jy_fin', payCycle: '货到付款', payMethod: '银行卡', taxPoint: 11 }
     ].map((s, i) => ({ id: id(), ...s, createTime: ago(88 - i * 2), status: EN }));
     db.custLevels = mk(['A级', 'B级', 'C级'], 86);
+    /* 赋值客户级别「平均月采购金额范围」示意区间：A[10000,∞) / B[5000,10000) / C[0,5000) */
+    db.custLevels.forEach((lv, i) => {
+      if (i === 0) { lv.minAmount = 10000; lv.maxAmount = null; }
+      else if (i === 1) { lv.minAmount = 5000; lv.maxAmount = 10000; }
+      else { lv.minAmount = 0; lv.maxAmount = 5000; }
+    });
     db.custTypes = mk(['经销商', '连锁商超', '直营门店'], 86);
     db.regions = mk(['华南区', '华东区', '华北区', '西南区'], 85);
     db.complaintTypes = mk(['产品投诉', '设备投诉', '服务投诉', '物流投诉'], 80);

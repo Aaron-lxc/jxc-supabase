@@ -463,8 +463,9 @@ window.S = {
       const realBatch = (it.batchNo && it.batchNo !== '__NONE__') ? it.batchNo : null;
       this.consumeLotSelected(rec, g, it.qty, realBatch);
     }
-    let goods = this.db.goods.find(g => g.name === p.goodsName.trim() && g.typeId === p.typeId);
+    let goods = p.goodsId ? this.byId('goods', p.goodsId) : null;
     let created = false;
+    if (!goods) goods = this.db.goods.find(g => g.name === p.goodsName.trim() && g.typeId === p.typeId);
     if (!goods) {
       goods = {
         id: this.genId(), code: this.genCode('GD'), name: p.goodsName.trim(), typeId: p.typeId, sku: p.sku || '',
@@ -476,6 +477,15 @@ window.S = {
       };
       this.db.goods.push(goods);
       created = true;
+    } else if (p.goodsId && (p.syncDirty || []).length) {
+      /* 下拉选中的已有商品：仅把手改过的字段回写商品管理（满足"字段被改动才同步到商品管理"） */
+      (p.syncDirty || []).forEach(f => {
+        const gk = f === 'wholesalePrice' ? 'wholePrice' : f;
+        if (f === 'sku') goods[gk] = p[f] || '';
+        else if (f === 'supplierId') goods[gk] = p[f] || null;
+        else if (f === 'typeId' || f === 'unitId') goods[gk] = p[f] || goods[gk];
+        else goods[gk] = Number(p[f]) || 0;
+      });
     }
     const rec = this.stockRec(p.whId, goods.id, true);
     this.addLotQty(rec, { batchNo: p.batchNo, productionDate: p.time || U.today(), cost: Number(p.costPrice) || 0 }, Number(p.qty));
@@ -510,6 +520,50 @@ window.S = {
     }
     this.db.productions = this.db.productions.filter(x => x.id !== id);
     return null;
+  },
+
+  /* ------- 客户级别自动评定（按"平均月采购净额"落入金额区间） -------
+     净额 = 该客户已完成销售单 total 之和 − 该客户退货单 total 之和；
+     月数 = (当前年月 − 首次已完成销售年月) + 1（下限 1）；
+     avg = net / months；匹配 custLevels 中 minAmount<=avg<maxAmount 的首个级别（maxAmount 留空=∞）。
+     ids 可选：传数组=仅评定这些客户；不传/null=评定所有客户。返回变更数量。 */
+  custAvgMonthly(custId) {
+    const sales = (this.db.sales || []).filter(s => s.customerId === custId && s.status === '已完成');
+    const gross = U.round2(sales.reduce((a, s) => a + (Number(s.total) || 0), 0));
+    const saleIds = new Set(sales.map(s => s.id));
+    const returned = U.round2((this.db.returns || []).filter(r => saleIds.has(r.saleId)).reduce((a, r) => a + (Number(r.total) || 0), 0));
+    const net = U.round2(gross - returned);
+    let months = 1;
+    if (sales.length) {
+      const times = sales.map(s => (s.finishTime || s.createTime || s.time || '')).filter(Boolean).sort();
+      const first = (times[0] || '').slice(0, 7);
+      const now = (U.today() || '').slice(0, 7);
+      if (first && now) {
+        const [fy, fm] = first.split('-').map(Number);
+        const [ny, nm] = now.split('-').map(Number);
+        if (!isNaN(fy) && !isNaN(fm) && !isNaN(ny) && !isNaN(nm)) months = Math.max(1, (ny * 12 + nm) - (fy * 12 + fm) + 1);
+      }
+    }
+    const avg = months > 0 ? U.round2(net / months) : 0;
+    return { gross, returned, net, months, avg };
+  },
+  evalCustomerLevels(ids) {
+    const custs = (this.db.customers || []).filter(c => !ids || ids.indexOf(c.id) >= 0);
+    const levels = S.enabled('custLevels');
+    if (!levels.length) return 0;
+    const sorted = levels.slice().sort((a, b) => (Number(a.minAmount) || 0) - (Number(b.minAmount) || 0));
+    let changed = 0;
+    for (const c of custs) {
+      const { avg } = this.custAvgMonthly(c.id);
+      let match = sorted[sorted.length - 1];
+      for (const lv of sorted) {
+        const min = Number(lv.minAmount) || 0;
+        const max = (lv.maxAmount == null || lv.maxAmount === '') ? Infinity : Number(lv.maxAmount);
+        if (avg >= min && avg < max) { match = lv; break; }
+      }
+      if (match && c.levelId !== match.id) { c.levelId = match.id; changed++; }
+    }
+    return changed;
   },
 
   /* ------- 报损 / 报溢（库存管理下的两个独立核算单） -------

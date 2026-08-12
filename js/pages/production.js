@@ -6,11 +6,14 @@
    批次号格式：SC-年月日-00001（顺序号）；商品单位下拉 unitOpts 此前在库存页缺失，此处补全。 */
 window.Pages = window.Pages || {};
 
+/* 生产单成品字段与商品管理字段的同步映射（下拉选商品时带入表单；手改字段完工回写商品管理） */
+const PROD_SYNC_FIELDS = ['typeId', 'unitId', 'supplierId', 'sku', 'retailPrice', 'bigPrice', 'wholesalePrice', 'shelfLife', 'expireWarn'];
+
 Pages['page-production'] = {
   data() {
     return {
       prodQ: { name: '', typeId: '', whId: '', t1: '', t2: '' },
-      prodPage: 1, prodSize: 10, showProdForm: false, editingProd: null, prodForm: {}
+      prodPage: 1, prodSize: 10, showProdForm: false, editingProd: null, prodForm: {}, prodBase: {}
     };
   },
   computed: {
@@ -48,22 +51,24 @@ Pages['page-production'] = {
     openProdNew() {
       this.editingProd = null;
       this.prodForm = {
-        goodsName: '', typeId: '', unitId: '', supplierId: this.selfSupplierId || '', sku: '',
+        goodsId: '', goodsName: '', typeId: '', unitId: '', supplierId: this.selfSupplierId || '', sku: '',
         items: [], laborFee: 0, qty: null, retailPrice: null, bigPrice: null, wholesalePrice: null,
         shelfLife: 0, expireWarn: 0, whId: '', batchNo: S.genScBatch(), time: U.today(), remark: ''
       };
+      this.prodBase = {};
       this.showProdForm = true;
     },
     openProdEdit(p) {
       this.editingProd = p;
       this.prodForm = {
-        goodsName: p.goodsName, typeId: p.typeId, unitId: p.unitId,
+        goodsId: p.goodsId || '', goodsName: p.goodsName, typeId: p.typeId, unitId: p.unitId,
         supplierId: p.supplierId || (this.selfSupplierId || ''), sku: p.sku || '',
         items: (p.items || []).map(it => ({ ...it })),
         laborFee: p.laborFee || 0, qty: p.qty, retailPrice: p.retailPrice, bigPrice: p.bigPrice, wholesalePrice: p.wholesalePrice,
         shelfLife: p.shelfLife || 0, expireWarn: p.expireWarn || 0, whId: p.whId,
         batchNo: p.batchNo, time: p.time, remark: p.remark || ''
       };
+      this.prodBase = this._snapBase();
       this.showProdForm = true;
     },
     saveProd() {
@@ -84,12 +89,13 @@ Pages['page-production'] = {
         expiryDate: it.expiryDate || null, remark: it.remark || '', goodsName: S.name('goods', it.goodsId)
       }));
       const data = {
-        goodsName: f.goodsName.trim(), typeId: f.typeId, unitId: f.unitId, supplierId: f.supplierId || null, sku: f.sku || '',
+        goodsId: f.goodsId || '', goodsName: f.goodsName.trim(), typeId: f.typeId, unitId: f.unitId, supplierId: f.supplierId || null, sku: f.sku || '',
         items, laborFee: Number(f.laborFee) || 0, qty: Number(f.qty),
         costPrice: this.prodFormCostPrice, amount: this.prodFormAmount,
         retailPrice: Number(f.retailPrice), bigPrice: Number(f.bigPrice) || Number(f.retailPrice), wholesalePrice: Number(f.wholesalePrice) || Number(f.retailPrice),
         shelfLife: Number(f.shelfLife) || 0, expireWarn: Number(f.expireWarn) || 0,
-        whId: f.whId, batchNo: f.batchNo, time: f.time, remark: f.remark || ''
+        whId: f.whId, batchNo: f.batchNo, time: f.time, remark: f.remark || '',
+        syncDirty: this.prodSyncDirty()
       };
       if (this.editingProd) {
         const err = S.updateProduction(this.editingProd.id, data);
@@ -98,6 +104,36 @@ Pages['page-production'] = {
         S.addProduction(data);
       }
       this.showProdForm = false; this.editingProd = null;
+    },
+    /* 成品字段同步：下拉选商品 → 带入商品管理对应字段到表单并记基线；手改字段完工回写 goods */
+    prodGoodsOpts() {
+      return [{ value: '', label: '不选（直接填写新商品）' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name })));
+    },
+    onProdGoodsPick(id) {
+      this.prodForm.goodsId = id || '';
+      const g = id ? S.byId('goods', id) : null;
+      if (g) {
+        PROD_SYNC_FIELDS.forEach(f => {
+          this.prodForm[f] = (f === 'wholesalePrice') ? (g.wholePrice || 0)
+            : (f === 'shelfLife' || f === 'expireWarn') ? (Number(g[f]) || 0)
+              : (f === 'sku') ? (g.sku || '')
+                : (f === 'supplierId') ? (g.supplierId || '')
+                  : (f === 'typeId' || f === 'unitId') ? (g[f] || '')
+                    : (Number(g[f]) || 0);
+        });
+        this.prodForm.goodsName = g.name;
+      }
+      this.prodBase = this._snapBase();
+    },
+    onProdNameInput() {
+      const g = this.prodForm.goodsId ? S.byId('goods', this.prodForm.goodsId) : null;
+      if (g && (this.prodForm.goodsName || '').trim() !== g.name) this.prodForm.goodsId = '';
+    },
+    _snapBase() { const o = {}; PROD_SYNC_FIELDS.forEach(f => { o[f] = this.prodForm[f]; }); return o; },
+    prodSyncDirty() {
+      const base = this.prodBase || {};
+      const norm = v => (v == null ? '' : v);
+      return PROD_SYNC_FIELDS.filter(f => norm(this.prodForm[f]) !== norm(base[f]));
     },
     completeProd(p) {
       if (!U.confirm('完成后将消耗原材料库存、生成新商品「' + p.goodsName + '」并入库，确定完成吗？')) return;
@@ -225,7 +261,13 @@ Pages['page-production'] = {
     <x-modal v-if="showProdForm" :title="editingProd?'修改生产单':'新增生产单'" :width="1100" :fullscreen="$root.isMobile" position="bottom" @close="showProdForm=false">
       <div style="font-weight:600;margin:4px 0 8px;color:#334155">新商品信息（完成后同步至商品管理）</div>
       <div class="form-grid">
-        <div class="form-item"><label>商品名称<b class="req">*</b></label><input type="text" v-model="prodForm.goodsName" placeholder="对应商品管理中的商品名称"></div>
+        <div class="form-item" style="grid-column:1/-1"><label>商品名称<b class="req">*</b></label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <x-combobox v-model="prodForm.goodsId" :options="prodGoodsOpts" style="min-width:240px;flex:1" placeholder="选择已有商品（可不选）" @update:modelValue="onProdGoodsPick"/>
+            <input type="text" v-model="prodForm.goodsName" @input="onProdNameInput" placeholder="或输入新商品名称" style="min-width:200px;flex:1">
+          </div>
+          <div class="form-hint" style="margin-top:4px">下拉选择已有商品将自动带入类型/单位/价格/保质期等字段；不选择则直接填写新商品，完工后自动进入商品管理。手改任一字段，完工时仅回写被改动的字段到商品管理。</div>
+        </div>
         <div class="form-item"><label>商品类型<b class="req">*</b></label><x-combobox v-model="prodForm.typeId" :options="typeOpts" placeholder="请选择"/></div>
         <div class="form-item"><label>商品单位<b class="req">*</b></label><x-combobox v-model="prodForm.unitId" :options="unitOpts" placeholder="请选择"/></div>
         <div class="form-item"><label>供应商（默认自营）</label><x-combobox v-model="prodForm.supplierId" :options="supplierOpts" placeholder="请选择"/></div>
