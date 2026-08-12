@@ -97,10 +97,17 @@ Pages['page-settings'] = {
       this.wsName = '';
       alert('账套已重命名');
     },
-    switchWs() {
+    async switchWs() {
       if (!U.confirm('切换账套将重新加载数据，确定继续吗？')) return;
+      /* 与 app.js 顶部栏切换一致：先卸页面再 teardown，避免仪表盘 computed 访问已置空的 S.db 报错 */
+      this.$root.cur = '';
+      this.$root.loadingPage = true;
+      await this.$nextTick();
+      try { S.teardown(); } catch (e) { /* ignore */ }
       CFG.clearLastWs();
-      location.reload();
+      this.$root.fatal = ''; this.$root.err = '';
+      await Cloud.loadWorkspaces().catch(() => {});
+      this.$root.step = 'workspace';
     },
 
     /* ---- 账号 ---- */
