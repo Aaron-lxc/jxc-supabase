@@ -351,6 +351,10 @@
       },
       async switchWs() {
         if (!U.confirm('切换账套将重新加载数据，确定继续吗？')) return;
+        /* 关键：先把当前页面组件卸掉，避免 teardown 后仪表盘等页面的 computed 仍访问 S.db 报错 */
+        this.cur = '';
+        this.loadingPage = true;
+        await this.$nextTick();
         try { S.teardown(); } catch (e) { /* ignore */ }
         CFG.clearLastWs();
         this.fatal = ''; this.err = '';
