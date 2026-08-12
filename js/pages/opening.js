@@ -25,7 +25,7 @@ Pages['page-opening'] = {
     viewerReadOnly() { return this.ro && !this.isManager(); },
     /* 选项 */
     whOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('warehouses').map(w => ({ value: w.id, label: w.name }))); },
-    goodsOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.name + '（' + g.sku + '）' }))); },
+    goodsOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
     custOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('customers').map(c => ({ value: c.id, label: c.name }))); },
     supOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('suppliers').map(s => ({ value: s.id, label: s.name }))); },
     fundMethodOpts() { return (window.PAY_METHODS || []).map(m => ({ value: m, label: m })); },

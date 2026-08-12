@@ -33,7 +33,7 @@ Pages['page-inventory'] = {
     fromWhGoodsOpts() {
       if (!this.transferForm.fromWhId) return [{ value: '', label: '请先选择发货仓库' }];
       const ids = new Set(S.db.stocks.filter(s => s.whId === this.transferForm.fromWhId && s.qty > 0).map(s => s.goodsId));
-      return [{ value: '', label: '请选择商品' }].concat(S.enabled('goods').filter(g => ids.has(g.id)).map(g => ({ value: g.id, label: g.name + '（' + g.sku + '）' })));
+      return [{ value: '', label: '请选择商品' }].concat(S.enabled('goods').filter(g => ids.has(g.id)).map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name })));
     },
 
     /* ---------- 调拨 ---------- */
@@ -66,7 +66,7 @@ Pages['page-inventory'] = {
     supplierOpts() { return [{ value: '', label: '全部供应商' }].concat(S.db.suppliers.map(s => ({ value: s.id, label: s.name }))); },
     orderOpts() { return [{ value: '', label: '全部订单号' }].concat(S.db.purchases.map(p => ({ value: p.no, label: p.no }))); },
     payMethodOpts() { return [{ value: '', label: '请选择' }].concat((window.PAY_METHODS || []).map(m => ({ value: m, label: m }))); },
-    checkGoodsOpts() { return [{ value: '', label: '全部商品' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.name + '（' + g.sku + '）' }))); },
+    checkGoodsOpts() { return [{ value: '', label: '全部商品' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
     checkFiltered() {
       return this.checkRows.filter(cr =>
         (!this.checkQ.whId || cr.whId === this.checkQ.whId) &&
@@ -115,7 +115,7 @@ Pages['page-inventory'] = {
 
     /* ---------- 报损 ---------- */
     formLossGoods() { return S.enabled('goods').filter(g => !this.lossForm.typeId || g.typeId === this.lossForm.typeId); },
-    lossFormGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.formLossGoods.map(g => ({ value: g.id, label: g.name + '（' + g.sku + '）' }))); },
+    lossFormGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.formLossGoods.map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
     lossRows() {
       return S.db.losses.filter(l =>
         (!this.lossQ.orderNo || (l.orderNo || '').indexOf(this.lossQ.orderNo) >= 0) &&
@@ -133,7 +133,7 @@ Pages['page-inventory'] = {
 
     /* ---------- 报溢 ---------- */
     formOvGoods() { return S.enabled('goods').filter(g => !this.ovForm.typeId || g.typeId === this.ovForm.typeId); },
-    ovFormGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.formOvGoods.map(g => ({ value: g.id, label: g.name + '（' + g.sku + '）' }))); },
+    ovFormGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.formOvGoods.map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
     ovRows() {
       return S.db.overflows.filter(o =>
         (!this.ovQ.orderNo || (o.orderNo || '').indexOf(this.ovQ.orderNo) >= 0) &&

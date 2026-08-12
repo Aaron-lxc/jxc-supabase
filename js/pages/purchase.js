@@ -14,7 +14,7 @@ Pages['page-purchase'] = {
     qTypeOpts() { return [{ value: '', label: '全部商品类型' }].concat(S.db.goodsTypes.map(t => ({ value: t.id, label: t.name }))); },
     qSupplierOpts() { return [{ value: '', label: '全部供应商' }].concat(S.db.suppliers.map(s => ({ value: s.id, label: s.name }))); },
     formTypeOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('goodsTypes').map(t => ({ value: t.id, label: t.name }))); },
-    formGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.formGoods.map(g => ({ value: g.id, label: g.name + '（' + g.sku + '）' }))); },
+    formGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.formGoods.map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
     formWhOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('warehouses').map(w => ({ value: w.id, label: w.name }))); },
     payMethodOpts() {
       return [{ value: '', label: '请选择' }].concat((window.PAY_METHODS || []).map(m => ({ value: m, label: m })));

@@ -142,7 +142,7 @@ Pages['page-production'] = {
     prodItemGoodsOpts(whId) {
       if (!whId) return [{ value: '', label: '请先选择源仓库' }];
       const ids = new Set(S.db.stocks.filter(s => s.whId === whId && s.qty > 0).map(s => s.goodsId));
-      return [{ value: '', label: '请选择商品' }].concat(S.enabled('goods').filter(g => ids.has(g.id)).map(g => ({ value: g.id, label: g.name + '（' + g.sku + '）' })));
+      return [{ value: '', label: '请选择商品' }].concat(S.enabled('goods').filter(g => ids.has(g.id)).map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name })));
     },
     prodItemBatchOpts(it) {
       if (!it.whId || !it.goodsId) return [{ value: '', label: '请选择批次' }];
@@ -151,6 +151,18 @@ Pages['page-production'] = {
       return [{ value: '', label: '请选择批次' }].concat(rec.lots.filter(l => l.qty > 0)
         .sort((a, b) => (a.productionDate || '').localeCompare(b.productionDate || ''))
         .map(l => ({ value: l.batchNo == null ? '__NONE__' : l.batchNo, label: (l.batchNo || '未分批次') + ' / 产 ' + (l.productionDate || '-') + ' / 余 ' + l.qty })));
+    },
+    /* BOM 行：显示对应商品批次在当前源仓库的库存余量（未选批次则显示该商品总库存） */
+    prodItemBatchStock(it) {
+      if (!it.whId || !it.goodsId) return null;
+      const rec = S.stockRec(it.whId, it.goodsId, false);
+      if (!rec || !rec.lots || !rec.lots.length) return 0;
+      const realBatch = (it.batchNo && it.batchNo !== '__NONE__') ? it.batchNo : null;
+      if (realBatch) {
+        const lot = rec.lots.find(l => l.batchNo === realBatch);
+        return lot ? Number(lot.qty || 0) : 0;
+      }
+      return rec.lots.reduce((a, l) => a + Number(l.qty || 0), 0);
     }
   },
   template: `
@@ -229,7 +241,7 @@ Pages['page-production'] = {
       <table class="grid">
         <thead><tr>
           <th>序号</th><th>源仓库</th><th>商品名称</th><th>单位</th><th class="num">数量</th>
-          <th class="num">单价</th><th class="num">金额</th><th>批次号</th><th>生产日期</th><th class="num">保质期(天)</th><th>到期时间</th><th>备注</th><th>操作</th>
+          <th class="num">单价</th><th class="num">金额</th><th>批次号</th><th class="num">库存余量</th><th>生产日期</th><th class="num">保质期(天)</th><th>到期时间</th><th>备注</th><th>操作</th>
         </tr></thead>
         <tbody>
           <tr v-for="(it,idx) in prodForm.items" :key="idx">
@@ -241,13 +253,14 @@ Pages['page-production'] = {
             <td data-label="单价"><input type="number" min="0" step="0.01" style="width:80px" v-model.number="it.price" @change="recalcItem(it)"></td>
             <td data-label="金额"><input type="number" min="0" step="0.01" style="width:90px" v-model.number="it.amount" @change="it.amount=U.round2(Number(it.amount)||0)"></td>
             <td data-label="批次号"><x-combobox v-model="it.batchNo" :options="prodItemBatchOpts(it)" style="width:100%" @update:modelValue="$nextTick(()=>onProdItemBatch(it))"/></td>
+            <td class="num money" data-label="库存余量">{{ it.whId && it.goodsId ? prodItemBatchStock(it) + ' ' + S.name('units', it.unitId) : '-' }}</td>
             <td data-label="生产日期">{{it.productionDate||'-'}}</td>
             <td data-label="保质期(天)">{{it.shelfLife||0}}</td>
             <td data-label="到期时间">{{it.expiryDate||'-'}}</td>
             <td data-label="备注"><input type="text" style="width:90px" v-model="it.remark"></td>
             <td class="ops" data-label="操作"><span class="link danger" @click="delProdItem(idx)">删除</span></td>
           </tr>
-          <tr v-if="!prodForm.items.length"><td colspan="13" class="empty">请添加所需原材料</td></tr>
+          <tr v-if="!prodForm.items.length"><td colspan="14" class="empty">请添加所需原材料</td></tr>
         </tbody>
       </table>
       </div>
