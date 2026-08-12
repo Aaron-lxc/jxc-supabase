@@ -263,7 +263,7 @@ Pages['page-production'] = {
       <div class="form-grid">
         <div class="form-item" style="grid-column:1/-1"><label>商品名称<b class="req">*</b></label>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <x-combobox v-model="prodForm.goodsId" :options="prodGoodsOpts" style="min-width:240px;flex:1" placeholder="选择已有商品（可不选）" @update:modelValue="onProdGoodsPick"/>
+            <x-combobox v-model="prodForm.goodsId" :options="prodGoodsOpts()" style="min-width:240px;flex:1" placeholder="选择已有商品（可不选）" @update:modelValue="onProdGoodsPick"/>
             <input type="text" v-model="prodForm.goodsName" @input="onProdNameInput" placeholder="或输入新商品名称" style="min-width:200px;flex:1">
           </div>
           <div class="form-hint" style="margin-top:4px">下拉选择已有商品将自动带入类型/单位/价格/保质期等字段；不选择则直接填写新商品，完工后自动进入商品管理。手改任一字段，完工时仅回写被改动的字段到商品管理。</div>
