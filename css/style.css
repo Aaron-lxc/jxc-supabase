@@ -53,6 +53,10 @@ input[type=text], input[type=password], input[type=number], input[type=date], in
   background: #fff; color: #1f2937; outline: none; min-width: 0;
 }
 input:focus, select:focus, textarea:focus { border-color: #1d4ed8; box-shadow: 0 0 0 2px rgba(29,78,216,.12); }
+/* 表格内窄列数字输入框隐藏上下箭头，避免列宽被挤乱 */
+.grid input[type=number]::-webkit-outer-spin-button,
+.grid input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.grid input[type=number] { -moz-appearance: textfield; }
 .toolbar input[type=text] { width: 150px; }
 .toolbar select { width: 130px; }
 .toolbar input[type=date] { width: 135px; }

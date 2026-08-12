@@ -150,7 +150,7 @@ Pages['page-production'] = {
       if (!rec || !rec.lots || !rec.lots.length) return [{ value: '', label: '无批次库存' }];
       return [{ value: '', label: '请选择批次' }].concat(rec.lots.filter(l => l.qty > 0)
         .sort((a, b) => (a.productionDate || '').localeCompare(b.productionDate || ''))
-        .map(l => ({ value: l.batchNo == null ? '__NONE__' : l.batchNo, label: (l.batchNo || '未分批次') + ' / 产 ' + (l.productionDate || '-') + ' / 余 ' + l.qty })));
+        .map(l => ({ value: l.batchNo == null ? '__NONE__' : l.batchNo, label: (l.batchNo || '未分批次') + ' / 余 ' + l.qty })));
     },
     /* BOM 行：显示对应商品批次在当前源仓库的库存余量（未选批次则显示该商品总库存） */
     prodItemBatchStock(it) {
@@ -222,7 +222,7 @@ Pages['page-production'] = {
     </div>
 
     <!-- 生产组装弹窗 -->
-    <x-modal v-if="showProdForm" :title="editingProd?'修改生产单':'新增生产单'" :width="920" :fullscreen="$root.isMobile" position="bottom" @close="showProdForm=false">
+    <x-modal v-if="showProdForm" :title="editingProd?'修改生产单':'新增生产单'" :width="1100" :fullscreen="$root.isMobile" position="bottom" @close="showProdForm=false">
       <div style="font-weight:600;margin:4px 0 8px;color:#334155">新商品信息（完成后同步至商品管理）</div>
       <div class="form-grid">
         <div class="form-item"><label>商品名称<b class="req">*</b></label><input type="text" v-model="prodForm.goodsName" placeholder="对应商品管理中的商品名称"></div>
@@ -246,18 +246,18 @@ Pages['page-production'] = {
         <tbody>
           <tr v-for="(it,idx) in prodForm.items" :key="idx">
             <td data-label="序号">{{idx+1}}</td>
-            <td data-label="源仓库"><x-combobox v-model="it.whId" :options="whPickOpts" style="width:100%" @update:modelValue="$nextTick(()=>onProdItemWh(it))"/></td>
-            <td data-label="商品名称"><x-combobox v-model="it.goodsId" :options="prodItemGoodsOpts(it.whId)" style="width:100%" @update:modelValue="$nextTick(()=>onProdItemGoods(it))"/></td>
+            <td data-label="源仓库"><x-combobox v-model="it.whId" :options="whPickOpts" style="width:100%;max-width:130px" @update:modelValue="$nextTick(()=>onProdItemWh(it))"/></td>
+            <td data-label="商品名称"><x-combobox v-model="it.goodsId" :options="prodItemGoodsOpts(it.whId)" style="width:100%;max-width:170px" @update:modelValue="$nextTick(()=>onProdItemGoods(it))"/></td>
             <td data-label="单位">{{S.name('units', it.unitId)}}</td>
-            <td data-label="数量"><input type="number" min="1" style="width:70px" v-model.number="it.qty" @change="recalcItem(it)"></td>
-            <td data-label="单价"><input type="number" min="0" step="0.01" style="width:80px" v-model.number="it.price" @change="recalcItem(it)"></td>
-            <td data-label="金额"><input type="number" min="0" step="0.01" style="width:90px" v-model.number="it.amount" @change="it.amount=U.round2(Number(it.amount)||0)"></td>
-            <td data-label="批次号"><x-combobox v-model="it.batchNo" :options="prodItemBatchOpts(it)" style="width:100%" @update:modelValue="$nextTick(()=>onProdItemBatch(it))"/></td>
+            <td data-label="数量"><input type="number" min="1" style="width:60px" v-model.number="it.qty" @change="recalcItem(it)"></td>
+            <td data-label="单价"><input type="number" min="0" step="0.01" style="width:70px" v-model.number="it.price" @change="recalcItem(it)"></td>
+            <td data-label="金额"><input type="number" min="0" step="0.01" style="width:80px" v-model.number="it.amount" @change="it.amount=U.round2(Number(it.amount)||0)"></td>
+            <td data-label="批次号"><x-combobox v-model="it.batchNo" :options="prodItemBatchOpts(it)" style="width:100%;max-width:150px" @update:modelValue="$nextTick(()=>onProdItemBatch(it))"/></td>
             <td class="num money" data-label="库存余量">{{ it.whId && it.goodsId ? prodItemBatchStock(it) + ' ' + S.name('units', it.unitId) : '-' }}</td>
             <td data-label="生产日期">{{it.productionDate||'-'}}</td>
             <td data-label="保质期(天)">{{it.shelfLife||0}}</td>
             <td data-label="到期时间">{{it.expiryDate||'-'}}</td>
-            <td data-label="备注"><input type="text" style="width:90px" v-model="it.remark"></td>
+            <td data-label="备注"><input type="text" style="width:80px" v-model="it.remark"></td>
             <td class="ops" data-label="操作"><span class="link danger" @click="delProdItem(idx)">删除</span></td>
           </tr>
           <tr v-if="!prodForm.items.length"><td colspan="14" class="empty">请添加所需原材料</td></tr>
