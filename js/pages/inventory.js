@@ -118,8 +118,12 @@ Pages['page-inventory'] = {
     },
 
     /* ---------- 报损 ---------- */
-    formLossGoods() { return S.enabled('goods').filter(g => !this.lossForm.typeId || g.typeId === this.lossForm.typeId); },
-    lossFormGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.formLossGoods.map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
+    formLossGoods() { return this.lossForm.typeId ? S.enabled('goods').filter(g => g.typeId === this.lossForm.typeId) : []; },
+    lossFormGoodsOpts() {
+      if (!this.lossForm.typeId) return [{ value: '', label: '请先选择商品类型' }];
+      if (!this.formLossGoods.length) return [{ value: '', label: '该类型下暂无商品' }];
+      return [{ value: '', label: '请选择' }].concat(this.formLossGoods.map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name })));
+    },
     lossRows() {
       return S.db.losses.filter(l =>
         (!this.lossQ.batchNo || ((l.batchNo || l.orderNo || '').indexOf(this.lossQ.batchNo) >= 0)) &&
@@ -136,8 +140,12 @@ Pages['page-inventory'] = {
     lossFormAmount() { return U.round2((Number(this.lossForm.qty) || 0) * (Number(this.lossForm.price) || 0)); },
 
     /* ---------- 报溢 ---------- */
-    formOvGoods() { return S.enabled('goods').filter(g => !this.ovForm.typeId || g.typeId === this.ovForm.typeId); },
-    ovFormGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.formOvGoods.map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
+    formOvGoods() { return this.ovForm.typeId ? S.enabled('goods').filter(g => g.typeId === this.ovForm.typeId) : []; },
+    ovFormGoodsOpts() {
+      if (!this.ovForm.typeId) return [{ value: '', label: '请先选择商品类型' }];
+      if (!this.formOvGoods.length) return [{ value: '', label: '该类型下暂无商品' }];
+      return [{ value: '', label: '请选择' }].concat(this.formOvGoods.map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name })));
+    },
     ovRows() {
       return S.db.overflows.filter(o =>
         (!this.ovQ.batchNo || ((o.batchNo || o.orderNo || '').indexOf(this.ovQ.batchNo) >= 0)) &&
@@ -154,6 +162,7 @@ Pages['page-inventory'] = {
     ovFormAmount() { return U.round2((Number(this.ovForm.qty) || 0) * (Number(this.ovForm.price) || 0)); }
   },
   watch: {
+    'lossForm.typeId'() { if (this.editingLoss) return; this.lossForm.goodsId = ''; this.lossForm.batchNo = ''; },
     'lossForm.whId'() { if (this.editingLoss) return; this.lossForm.batchNo = ''; },
     'lossForm.goodsId'(v) {
       if (this.editingLoss) return;
@@ -169,6 +178,7 @@ Pages['page-inventory'] = {
       const lot = rec && rec.lots ? rec.lots.find(l => l.batchNo === real) : null;
       if (lot) this.lossForm.price = lot.cost;
     },
+    'ovForm.typeId'() { if (this.editingOv) return; this.ovForm.goodsId = ''; this.ovForm.batchNo = ''; },
     'ovForm.whId'() { if (this.editingOv) return; this.ovForm.batchNo = ''; },
     'ovForm.goodsId'(v) {
       if (this.editingOv) return;
@@ -310,6 +320,7 @@ Pages['page-inventory'] = {
     },
     saveLoss() {
       const f = this.lossForm;
+      if (!f.typeId) return alert('请选择商品类型');
       if (!f.goodsId) return alert('请选择商品');
       if (!f.qty || f.qty <= 0) return alert('请填写报损数量');
       if (f.price == null || f.price < 0) return alert('请填写报损单价');
@@ -347,6 +358,7 @@ Pages['page-inventory'] = {
     },
     saveOv() {
       const f = this.ovForm;
+      if (!f.typeId) return alert('请选择商品类型');
       if (!f.goodsId) return alert('请选择商品');
       if (!f.qty || f.qty <= 0) return alert('请填写报溢数量');
       if (f.price == null || f.price < 0) return alert('请填写报溢单价');
@@ -672,7 +684,7 @@ Pages['page-inventory'] = {
         <div class="form-item"><label>商品类型<b class="req">*</b></label>
           <x-combobox v-model="lossForm.typeId" :options="typeOpts" style="width:100%"/></div>
         <div class="form-item"><label>商品名称<b class="req">*</b></label>
-          <x-combobox v-model="lossForm.goodsId" :options="lossFormGoodsOpts" style="width:100%"/></div>
+          <x-combobox v-model="lossForm.goodsId" :options="lossFormGoodsOpts" :disabled="!lossForm.typeId" style="width:100%"/></div>
         <div class="form-item"><label>供应商（自动匹配）</label><input type="text" :value="selLossGoods?S.name('suppliers',selLossGoods.supplierId):''" disabled></div>
         <div class="form-item"><label>单位（自动匹配）</label><input type="text" :value="selLossGoods?S.name('units',selLossGoods.unitId):''" disabled></div>
         <div class="form-item"><label>报损数量<b class="req">*</b></label><input type="number" min="1" v-model.number="lossForm.qty"></div>
@@ -698,7 +710,7 @@ Pages['page-inventory'] = {
         <div class="form-item"><label>商品类型<b class="req">*</b></label>
           <x-combobox v-model="ovForm.typeId" :options="typeOpts" style="width:100%"/></div>
         <div class="form-item"><label>商品名称<b class="req">*</b></label>
-          <x-combobox v-model="ovForm.goodsId" :options="ovFormGoodsOpts" style="width:100%"/></div>
+          <x-combobox v-model="ovForm.goodsId" :options="ovFormGoodsOpts" :disabled="!ovForm.typeId" style="width:100%"/></div>
         <div class="form-item"><label>供应商（自动匹配）</label><input type="text" :value="selOvGoods?S.name('suppliers',selOvGoods.supplierId):''" disabled></div>
         <div class="form-item"><label>单位（自动匹配）</label><input type="text" :value="selOvGoods?S.name('units',selOvGoods.unitId):''" disabled></div>
         <div class="form-item"><label>报溢数量<b class="req">*</b></label><input type="number" min="1" v-model.number="ovForm.qty"></div>
