@@ -349,11 +349,13 @@
         await Cloud.signOut();
         location.reload();
       },
-      switchWs() {
+      async switchWs() {
         if (!U.confirm('切换账套将重新加载数据，确定继续吗？')) return;
         try { S.teardown(); } catch (e) { /* ignore */ }
         CFG.clearLastWs();
-        location.reload();
+        this.fatal = ''; this.err = '';
+        await Cloud.loadWorkspaces().catch(() => {});
+        this.step = 'workspace';
       },
       syncText() { return Sync.statusText(); },
       remoteHint() {
@@ -467,7 +469,7 @@
               <button class="btn btn-sm btn-primary">进入</button>
             </div>
           </div>
-          <div class="form-hint" v-else style="margin:0 0 6px">
+          <div class="form-hint" v-if="!wsList.length && canCreateWs" style="margin:0 0 6px">
             当前账号还没有任何账套，请在下方创建一个（创建者自动成为该账套的管理员）。
           </div>
           <template v-if="canCreateWs">
@@ -481,7 +483,7 @@
           </template>
           <template v-else>
             <div class="form-hint" style="margin-top:16px;color:#c0392b">
-              你尚未被邀请加入任何账套，无法创建账套。请联系账套创建者邀请你并授予管理员权限后重试。
+              你不是任何账套的创建者（owner），无法新建账套。请联系账套创建者邀请你并设为创建者后，再来此新建。
             </div>
             <div style="margin-top:12px">
               <button class="btn" @click="relogin">切换账号</button>
