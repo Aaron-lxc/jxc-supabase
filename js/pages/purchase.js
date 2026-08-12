@@ -14,7 +14,12 @@ Pages['page-purchase'] = {
     qTypeOpts() { return [{ value: '', label: '全部商品类型' }].concat(S.db.goodsTypes.map(t => ({ value: t.id, label: t.name }))); },
     qSupplierOpts() { return [{ value: '', label: '全部供应商' }].concat(S.db.suppliers.map(s => ({ value: s.id, label: s.name }))); },
     formTypeOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('goodsTypes').map(t => ({ value: t.id, label: t.name }))); },
-    formGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.formGoods.map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
+    formGoodsOpts() {
+      if (!this.form.typeId) return [{ value: '', label: '请先选择商品类型' }];
+      const goods = this.formGoods;
+      if (!goods.length) return [{ value: '', label: '该类型下暂无商品' }];
+      return [{ value: '', label: '请选择' }].concat(goods.map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name })));
+    },
     formWhOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('warehouses').map(w => ({ value: w.id, label: w.name }))); },
     payMethodOpts() {
       return [{ value: '', label: '请选择' }].concat((window.PAY_METHODS || []).map(m => ({ value: m, label: m })));
@@ -28,8 +33,9 @@ Pages['page-purchase'] = {
       ).slice().sort((a, b) => (b.inTime || '').localeCompare(a.inTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
-    formGoods() { /* 按类型联动商品 */
-      return S.enabled('goods').filter(g => !this.form.typeId || g.typeId === this.form.typeId);
+    formGoods() { /* 按类型联动商品；未选类型时不可选商品 */
+      if (!this.form.typeId) return [];
+      return S.enabled('goods').filter(g => g.typeId === this.form.typeId);
     },
     selGoods() { return this.form.goodsId ? S.byId('goods', this.form.goodsId) : null; },
     formAmount() {
@@ -75,6 +81,7 @@ Pages['page-purchase'] = {
     },
     save() {
       const f = this.form;
+      if (!f.typeId) return alert('请选择商品类型');
       if (!f.goodsId) return alert('请选择商品');
       if (!f.qty || f.qty <= 0) return alert('请填写采购数量');
       if (f.price == null || f.price < 0) return alert('请填写采购价');
@@ -145,7 +152,7 @@ Pages['page-purchase'] = {
         <div class="form-item"><label>商品类型<b class="req">*</b></label>
           <x-combobox v-model="form.typeId" :options="formTypeOpts" style="width:100%"/></div>
         <div class="form-item"><label>商品名称<b class="req">*</b></label>
-          <x-combobox v-model="form.goodsId" :options="formGoodsOpts" style="width:100%"/></div>
+          <x-combobox v-model="form.goodsId" :options="formGoodsOpts" :disabled="!form.typeId" style="width:100%"/></div>
         <div class="form-item"><label>供应商（自动匹配）</label><input type="text" :value="selGoods ? S.name('suppliers',selGoods.supplierId) : ''" disabled></div>
         <div class="form-item"><label>商品单位（自动匹配）</label><input type="text" :value="selGoods ? S.name('units',selGoods.unitId) : ''" disabled></div>
         <div class="form-item"><label>采购数量<b class="req">*</b></label><input type="number" min="1" v-model.number="form.qty"></div>
