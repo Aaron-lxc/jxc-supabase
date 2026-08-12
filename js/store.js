@@ -514,25 +514,31 @@ window.S = {
 
   /* ------- 报损 / 报溢（库存管理下的两个独立核算单） -------
      报损：库存减少（损耗）；报溢：库存增加（盘盈）。
-     订单号关联采购入库单 orderNo；金额 amount = price * qty 自动计算。
-     报损退款金额计入经营成本损失；报溢金额作为盘盈收益。 */
+     关联批次号 batchNo；报损指定批次优先扣减，不足按 FEFO spill；报溢指定批次入库。
+     金额 amount = price * qty 自动计算。报损退款金额计入经营成本损失；报溢金额作为盘盈收益。 */
   addLoss(l) {
     l.id = this.genId();
     l.no = this.genNo('LS');
     l.time = l.time || U.now();
     l.amount = U.round2(Number(l.qty) * Number(l.price));
     l.operator = Cloud.state.user ? Cloud.state.user.name : '';
+    const batchNo = (l.batchNo && l.batchNo !== '__NONE__') ? l.batchNo : null;
+    l.batchNo = batchNo || ''; l.orderNo = '';
     this.db.losses.push(l);
     const rec = this.stockRec(l.whId, l.goodsId, true);
     const g = this.byId('goods', l.goodsId) || {};
-    this.consumeLotSelected(rec, g, Number(l.qty), null);  // FEFO 整扣（不强制选批）
+    l.alloc = this.consumeLotSelected(rec, g, Number(l.qty), batchNo);  // 指定批次优先，不足 FEFO spill
     return l;
   },
   deleteLoss(id) {
     const l = this.byId('losses', id);
     if (!l) return '单据不存在';
     const rec = this.stockRec(l.whId, l.goodsId, false);
-    if (rec) { const g = this.byId('goods', l.goodsId) || {}; this.returnLotByAlloc(rec, g, [{ batchNo: null, qty: Number(l.qty) }]); }
+    if (rec) {
+      const g = this.byId('goods', l.goodsId) || {};
+      if (l.alloc && l.alloc.length) this.returnLotByAlloc(rec, g, l.alloc);
+      else this.returnLotByAlloc(rec, g, [{ batchNo: null, qty: Number(l.qty) }]);
+    }
     this.db.losses = this.db.losses.filter(x => x.id !== id);
     return null;
   },
@@ -540,13 +546,19 @@ window.S = {
     const l = this.byId('losses', id);
     if (!l) return '单据不存在';
     const orec = this.stockRec(l.whId, l.goodsId, false);
-    if (orec) { const g0 = this.byId('goods', l.goodsId) || {}; this.returnLotByAlloc(orec, g0, [{ batchNo: null, qty: Number(l.qty) }]); }  // 回滚旧批次
+    if (orec) {
+      const g0 = this.byId('goods', l.goodsId) || {};
+      if (l.alloc && l.alloc.length) this.returnLotByAlloc(orec, g0, l.alloc);  // 回滚旧批次
+      else this.returnLotByAlloc(orec, g0, [{ batchNo: null, qty: Number(l.qty) }]);
+    }
     const newQty = Number(patch.qty), newPrice = Number(patch.price);
     if (!newQty || newQty <= 0) return '请填写报损数量';
     if (newPrice == null || newPrice < 0) return '请填写报损单价';
+    const batchNo = (patch.batchNo && patch.batchNo !== '__NONE__') ? patch.batchNo : null;
     const nrec = this.stockRec(patch.whId, patch.goodsId, true);
-    const gn = this.byId('goods', patch.goodsId) || {}; this.consumeLotSelected(nrec, gn, newQty, null);
-    l.orderNo = patch.orderNo || ''; l.typeId = patch.typeId; l.goodsId = patch.goodsId;
+    const gn = this.byId('goods', patch.goodsId) || {};
+    l.alloc = this.consumeLotSelected(nrec, gn, newQty, batchNo);
+    l.batchNo = patch.batchNo || ''; l.orderNo = ''; l.typeId = patch.typeId; l.goodsId = patch.goodsId;
     l.supplierId = patch.supplierId; l.unitId = patch.unitId; l.qty = newQty; l.price = newPrice;
     l.amount = U.round2(newQty * newPrice); l.whId = patch.whId;
     l.refundMethod = patch.refundMethod || ''; l.time = patch.time || l.time;
@@ -558,16 +570,23 @@ window.S = {
     o.time = o.time || U.now();
     o.amount = U.round2(Number(o.qty) * Number(o.price));
     o.operator = Cloud.state.user ? Cloud.state.user.name : '';
+    const batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? o.batchNo : null;
+    o.batchNo = batchNo || ''; o.orderNo = '';
     this.db.overflows.push(o);
     const rec = this.stockRec(o.whId, o.goodsId, true);
-    this.addLotQty(rec, { batchNo: null, productionDate: null, cost: Number(o.price) || 0 }, Number(o.qty));
+    const existing = batchNo && rec.lots ? rec.lots.find(l => l.batchNo === batchNo) : null;
+    this.addLotQty(rec, { batchNo, productionDate: existing ? existing.productionDate : null, cost: Number(o.price) || 0 }, Number(o.qty));
     return o;
   },
   deleteOverflow(id) {
     const o = this.byId('overflows', id);
     if (!o) return '单据不存在';
     const rec = this.stockRec(o.whId, o.goodsId, false);
-    if (rec) { const g = this.byId('goods', o.goodsId) || {}; this.consumeLotSelected(rec, g, Number(o.qty), null); }
+    if (rec) {
+      const g = this.byId('goods', o.goodsId) || {};
+      const batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? o.batchNo : null;
+      this.consumeLotSelected(rec, g, Number(o.qty), batchNo);
+    }
     this.db.overflows = this.db.overflows.filter(x => x.id !== id);
     return null;
   },
@@ -575,13 +594,19 @@ window.S = {
     const o = this.byId('overflows', id);
     if (!o) return '单据不存在';
     const orec = this.stockRec(o.whId, o.goodsId, false);
-    if (orec) { const g0 = this.byId('goods', o.goodsId) || {}; this.consumeLotSelected(orec, g0, Number(o.qty), null); }  // 回滚旧批次
+    if (orec) {
+      const g0 = this.byId('goods', o.goodsId) || {};
+      const oldBatch = (o.batchNo && o.batchNo !== '__NONE__') ? o.batchNo : null;
+      this.consumeLotSelected(orec, g0, Number(o.qty), oldBatch);  // 回滚旧批次
+    }
     const newQty = Number(patch.qty), newPrice = Number(patch.price);
     if (!newQty || newQty <= 0) return '请填写报溢数量';
     if (newPrice == null || newPrice < 0) return '请填写报溢单价';
+    const batchNo = (patch.batchNo && patch.batchNo !== '__NONE__') ? patch.batchNo : null;
     const nrec = this.stockRec(patch.whId, patch.goodsId, true);
-    this.addLotQty(nrec, { batchNo: null, productionDate: null, cost: newPrice }, newQty);
-    o.orderNo = patch.orderNo || ''; o.typeId = patch.typeId; o.goodsId = patch.goodsId;
+    const existing = batchNo && nrec.lots ? nrec.lots.find(l => l.batchNo === batchNo) : null;
+    this.addLotQty(nrec, { batchNo, productionDate: existing ? existing.productionDate : null, cost: newPrice }, newQty);
+    o.batchNo = patch.batchNo || ''; o.orderNo = ''; o.typeId = patch.typeId; o.goodsId = patch.goodsId;
     o.supplierId = patch.supplierId; o.unitId = patch.unitId; o.qty = newQty; o.price = newPrice;
     o.amount = U.round2(newQty * newPrice); o.whId = patch.whId;
     o.payMethod = patch.payMethod || ''; o.time = patch.time || o.time;

@@ -9,10 +9,10 @@ Pages['page-inventory'] = {
       q: { whId: '', typeId: '', name: '', supplierId: '', lastInT1: '', lastInT2: '' },
       page: 1, pageSize: 10, showCheck: false, checkRows: [], checkQ: { whId: '', goodsId: '' },
       // 报损管理
-      lossQ: { orderNo: '', typeId: '', name: '', supplierId: '', whId: '', t1: '', t2: '' },
+      lossQ: { batchNo: '', typeId: '', name: '', supplierId: '', whId: '', t1: '', t2: '' },
       lossPage: 1, lossSize: 10, showLossForm: false, editingLoss: null, lossForm: {},
       // 报溢管理
-      ovQ: { orderNo: '', typeId: '', name: '', supplierId: '', whId: '', t1: '', t2: '' },
+      ovQ: { batchNo: '', typeId: '', name: '', supplierId: '', whId: '', t1: '', t2: '' },
       ovPage: 1, ovSize: 10, showOvForm: false, editingOv: null, ovForm: {},
       // 调拨管理
       transferQ: { name: '', fromWhId: '', toWhId: '', t1: '', t2: '' },
@@ -64,7 +64,11 @@ Pages['page-inventory'] = {
     whOpts() { return [{ value: '', label: '全部仓库' }].concat(S.db.warehouses.map(w => ({ value: w.id, label: w.name }))); },
     typeOpts() { return [{ value: '', label: '全部商品类型' }].concat(S.db.goodsTypes.map(t => ({ value: t.id, label: t.name }))); },
     supplierOpts() { return [{ value: '', label: '全部供应商' }].concat(S.db.suppliers.map(s => ({ value: s.id, label: s.name }))); },
-    orderOpts() { return [{ value: '', label: '全部订单号' }].concat(S.db.purchases.map(p => ({ value: p.no, label: p.no }))); },
+    batchOpts() {
+      const set = new Set();
+      S.db.stocks.forEach(s => (s.lots || []).forEach(l => { if (l.batchNo) set.add(l.batchNo); }));
+      return [{ value: '', label: '全部批次号' }].concat(Array.from(set).sort().map(b => ({ value: b, label: b })));
+    },
     payMethodOpts() { return [{ value: '', label: '请选择' }].concat((window.PAY_METHODS || []).map(m => ({ value: m, label: m }))); },
     checkGoodsOpts() { return [{ value: '', label: '全部商品' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
     checkFiltered() {
@@ -118,7 +122,7 @@ Pages['page-inventory'] = {
     lossFormGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.formLossGoods.map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
     lossRows() {
       return S.db.losses.filter(l =>
-        (!this.lossQ.orderNo || (l.orderNo || '').indexOf(this.lossQ.orderNo) >= 0) &&
+        (!this.lossQ.batchNo || ((l.batchNo || l.orderNo || '').indexOf(this.lossQ.batchNo) >= 0)) &&
         (!this.lossQ.typeId || l.typeId === this.lossQ.typeId) &&
         U.kw(S.name('goods', l.goodsId), this.lossQ.name) &&
         (!this.lossQ.supplierId || l.supplierId === this.lossQ.supplierId) &&
@@ -136,7 +140,7 @@ Pages['page-inventory'] = {
     ovFormGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.formOvGoods.map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
     ovRows() {
       return S.db.overflows.filter(o =>
-        (!this.ovQ.orderNo || (o.orderNo || '').indexOf(this.ovQ.orderNo) >= 0) &&
+        (!this.ovQ.batchNo || ((o.batchNo || o.orderNo || '').indexOf(this.ovQ.batchNo) >= 0)) &&
         (!this.ovQ.typeId || o.typeId === this.ovQ.typeId) &&
         U.kw(S.name('goods', o.goodsId), this.ovQ.name) &&
         (!this.ovQ.supplierId || o.supplierId === this.ovQ.supplierId) &&
@@ -150,25 +154,35 @@ Pages['page-inventory'] = {
     ovFormAmount() { return U.round2((Number(this.ovForm.qty) || 0) * (Number(this.ovForm.price) || 0)); }
   },
   watch: {
-    'lossForm.orderNo'(no) {
-      if (this.editingLoss) return;
-      const p = S.db.purchases.find(x => x.no === no);
-      if (p) { this.lossForm.goodsId = p.goodsId; this.lossForm.whId = p.whId; }
-    },
+    'lossForm.whId'() { if (this.editingLoss) return; this.lossForm.batchNo = ''; },
     'lossForm.goodsId'(v) {
       if (this.editingLoss) return;
+      this.lossForm.batchNo = '';
       const g = v ? S.byId('goods', v) : null;
       if (g) { this.lossForm.typeId = g.typeId; this.lossForm.supplierId = g.supplierId; this.lossForm.price = g.purchasePrice; }
     },
-    'ovForm.orderNo'(no) {
-      if (this.editingOv) return;
-      const p = S.db.purchases.find(x => x.no === no);
-      if (p) { this.ovForm.goodsId = p.goodsId; this.ovForm.whId = p.whId; }
+    'lossForm.batchNo'(v) {
+      if (this.editingLoss) return;
+      const real = (v && v !== '__NONE__') ? v : null;
+      if (!real || !this.lossForm.whId || !this.lossForm.goodsId) return;
+      const rec = S.stockRec(this.lossForm.whId, this.lossForm.goodsId, false);
+      const lot = rec && rec.lots ? rec.lots.find(l => l.batchNo === real) : null;
+      if (lot) this.lossForm.price = lot.cost;
     },
+    'ovForm.whId'() { if (this.editingOv) return; this.ovForm.batchNo = ''; },
     'ovForm.goodsId'(v) {
       if (this.editingOv) return;
+      this.ovForm.batchNo = '';
       const g = v ? S.byId('goods', v) : null;
       if (g) { this.ovForm.typeId = g.typeId; this.ovForm.supplierId = g.supplierId; this.ovForm.price = g.purchasePrice; }
+    },
+    'ovForm.batchNo'(v) {
+      if (this.editingOv) return;
+      const real = (v && v !== '__NONE__') ? v : null;
+      if (!real || !this.ovForm.whId || !this.ovForm.goodsId) return;
+      const rec = S.stockRec(this.ovForm.whId, this.ovForm.goodsId, false);
+      const lot = rec && rec.lots ? rec.lots.find(l => l.batchNo === real) : null;
+      if (lot) this.ovForm.price = lot.cost;
     },
     'transferForm.fromWhId'(v) {
       if (this.editingTransfer) return;
@@ -210,6 +224,15 @@ Pages['page-inventory'] = {
   },
   methods: {
     fmtMoney: U.fmtMoney, fmtNum: U.fmtNum,
+    /* 报损/报溢弹窗：按仓库+商品列出可选批次 */
+    formBatchOpts(form) {
+      if (!form.whId || !form.goodsId) return [{ value: '', label: '请先选择仓库和商品' }];
+      const rec = S.stockRec(form.whId, form.goodsId, false);
+      if (!rec || !rec.lots || !rec.lots.length) return [{ value: '', label: '无批次库存' }];
+      return [{ value: '', label: '请选择批次' }].concat(rec.lots.filter(l => Number(l.qty) > 0)
+        .sort((a, b) => (a.productionDate || '').localeCompare(b.productionDate || ''))
+        .map(l => ({ value: l.batchNo == null ? '__NONE__' : l.batchNo, label: (l.batchNo || '未分批次') + ' / 余 ' + l.qty })));
+    },
     /* 库存明细 */
     rowFields(r) {
       return [
@@ -277,12 +300,12 @@ Pages['page-inventory'] = {
     /* 报损 */
     openLossNew() {
       this.editingLoss = null;
-      this.lossForm = { orderNo: '', typeId: '', goodsId: '', supplierId: '', whId: '', qty: null, price: null, refundMethod: '', time: U.today() };
+      this.lossForm = { batchNo: '', typeId: '', goodsId: '', supplierId: '', whId: '', qty: null, price: null, refundMethod: '', time: U.today() };
       this.showLossForm = true;
     },
     openLossEdit(l) {
       this.editingLoss = l;
-      this.lossForm = { orderNo: l.orderNo || '', typeId: l.typeId, goodsId: l.goodsId, supplierId: l.supplierId, whId: l.whId, qty: l.qty, price: l.price, refundMethod: l.refundMethod || '', time: l.time };
+      this.lossForm = { batchNo: l.batchNo || l.orderNo || '', typeId: l.typeId, goodsId: l.goodsId, supplierId: l.supplierId, whId: l.whId, qty: l.qty, price: l.price, refundMethod: l.refundMethod || '', time: l.time };
       this.showLossForm = true;
     },
     saveLoss() {
@@ -293,10 +316,10 @@ Pages['page-inventory'] = {
       if (!f.whId) return alert('请选择报损仓库');
       const g = S.byId('goods', f.goodsId);
       if (this.editingLoss) {
-        const err = S.updateLoss(this.editingLoss.id, { orderNo: f.orderNo, typeId: g.typeId, goodsId: g.id, supplierId: g.supplierId, unitId: g.unitId, qty: Number(f.qty), price: Number(f.price), whId: f.whId, refundMethod: f.refundMethod, time: f.time });
+        const err = S.updateLoss(this.editingLoss.id, { batchNo: f.batchNo, typeId: g.typeId, goodsId: g.id, supplierId: g.supplierId, unitId: g.unitId, qty: Number(f.qty), price: Number(f.price), whId: f.whId, refundMethod: f.refundMethod, time: f.time });
         if (err) return alert(err);
       } else {
-        S.addLoss({ orderNo: f.orderNo || '', typeId: g.typeId, goodsId: g.id, supplierId: g.supplierId, unitId: g.unitId, qty: Number(f.qty), price: Number(f.price), whId: f.whId, refundMethod: f.refundMethod || '', time: f.time });
+        S.addLoss({ batchNo: f.batchNo || '', typeId: g.typeId, goodsId: g.id, supplierId: g.supplierId, unitId: g.unitId, qty: Number(f.qty), price: Number(f.price), whId: f.whId, refundMethod: f.refundMethod || '', time: f.time });
       }
       this.showLossForm = false; this.editingLoss = null;
     },
@@ -306,7 +329,7 @@ Pages['page-inventory'] = {
     },
     exportLoss() {
       U.exportExcel('报损明细.xlsx', this.lossRows.map((l, i) => ({
-        '序号': i + 1, '订单号': l.orderNo || '', '商品类型': S.name('goodsTypes', l.typeId), '商品名称': S.name('goods', l.goodsId),
+        '序号': i + 1, '批次号': l.batchNo || l.orderNo || '', '商品类型': S.name('goodsTypes', l.typeId), '商品名称': S.name('goods', l.goodsId),
         '供应商': S.name('suppliers', l.supplierId), '单位': S.name('units', l.unitId), '报损单价': l.price, '报损数量': l.qty,
         '退款金额': l.amount, '报损仓库': S.name('warehouses', l.whId), '退款方式': l.refundMethod || '', '报损时间': l.time
       })));
@@ -314,12 +337,12 @@ Pages['page-inventory'] = {
     /* 报溢 */
     openOvNew() {
       this.editingOv = null;
-      this.ovForm = { orderNo: '', typeId: '', goodsId: '', supplierId: '', whId: '', qty: null, price: null, payMethod: '', time: U.today() };
+      this.ovForm = { batchNo: '', typeId: '', goodsId: '', supplierId: '', whId: '', qty: null, price: null, payMethod: '', time: U.today() };
       this.showOvForm = true;
     },
     openOvEdit(o) {
       this.editingOv = o;
-      this.ovForm = { orderNo: o.orderNo || '', typeId: o.typeId, goodsId: o.goodsId, supplierId: o.supplierId, whId: o.whId, qty: o.qty, price: o.price, payMethod: o.payMethod || '', time: o.time };
+      this.ovForm = { batchNo: o.batchNo || o.orderNo || '', typeId: o.typeId, goodsId: o.goodsId, supplierId: o.supplierId, whId: o.whId, qty: o.qty, price: o.price, payMethod: o.payMethod || '', time: o.time };
       this.showOvForm = true;
     },
     saveOv() {
@@ -330,10 +353,10 @@ Pages['page-inventory'] = {
       if (!f.whId) return alert('请选择报溢仓库');
       const g = S.byId('goods', f.goodsId);
       if (this.editingOv) {
-        const err = S.updateOverflow(this.editingOv.id, { orderNo: f.orderNo, typeId: g.typeId, goodsId: g.id, supplierId: g.supplierId, unitId: g.unitId, qty: Number(f.qty), price: Number(f.price), whId: f.whId, payMethod: f.payMethod, time: f.time });
+        const err = S.updateOverflow(this.editingOv.id, { batchNo: f.batchNo, typeId: g.typeId, goodsId: g.id, supplierId: g.supplierId, unitId: g.unitId, qty: Number(f.qty), price: Number(f.price), whId: f.whId, payMethod: f.payMethod, time: f.time });
         if (err) return alert(err);
       } else {
-        S.addOverflow({ orderNo: f.orderNo || '', typeId: g.typeId, goodsId: g.id, supplierId: g.supplierId, unitId: g.unitId, qty: Number(f.qty), price: Number(f.price), whId: f.whId, payMethod: f.payMethod || '', time: f.time });
+        S.addOverflow({ batchNo: f.batchNo || '', typeId: g.typeId, goodsId: g.id, supplierId: g.supplierId, unitId: g.unitId, qty: Number(f.qty), price: Number(f.price), whId: f.whId, payMethod: f.payMethod || '', time: f.time });
       }
       this.showOvForm = false; this.editingOv = null;
     },
@@ -343,7 +366,7 @@ Pages['page-inventory'] = {
     },
     exportOv() {
       U.exportExcel('报溢明细.xlsx', this.ovRows.map((o, i) => ({
-        '序号': i + 1, '订单号': o.orderNo || '', '商品类型': S.name('goodsTypes', o.typeId), '商品名称': S.name('goods', o.goodsId),
+        '序号': i + 1, '批次号': o.batchNo || o.orderNo || '', '商品类型': S.name('goodsTypes', o.typeId), '商品名称': S.name('goods', o.goodsId),
         '供应商': S.name('suppliers', o.supplierId), '单位': S.name('units', o.unitId), '报溢单价': o.price, '报溢数量': o.qty,
         '报溢金额': o.amount, '报溢仓库': S.name('warehouses', o.whId), '支付方式': o.payMethod || '', '报溢时间': o.time
       })));
@@ -470,7 +493,7 @@ Pages['page-inventory'] = {
     <!-- ===== 报损管理 ===== -->
     <div v-show="tab==='loss'" class="card">
       <div class="toolbar">
-        <x-combobox v-model="lossQ.orderNo" :options="orderOpts" style="width:170px" placeholder="订单号"/>
+        <x-combobox v-model="lossQ.batchNo" :options="batchOpts" style="width:170px" placeholder="批次号"/>
         <x-combobox v-model="lossQ.typeId" :options="typeOpts" style="width:140px"/>
         <input type="text" v-model="lossQ.name" placeholder="商品名称模糊查询">
         <x-combobox v-model="lossQ.supplierId" :options="supplierOpts" style="width:150px"/>
@@ -484,13 +507,13 @@ Pages['page-inventory'] = {
       <div class="table-wrap">
       <table class="grid">
         <thead><tr>
-          <th>序号</th><th>订单号</th><th>商品类型</th><th>商品名称</th><th>供应商</th><th>单位</th>
+          <th>序号</th><th>批次号</th><th>商品类型</th><th>商品名称</th><th>供应商</th><th>单位</th>
           <th class="num">报损单价</th><th class="num">报损数量</th><th class="num">退款金额</th><th>报损仓库</th><th>退款方式</th><th>报损时间</th><th>操作</th>
         </tr></thead>
         <tbody>
           <tr v-for="(l,i) in lossPaged" :key="l.id">
             <td data-label="序号">{{(lossPage-1)*lossSize+i+1}}</td>
-            <td data-label="订单号">{{l.orderNo||'—'}}</td>
+            <td data-label="批次号">{{l.batchNo||l.orderNo||'—'}}</td>
             <td data-label="商品类型">{{S.name('goodsTypes',l.typeId)}}</td>
             <td data-label="商品名称">{{S.name('goods',l.goodsId)}}</td>
             <td data-label="供应商">{{S.name('suppliers',l.supplierId)}}</td>
@@ -516,7 +539,7 @@ Pages['page-inventory'] = {
     <!-- ===== 报溢管理 ===== -->
     <div v-show="tab==='overflow'" class="card">
       <div class="toolbar">
-        <x-combobox v-model="ovQ.orderNo" :options="orderOpts" style="width:170px" placeholder="订单号"/>
+        <x-combobox v-model="ovQ.batchNo" :options="batchOpts" style="width:170px" placeholder="批次号"/>
         <x-combobox v-model="ovQ.typeId" :options="typeOpts" style="width:140px"/>
         <input type="text" v-model="ovQ.name" placeholder="商品名称模糊查询">
         <x-combobox v-model="ovQ.supplierId" :options="supplierOpts" style="width:150px"/>
@@ -530,13 +553,13 @@ Pages['page-inventory'] = {
       <div class="table-wrap">
       <table class="grid">
         <thead><tr>
-          <th>序号</th><th>订单号</th><th>商品类型</th><th>商品名称</th><th>供应商</th><th>单位</th>
+          <th>序号</th><th>批次号</th><th>商品类型</th><th>商品名称</th><th>供应商</th><th>单位</th>
           <th class="num">报溢单价</th><th class="num">报溢数量</th><th class="num">报溢金额</th><th>报溢仓库</th><th>支付方式</th><th>报溢时间</th><th>操作</th>
         </tr></thead>
         <tbody>
           <tr v-for="(o,i) in ovPaged" :key="o.id">
             <td data-label="序号">{{(ovPage-1)*ovSize+i+1}}</td>
-            <td data-label="订单号">{{o.orderNo||'—'}}</td>
+            <td data-label="批次号">{{o.batchNo||o.orderNo||'—'}}</td>
             <td data-label="商品类型">{{S.name('goodsTypes',o.typeId)}}</td>
             <td data-label="商品名称">{{S.name('goods',o.goodsId)}}</td>
             <td data-label="供应商">{{S.name('suppliers',o.supplierId)}}</td>
@@ -644,8 +667,8 @@ Pages['page-inventory'] = {
     <!-- 报损弹窗 -->
     <x-modal v-if="showLossForm" :title="editingLoss?'修改报损单':'新增报损单'" :width="640" :fullscreen="$root.isMobile" position="bottom" @close="showLossForm=false">
       <div class="form-grid">
-        <div class="form-item"><label>订单号（关联采购单）</label>
-          <x-combobox v-model="lossForm.orderNo" :options="orderOpts" style="width:100%"/></div>
+        <div class="form-item"><label>批次号</label>
+          <x-combobox v-model="lossForm.batchNo" :options="formBatchOpts(lossForm)" style="width:100%"/></div>
         <div class="form-item"><label>商品类型<b class="req">*</b></label>
           <x-combobox v-model="lossForm.typeId" :options="typeOpts" style="width:100%"/></div>
         <div class="form-item"><label>商品名称<b class="req">*</b></label>
@@ -670,8 +693,8 @@ Pages['page-inventory'] = {
     <!-- 报溢弹窗 -->
     <x-modal v-if="showOvForm" :title="editingOv?'修改报溢单':'新增报溢单'" :width="640" :fullscreen="$root.isMobile" position="bottom" @close="showOvForm=false">
       <div class="form-grid">
-        <div class="form-item"><label>订单号（关联采购单）</label>
-          <x-combobox v-model="ovForm.orderNo" :options="orderOpts" style="width:100%"/></div>
+        <div class="form-item"><label>批次号</label>
+          <x-combobox v-model="ovForm.batchNo" :options="formBatchOpts(ovForm)" style="width:100%"/></div>
         <div class="form-item"><label>商品类型<b class="req">*</b></label>
           <x-combobox v-model="ovForm.typeId" :options="typeOpts" style="width:100%"/></div>
         <div class="form-item"><label>商品名称<b class="req">*</b></label>
