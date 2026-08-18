@@ -934,6 +934,7 @@ window.S = {
   resourceCommission(d1, d2) {
     const map = {};
     this.completedSalesIn(d1, d2).forEach(s => {
+      if ((s.incResourceCommission || '是') === '否') return;
       const c = this.byId('customers', s.customerId);
       if (!c) return;
       const net = this.saleNet(s);
@@ -960,6 +961,7 @@ window.S = {
   regionCommission(d1, d2) {
     const map = {};
     this.completedSalesIn(d1, d2).forEach(s => {
+      if ((s.incRegionCommission || '是') === '否') return;
       const c = this.byId('customers', s.customerId);
       if (!c || !c.regionPartnerId) return;
       const pid = c.regionPartnerId;
@@ -1018,6 +1020,7 @@ window.S = {
   saleCommissionFor(sale, partnerId, type) {
     const c = this.byId('customers', sale.customerId);
     if (!c || sale.status !== '已完成') return 0;
+    if ((type === '区域' ? (sale.incRegionCommission || '是') : (sale.incResourceCommission || '是')) === '否') return 0;
     const net = this.saleNet(sale);
     if (type === '区域') {
       if (c.regionPartnerId !== partnerId) return 0;

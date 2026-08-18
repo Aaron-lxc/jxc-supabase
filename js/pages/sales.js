@@ -20,7 +20,7 @@ const TPL_LABELS = {
 const SaleList = {
   data() {
     return {
-      q: { cust: '', whId: '', goods: '', supplierId: '', status: '', d1: '', d2: '' },
+      q: { cust: '', whId: '', goods: '', supplierId: '', status: '', incRes: '', incReg: '', d1: '', d2: '' },
       page: 1, pageSize: 10, showForm: false, editing: null, form: null, detail: null,
       showTpl: false, tplDraft: null, preview: null, tplLabels: TPL_LABELS
     };
@@ -41,6 +41,7 @@ const SaleList = {
     whOptsAll() { return [{ value: '', label: '全部仓库' }].concat(S.db.warehouses.map(w => ({ value: w.id, label: w.name }))); },
     supplierOptsAll() { return [{ value: '', label: '全部供应商' }].concat(S.db.suppliers.map(t => ({ value: t.id, label: t.name }))); },
     statusOpts() { return [{ value: '', label: '全部状态' }, { value: '未完成', label: '未完成' }, { value: '已完成', label: '已完成' }]; },
+    incOpts() { return [{ value: '', label: '全部' }, { value: '是', label: '是' }, { value: '否', label: '否' }]; },
     priceTypeOpts() { return ['零售价', '大客价', '批发价'].map(x => ({ value: x, label: x })); },
     whGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.whGoods.map(g => ({ value: g.id, label: g.name }))); },
     /* 新增/修改时自动匹配的客户累计欠款 */
@@ -52,6 +53,8 @@ const SaleList = {
         (!this.q.goods || (s.items || []).some(it => U.kw(S.name('goods', it.goodsId), this.q.goods))) &&
         (!this.q.supplierId || (s.items || []).some(it => { const g = S.byId('goods', it.goodsId); return g && g.supplierId === this.q.supplierId; })) &&
         (!this.q.status || s.status === this.q.status) &&
+        (!this.q.incRes || (s.incResourceCommission || '是') === this.q.incRes) &&
+        (!this.q.incReg || (s.incRegionCommission || '是') === this.q.incReg) &&
         U.inRange(s.createTime, this.q.d1, this.q.d2)
       ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
     },
@@ -112,13 +115,13 @@ const SaleList = {
     qtySum(s) { return S.saleQty(s); },
     openNew() {
       this.editing = null;
-      this.form = { customerId: '', whId: '', taxRate: 0, taxExempt: '否', deliveryFee: null, items: [this.blankItem()] };
+      this.form = { customerId: '', whId: '', taxRate: 0, taxExempt: '否', deliveryFee: null, incResourceCommission: '是', incRegionCommission: '是', items: [this.blankItem()] };
       this.showForm = true;
     },
     openEdit(s) {
       if (s.status === '已完成') return alert('已完成的销售单不能修改，如需调整请先退货');
       this.editing = s;
-      this.form = { customerId: s.customerId, whId: s.whId, taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', deliveryFee: s.deliveryFee || 0, items: s.items.map(it => ({ ...it })) };
+      this.form = { customerId: s.customerId, whId: s.whId, taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', deliveryFee: s.deliveryFee || 0, incResourceCommission: s.incResourceCommission || '是', incRegionCommission: s.incRegionCommission || '是', items: s.items.map(it => ({ ...it })) };
       this.showForm = true;
     },
     /* 选定客户后自动带出该客户的税点/减免（可在单据上临时覆盖） */
@@ -179,13 +182,15 @@ const SaleList = {
       if (this.editing) {
         Object.assign(this.editing, {
           customerId: f.customerId, whId: f.whId, items, total, custRemark: cust ? cust.remark : '',
-          arrearsSnap: arrears, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0)
+          arrearsSnap: arrears, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0),
+          incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是'
         });
       } else {
         S.db.sales.push({
           id: S.genId(), no: S.genNo('SO'), customerId: f.customerId, whId: f.whId,
           items, total, custRemark: cust ? cust.remark : '', arrearsSnap: arrears,
           taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0),
+          incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是',
           status: '未完成', payStatus: '', payTime: '', createTime: U.now(), finishTime: ''
         });
       }
@@ -274,6 +279,8 @@ const SaleList = {
       <input type="text" v-model="q.goods" placeholder="商品名称" style="width:110px">
       <x-combobox v-model="q.supplierId" :options="supplierOptsAll" placeholder="全部供应商"/>
       <x-combobox v-model="q.status" :options="statusOpts" placeholder="全部状态"/>
+      <x-combobox v-model="q.incRes" :options="incOpts" placeholder="计入资源佣金"/>
+      <x-combobox v-model="q.incReg" :options="incOpts" placeholder="计入区域佣金"/>
       <input type="date" v-model="q.d1"> - <input type="date" v-model="q.d2">
       <div class="spacer"></div>
       <button class="btn" @click="openTpl">销售单模版设置</button>
@@ -295,6 +302,8 @@ const SaleList = {
             <span v-if="s.taxManual===true && s.status!=='已完成'" class="tag tag-orange" title="本单税点为手工特调，不随客户档案税点变更">特调</span></td>
           <td class="num money" :class="{red:custArrears(s)>0}" data-label="累计欠款">{{fmtMoney(custArrears(s))}}</td>
           <td class="num money" data-label="配送费">{{fmtMoney(S.saleDeliveryCost(s))}}</td>
+          <td data-label="计入资源佣金" :class="(s.incResourceCommission||'是')==='否'?'red':''">{{s.incResourceCommission||'是'}}</td>
+          <td data-label="计入区域佣金" :class="(s.incRegionCommission||'是')==='否'?'red':''">{{s.incRegionCommission||'是'}}</td>
           <td data-label="客户备注">{{s.custRemark||'-'}}</td>
           <td data-label="状态"><x-status :v="s.status"/></td><td data-label="创建时间">{{s.createTime}}</td>
           <td class="ops" data-label="操作">
@@ -308,7 +317,7 @@ const SaleList = {
             <span v-else class="link" @click="detail=s">详情</span>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="14" class="empty">暂无数据</td></tr>
+        <tr v-if="!paged.length"><td colspan="16" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
     </div>
@@ -327,6 +336,10 @@ const SaleList = {
           <input type="number" min="0" step="0.01" style="width:90px" v-model.number="form.taxRate"></div>
         <div class="form-item"><label>是否减免</label>
           <x-combobox v-model="form.taxExempt" :options="exemptOpts" placeholder="否" style="width:120px"/></div>
+        <div class="form-item"><label>计入资源佣金</label>
+          <x-combobox v-model="form.incResourceCommission" :options="exemptOpts" placeholder="是" style="width:120px"/></div>
+        <div class="form-item"><label>计入区域佣金</label>
+          <x-combobox v-model="form.incRegionCommission" :options="exemptOpts" placeholder="是" style="width:120px"/></div>
         <div class="form-item"><label>配送费</label>
           <input type="number" min="0" step="0.01" style="width:110px" v-model.number="form.deliveryFee" placeholder="0"></div>
         <div class="form-item full" v-if="formCust && formCust.remark"><label>客户备注（自动同步）</label>
