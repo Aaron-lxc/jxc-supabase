@@ -5,7 +5,8 @@ const CustomerList = {
   data() {
     return {
       q: { name: '', levelId: '', typeId: '', status: '', d1: '', d2: '' },
-      page: 1, pageSize: 10, showForm: false, editing: null, form: {}, detail: null, selIds: []
+      page: 1, pageSize: 10, showForm: false, editing: null, form: {}, detail: null, selIds: [],
+      showImport: false, importFile: null, importRows: [], importErrors: [], importOverwrite: false
     };
   },
   computed: {
@@ -148,6 +149,118 @@ const CustomerList = {
       const n = S.evalCustomerLevels(null);
       alert('已评定全部客户 ' + n + ' 个');
       this.selIds = [];
+    },
+    /* ---------- 客户批量导入 ---------- */
+    openImport() {
+      this.showImport = true;
+      this.importFile = null;
+      this.importRows = [];
+      this.importErrors = [];
+      this.importOverwrite = false;
+    },
+    downloadTpl() {
+      const tpl = {
+        '客户名称': '', '区域': '', '类型': '', '级别': '',
+        '支付方式': '对公', '支付周期': '现结', '支付时间': '',
+        '资源联系人/电话或微信': '', '报货联系人/电话或微信': '', '结算联系人/电话或微信': '', '其他联系人/电话或微信': '',
+        '银行卡': '', '对公账户': '', '客户地址': '', '开票信息': '', '备注': '',
+        '税点(%)': 0, '是否减免': '否',
+        '一级资源': '', '二级资源': '', '三级资源': '', '区域合伙人': '', '状态': '已启用'
+      };
+      U.exportExcel('客户导入模板.xlsx', [tpl]);
+    },
+    /* 名称→ID：留空返回 null；找不到返回 undefined（与 null 区分，用于报错） */
+    nameToId(coll, name) {
+      if (name === undefined || name === null || ('' + name).trim() === '') return null;
+      const list = S.enabled(coll);
+      const nm = ('' + name).trim();
+      const hit = list.find(x => (x.name || '').trim() === nm);
+      return hit ? hit.id : undefined;
+    },
+    parseImport(rows) {
+      this.importRows = [];
+      this.importErrors = [];
+      const existing = new Set(S.db.customers.map(c => (c.name || '').trim()));
+      rows.forEach((r, i) => {
+        const line = i + 2; // 含表头，Excel 物理行号从 2 起
+        const name = ('' + (r['客户名称'] || '')).trim();
+        if (!name) return; // 空行忽略
+        const errs = [];
+        const regionId = this.nameToId('regions', r['区域']);
+        if (regionId === undefined) errs.push('区域「' + (r['区域'] || '') + '」不存在');
+        const typeId = this.nameToId('custTypes', r['类型']);
+        if (typeId === undefined) errs.push('类型「' + (r['类型'] || '') + '」不存在');
+        const levelId = this.nameToId('custLevels', r['级别']);
+        if (levelId === undefined) errs.push('级别「' + (r['级别'] || '') + '」不存在');
+        const r1 = this.nameToId('resourcePartners', r['一级资源']);
+        if (r1 === undefined) errs.push('一级资源「' + (r['一级资源'] || '') + '」不存在');
+        const r2 = this.nameToId('resourcePartners', r['二级资源']);
+        if (r2 === undefined) errs.push('二级资源「' + (r['二级资源'] || '') + '」不存在');
+        const r3 = this.nameToId('resourcePartners', r['三级资源']);
+        if (r3 === undefined) errs.push('三级资源「' + (r['三级资源'] || '') + '」不存在');
+        const regionPartnerId = this.nameToId('regionPartners', r['区域合伙人']);
+        if (regionPartnerId === undefined) errs.push('区域合伙人「' + (r['区域合伙人'] || '') + '」不存在');
+        if (errs.length) { this.importErrors.push({ line, name, errs }); return; }
+        const payCycle = ('' + (r['支付周期'] || '现结')).trim() || '现结';
+        const payDayRaw = ('' + (r['支付时间'] || '')).trim();
+        const payDay = (payCycle !== '现结' && payDayRaw) ? Math.min(31, Math.max(1, parseInt(payDayRaw, 10) || 1)) : null;
+        const taxRateRaw = ('' + (r['税点(%)'] || '0')).trim();
+        const taxExempt = ('' + (r['是否减免'] || '否')).trim() === '是' ? '是' : '否';
+        const status = ('' + (r['状态'] || '已启用')).trim() === '未启用' ? '未启用' : '已启用';
+        this.importRows.push({
+          id: S.genId(), code: S.genCode('CU'), name, regionId, typeId, levelId, _dup: existing.has(name),
+          contactRes: ('' + (r['资源联系人/电话或微信'] || '')).trim(),
+          contactOrder: ('' + (r['报货联系人/电话或微信'] || '')).trim(),
+          contactPay: ('' + (r['结算联系人/电话或微信'] || '')).trim(),
+          contactOther: ('' + (r['其他联系人/电话或微信'] || '')).trim(),
+          address: ('' + (r['客户地址'] || '')).trim(),
+          payMethod: ('' + (r['支付方式'] || '对公')).trim() || '对公',
+          payCycle, payDay,
+          bankCard: ('' + (r['银行卡'] || '')).trim(),
+          corpAccount: ('' + (r['对公账户'] || '')).trim(),
+          invoiceInfo: ('' + (r['开票信息'] || '')).trim(),
+          taxRate: Number(taxRateRaw) || 0, taxExempt,
+          r1: r1 || null, r2: r2 || null, r3: r3 || null,
+          regionPartnerId: regionPartnerId || null, remark: ('' + (r['备注'] || '')).trim(),
+          createTime: U.now(), status
+        });
+      });
+    },
+    async onImportFile(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      this.importFile = file.name;
+      try {
+        await U.ensureXLSX();
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        this.parseImport(rows);
+      } catch (err) {
+        alert('文件解析失败：' + (err && err.message ? err.message : err));
+        this.importRows = [];
+        this.importErrors = [];
+      }
+      e.target.value = '';
+    },
+    doImport() {
+      if (!this.importRows.length) return alert('没有可导入的客户');
+      let added = 0, updated = 0, skipped = 0;
+      this.importRows.forEach(row => {
+        const clean = Object.assign({}, row);
+        delete clean._dup;
+        const idx = S.db.customers.findIndex(c => (c.name || '').trim() === row.name);
+        if (idx >= 0) {
+          if (this.importOverwrite) { Object.assign(S.db.customers[idx], clean); updated++; }
+          else { skipped++; }
+        } else {
+          S.db.customers.push(clean); added++;
+        }
+      });
+      alert('导入完成：新增 ' + added + '，更新 ' + updated + '，跳过重复 ' + skipped + '，错误 ' + this.importErrors.length + ' 行');
+      this.showImport = false;
+      this.page = 1;
     }
   },
   template: `
@@ -161,6 +274,7 @@ const CustomerList = {
       <div class="spacer"></div>
       <button class="btn" @click="evalSelected" :disabled="!selIds.length">重新评定（选中 {{selIds.length||0}}）</button>
       <button class="btn" @click="evalAll">评定全部</button>
+      <button class="btn" @click="openImport">导入</button>
       <button class="btn" @click="exportData">导出</button>
       <button class="btn btn-primary" @click="openNew">+ 新增客户</button>
     </div>
@@ -262,6 +376,43 @@ const CustomerList = {
         <div class="form-item full"><label>备注</label><div>{{detail.remark||'-'}}</div></div>
       </div>
       <template #foot><button class="btn" @click="detail=null">关闭</button></template>
+    </x-modal>
+
+    <x-modal v-if="showImport" title="客户批量导入" :width="720" :fullscreen="$root.isMobile" position="bottom" @close="showImport=false">
+      <div class="form-hint" style="margin-bottom:8px">
+        1）先点「下载导入模板」，按表头填写；<b>必填：客户名称 / 区域 / 类型 / 级别</b>，须与系统已有字典名称完全一致（含空格）。<br>
+        2）选择填好的 Excel / CSV 文件，系统自动解析校验；<br>
+        3）确认预览与错误清单后点「确认导入」。同名客户默认跳过，勾选「已存在则更新」可覆盖。
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <button class="btn" @click="downloadTpl">下载导入模板</button>
+        <label class="btn"><input type="file" accept=".xlsx,.xls,.csv" style="display:none" @change="onImportFile">选择文件…</label>
+        <span v-if="importFile" style="color:#475569">{{importFile}}</span>
+      </div>
+      <div v-if="importRows.length || importErrors.length">
+        <div style="margin:6px 0;font-weight:600">待导入 {{importRows.length}} 条，错误 {{importErrors.length}} 条</div>
+        <div class="table-wrap" style="max-height:240px;overflow:auto">
+          <table class="grid">
+            <thead><tr><th>客户名称</th><th>区域</th><th>类型</th><th>级别</th><th>状态</th><th>重复</th></tr></thead>
+            <tbody>
+              <tr v-for="(r,i) in importRows" :key="i">
+                <td>{{r.name}}</td><td>{{S.name('regions',r.regionId)}}</td><td>{{S.name('custTypes',r.typeId)}}</td><td>{{S.name('custLevels',r.levelId)}}</td><td>{{r.status}}</td><td>{{r._dup?'是':'否'}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="importErrors.length" style="margin-top:8px;color:#dc2626">
+          <div style="font-weight:600">错误清单（这些行不会导入）：</div>
+          <div v-for="(e,i) in importErrors" :key="'e'+i" style="font-size:13px;margin:2px 0">第 {{e.line}} 行 · {{e.name}}：{{e.errs.join('；')}}</div>
+        </div>
+        <label style="display:flex;gap:6px;align-items:center;margin-top:8px">
+          <input type="checkbox" v-model="importOverwrite"> 已存在则更新（按客户名称覆盖已有客户）
+        </label>
+      </div>
+      <template #foot>
+        <button class="btn" @click="showImport=false">取消</button>
+        <button class="btn btn-primary" :disabled="!importRows.length" @click="doImport">确认导入（{{importRows.length}} 条）</button>
+      </template>
     </x-modal>
   </div>`
 };
