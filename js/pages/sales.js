@@ -22,7 +22,8 @@ const SaleList = {
     return {
       q: { cust: '', whId: '', goods: '', supplierId: '', status: '', incRes: '', incReg: '', d1: '', d2: '' },
       page: 1, pageSize: 10, showForm: false, editing: null, form: null, detail: null,
-      showTpl: false, tplDraft: null, preview: null, tplLabels: TPL_LABELS
+      showTpl: false, tplDraft: null, preview: null, tplLabels: TPL_LABELS,
+      showImport: false, importFile: null, importOrders: [], importErrors: []
     };
   },
   computed: {
@@ -269,7 +270,126 @@ const SaleList = {
     /* 模版设置 */
     openTpl() { this.tplDraft = JSON.parse(JSON.stringify(this.tpl)); this.showTpl = true; },
     saveTpl() { S.db.settings.saleTemplate = JSON.parse(JSON.stringify(this.tplDraft)); this.showTpl = false; },
-    resetTpl() { this.tplDraft = JSON.parse(JSON.stringify(DEFAULT_TPL)); }
+    resetTpl() { this.tplDraft = JSON.parse(JSON.stringify(DEFAULT_TPL)); },
+    /* ---------- 销售单批量导入 ---------- */
+    openImport() {
+      this.showImport = true;
+      this.importFile = null;
+      this.importOrders = [];
+      this.importErrors = [];
+    },
+    downloadTpl() {
+      const tpl = {
+        '销售单号': '', '客户名称': '', '仓库名称': '', '商品名称': '',
+        '数量': 1, '销售价格': 0, '价格类型': '零售价',
+        '税点(%)': 0, '是否减免': '否', '配送费': 0,
+        '计入资源佣金': '是', '计入区域佣金': '是', '创建时间': ''
+      };
+      U.exportExcel('销售单导入模板.xlsx', [tpl]);
+    },
+    /* 名称→ID：留空返回 null；找不到返回 undefined（与 null 区分，用于报错） */
+    nameToId(coll, name) {
+      if (name === undefined || name === null || ('' + name).trim() === '') return null;
+      const list = S.enabled(coll);
+      const nm = ('' + name).trim();
+      const hit = list.find(x => (x.name || '').trim() === nm);
+      return hit ? hit.id : undefined;
+    },
+    parseImport(rows) {
+      this.importOrders = [];
+      this.importErrors = [];
+      const existingNo = new Set(S.db.sales.map(s => (s.no || '').trim()));
+      const groups = {};
+      const order = [];
+      rows.forEach((r, i) => {
+        const custName = ('' + (r['客户名称'] || '')).trim();
+        const goodsName = ('' + (r['商品名称'] || '')).trim();
+        if (!custName && !goodsName) return; // 空行忽略
+        const noRaw = ('' + (r['销售单号'] || '')).trim();
+        const key = noRaw || ('__auto__' + i);
+        if (!groups[key]) { groups[key] = []; order.push(key); }
+        groups[key].push({ line: i + 2, r, custName, goodsName, whName: ('' + (r['仓库名称'] || '')).trim() });
+      });
+      order.forEach(key => {
+        const grp = groups[key];
+        const first = grp[0];
+        const errs = [];
+        const custId = this.nameToId('customers', first.custName);
+        if (custId === undefined) errs.push('第' + first.line + '行 客户「' + first.custName + '」不存在');
+        const whId = this.nameToId('warehouses', first.whName);
+        if (whId === undefined) errs.push('第' + first.line + '行 仓库「' + first.whName + '」不存在');
+        grp.forEach(g => {
+          if (g.custName !== first.custName) errs.push('第' + g.line + '行 客户与同单号首行不一致');
+          if (g.whName !== first.whName) errs.push('第' + g.line + '行 仓库与同单号首行不一致');
+        });
+        const items = [];
+        grp.forEach(g => {
+          const goodsId = this.nameToId('goods', g.goodsName);
+          if (goodsId === undefined) { errs.push('第' + g.line + '行 商品「' + g.goodsName + '」不存在'); return; }
+          const qty = Number(('' + (g.r['数量'] || '')).trim());
+          if (!(qty > 0)) { errs.push('第' + g.line + '行 数量无效'); return; }
+          const price = Number(('' + (g.r['销售价格'] || '')).trim());
+          if (isNaN(price) || price < 0) { errs.push('第' + g.line + '行 销售价格无效'); return; }
+          const gObj = S.byId('goods', goodsId);
+          const priceType = ('' + (g.r['价格类型'] || '零售价')).trim();
+          const pt = PRICE_FIELD[priceType] ? priceType : '零售价';
+          items.push({ goodsId, sku: gObj.sku || '', qty, unitId: gObj.unitId || '', priceType: pt, price: U.round2(price), amount: U.round2(qty * price), lotKey: '' });
+        });
+        if (errs.length) { this.importErrors.push({ lines: grp.map(g => g.line).join(','), errs }); return; }
+        const taxRate = Number(('' + (first.r['税点(%)'] || '0')).trim()) || 0;
+        const taxExempt = ('' + (first.r['是否减免'] || '否')).trim() === '是' ? '是' : '否';
+        const deliveryFee = Number(('' + (first.r['配送费'] || '0')).trim()) || 0;
+        const incRes = ('' + (first.r['计入资源佣金'] || '是')).trim() === '否' ? '否' : '是';
+        const incReg = ('' + (first.r['计入区域佣金'] || '是')).trim() === '否' ? '否' : '是';
+        const no = key.indexOf('__auto__') === 0 ? '' : key;
+        if (no && existingNo.has(no)) { this.importErrors.push({ lines: grp.map(g => g.line).join(','), errs: ['销售单号「' + no + '」已存在'] }); return; }
+        const createTime = ('' + (first.r['创建时间'] || '')).trim() || U.now();
+        const total = U.round2(items.reduce((a, it) => a + it.amount, 0));
+        this.importOrders.push({ lines: grp.map(g => g.line).join(','), no, custName: first.custName, whName: first.whName, itemCount: items.length, total, custId, whId, items, taxRate, taxExempt, deliveryFee, incRes, incReg, createTime });
+      });
+    },
+    async onImportFile(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      this.importFile = file.name;
+      try {
+        await U.ensureXLSX();
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        this.parseImport(rows);
+      } catch (err) {
+        alert('文件解析失败：' + (err && err.message ? err.message : err));
+        this.importOrders = [];
+        this.importErrors = [];
+      }
+      e.target.value = '';
+    },
+    doImport() {
+      if (!this.importOrders.length) return alert('没有可导入的销售单');
+      let added = 0;
+      this.importOrders.forEach(o => {
+        const cust = S.byId('customers', o.custId);
+        const arrears = S.custArrears(o.custId);
+        const cRate = cust ? Number(cust.taxRate || 0) : 0;
+        const cExempt = cust ? (cust.taxExempt || '否') : '否';
+        const taxManual = (o.taxRate !== cRate || o.taxExempt !== cExempt);
+        S.db.sales.push({
+          id: S.genId(), no: o.no || S.genNo('SO'),
+          customerId: o.custId, whId: o.whId, items: o.items, total: o.total,
+          custRemark: cust ? cust.remark : '', arrearsSnap: arrears,
+          taxRate: o.taxRate, taxExempt: o.taxExempt, taxManual,
+          deliveryFee: U.round2(o.deliveryFee),
+          incResourceCommission: o.incRes, incRegionCommission: o.incReg,
+          status: '未完成', payStatus: '', payTime: '', createTime: o.createTime, finishTime: ''
+        });
+        added++;
+      });
+      alert('导入完成：新增销售单 ' + added + ' 张，错误 ' + this.importErrors.length + ' 行');
+      this.showImport = false;
+      this.page = 1;
+    }
   },
   template: `
   <div>
@@ -283,6 +403,7 @@ const SaleList = {
       <x-combobox v-model="q.incReg" :options="incOpts" placeholder="计入区域佣金"/>
       <input type="date" v-model="q.d1"> - <input type="date" v-model="q.d2">
       <div class="spacer"></div>
+      <button class="btn" @click="openImport">导入</button>
       <button class="btn" @click="openTpl">销售单模版设置</button>
       <button class="btn btn-primary" @click="openNew">+ 新增销售单</button>
     </div>
@@ -443,6 +564,44 @@ const SaleList = {
         <button class="btn" @click="resetTpl">恢复默认</button>
         <button class="btn" @click="showTpl=false">取消</button>
         <button class="btn btn-primary" @click="saveTpl">保存模版</button>
+      </template>
+    </x-modal>
+
+    <!-- 销售单批量导入 -->
+    <x-modal v-if="showImport" title="销售单批量导入" :width="760" :fullscreen="$root.isMobile" position="bottom" @close="showImport=false">
+      <div class="form-hint" style="margin-bottom:8px">
+        1）先点「下载导入模板」；<b>每行 = 一条商品明细</b>。<b>必填：客户名称 / 仓库名称 / 商品名称 / 数量 / 销售价格</b>，名称须与系统已有字典完全一致（含空格）。<br>
+        2）相同「销售单号」的行会合并为一笔多商品订单；单号留空则每行生成一张独立销售单。<br>
+        3）导入后均为「未完成」状态，请在列表中逐单点击「完成」以扣减库存并计入统计。
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <button class="btn" @click="downloadTpl">下载导入模板</button>
+        <label class="btn"><input type="file" accept=".xlsx,.xls,.csv" style="display:none" @change="onImportFile">选择文件…</label>
+        <span v-if="importFile" style="color:#475569">{{importFile}}</span>
+      </div>
+      <div v-if="importOrders.length || importErrors.length">
+        <div style="margin:6px 0;font-weight:600">待导入 {{importOrders.length}} 张订单，错误 {{importErrors.length}} 行</div>
+        <div class="table-wrap" style="max-height:240px;overflow:auto">
+          <table class="grid">
+            <thead><tr><th>行</th><th>销售单号</th><th>客户</th><th>仓库</th><th>商品数</th><th class="num">金额</th></tr></thead>
+            <tbody>
+              <tr v-for="(o,i) in importOrders" :key="i">
+                <td>{{o.lines}}</td>
+                <td>{{o.no || '自动生成'}}</td>
+                <td>{{o.custName}}</td><td>{{o.whName}}</td>
+                <td>{{o.itemCount}}</td><td class="num money">{{fmtMoney(o.total)}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="importErrors.length" style="margin-top:8px;color:#dc2626">
+          <div style="font-weight:600">错误清单（这些行不会导入）：</div>
+          <div v-for="(e,i) in importErrors" :key="'e'+i" style="font-size:13px;margin:2px 0">第 {{e.lines}} 行：{{e.errs.join('；')}}</div>
+        </div>
+      </div>
+      <template #foot>
+        <button class="btn" @click="showImport=false">取消</button>
+        <button class="btn btn-primary" :disabled="!importOrders.length" @click="doImport">确认导入（{{importOrders.length}} 张）</button>
       </template>
     </x-modal>
   </div>`
