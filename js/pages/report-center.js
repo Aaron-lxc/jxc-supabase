@@ -8,6 +8,7 @@ Pages['page-reportcenter'] = {
     return {
       loading: true, err: '', role: '', type: '', partner: null,
       db: null, partial: null, generatedAt: '',
+      bindings: [],         // 接收人绑定列表（资源/区域），兼容老单绑定降级
       view: 'overview',     // 管理者视图：overview | resource | region
       selPid: null,         // 自由切换选中的合伙人 id（资源/区域）
       fResName: '', fRegName: '',
@@ -38,7 +39,14 @@ Pages['page-reportcenter'] = {
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { this.err = (j && j.error) || ('加载失败(' + res.status + ')'); this.loading = false; return; }
       this.role = j.role || '';
-      if (j.partial) { this.partial = j.partial; this.partner = j.partner || null; this.type = j.type || ''; }
+      if (j.partial) {
+        this.partial = j.partial;
+        this.bindings = (j.bindings && j.bindings.length)
+          ? j.bindings
+          : (j.partner ? [{ partner_id: j.partner.id, partner_type: j.type, partner: j.partner }] : []);
+        this.partner = j.partner || null;
+        this.type = j.type || '';
+      }
       else { this.db = j.db || null; }
       this.generatedAt = new Date().toLocaleString('zh-CN');
       this.loading = false;
@@ -109,6 +117,31 @@ Pages['page-reportcenter'] = {
       return (this.db[coll] || []).map(p => ({ p, c: this._safe(() => this.S.partnerCommissionAccount(p.id, type)) }));
     },
     _safe(fn) { try { return fn() || null; } catch (e) { return null; } },
+    /* 取单个绑定（资源/区域）的佣金账户、质押、客户明细 */
+    accFor(b) {
+      if (!this.S || !b || !b.partner_id) return { commission: null, pledges: [], custLines: [] };
+      const type = b.partner_type === '区域' ? '区域' : '资源';
+      const pid = b.partner_id;
+      let commission = null, pledges = [], custLines = [];
+      try { commission = this.S.partnerCommissionAccount(pid, type); } catch (e) {}
+      try { pledges = this.S.pledgeList(pid, type); } catch (e) {}
+      try {
+        custLines = type === '区域'
+          ? (this.S.db.customers || []).filter(c => c.regionPartnerId === pid).map(c => ({ name: c.name, level: '区域' }))
+          : this.S.resourceCustomerLines(pid);
+      } catch (e) {}
+      return { commission, pledges, custLines };
+    },
+    /* 两类合计：资源 + 区域（两种计提独立，不会重复） */
+    combined() {
+      if (!this.bindings || !this.S) return null;
+      let earned = 0, paid = 0, pledge = 0, payable = 0;
+      this.bindings.forEach(b => {
+        const a = this.accFor(b).commission;
+        if (a) { earned += a.earned; paid += a.paid; pledge += a.pledge; payable += a.payable; }
+      });
+      return { earned, paid, pledge, payable };
+    },
     exportOv(kind) {
       const rows = kind === 'res' ? this.ovResRows : this.ovRegRows;
       const name = kind === 'res' ? '资源合伙人佣金一览' : '区域合伙人佣金一览';
@@ -194,11 +227,58 @@ Pages['page-reportcenter'] = {
         <div class="empty" v-if="!ovRes.length && !ovReg.length">暂无合伙人佣金数据</div>
       </template>
 
-      <!-- 合伙人：佣金账户（接收人或管理者自由切换） -->
-      <template v-else-if="renderRole==='resource' || renderRole==='region'">
+      <!-- 接收人：同时绑定资源+区域，合并展示并合计 -->
+      <template v-else-if="!isMgr && bindings.length">
+        <div class="card" v-if="combined">
+          <h3>合计（资源 + 区域）</h3>
+          <div class="stat-grid">
+            <div class="stat-card"><div class="t">累计总佣金(含质押)</div><div class="v money">{{fmt(combined.earned)}}</div></div>
+            <div class="stat-card c2"><div class="t">累计已支付</div><div class="v money">{{fmt(combined.paid)}}</div></div>
+            <div class="stat-card c3"><div class="t">质押佣金</div><div class="v money">{{fmt(combined.pledge)}}</div></div>
+            <div class="stat-card c4"><div class="t">待支付佣金</div><div class="v money red">{{fmt(combined.payable)}}</div></div>
+          </div>
+        </div>
+
+        <template v-for="b in bindings" :key="b.partner_id + '|' + b.partner_type">
+          <div class="card" v-if="b.partner">
+            <h3>{{b.partner.name}}（{{b.partner_type}}合伙人）佣金账户</h3>
+            <div class="stat-grid">
+              <div class="stat-card"><div class="t">累计总佣金(含质押)</div><div class="v money">{{fmt(accFor(b).commission && accFor(b).commission.earned)}}</div></div>
+              <div class="stat-card c2"><div class="t">累计已支付</div><div class="v money">{{fmt(accFor(b).commission && accFor(b).commission.paid)}}</div></div>
+              <div class="stat-card c3"><div class="t">质押佣金</div><div class="v money">{{fmt(accFor(b).commission && accFor(b).commission.pledge)}}</div></div>
+              <div class="stat-card c4"><div class="t">待支付佣金</div><div class="v money red">{{fmt(accFor(b).commission && accFor(b).commission.payable)}}</div></div>
+            </div>
+          </div>
+
+          <div class="card" v-if="b.partner && accFor(b).custLines.length">
+            <h3>{{b.partner.name}} · 客户明细（{{accFor(b).custLines.length}} 个）</h3>
+            <div class="table-wrap"><table class="grid">
+              <thead><tr><th>序号</th><th>客户名</th><th>类型/级别</th></tr></thead>
+              <tbody>
+                <tr v-for="(c,i) in accFor(b).custLines" :key="i"><td data-label="序号">{{i+1}}</td><td data-label="客户名">{{c.name}}</td><td data-label="类型/级别">{{c.level}}</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+
+          <div class="card" v-if="b.partner && accFor(b).pledges.length">
+            <h3>{{b.partner.name}} · 质押佣金明细（{{accFor(b).pledges.length}} 条）</h3>
+            <div class="table-wrap"><table class="grid">
+              <thead><tr><th>序号</th><th>客户名</th><th>销售净额</th><th>对应佣金</th><th>质押原因</th><th>完成时间</th></tr></thead>
+              <tbody>
+                <tr v-for="(p,i) in accFor(b).pledges" :key="i"><td data-label="序号">{{i+1}}</td><td data-label="客户名">{{p.custName}}</td><td class="num money" data-label="销售净额">{{fmt(p.net)}}</td><td class="num money" data-label="对应佣金">{{fmt(p.commission)}}</td><td data-label="质押原因">{{p.reasons.join('、')}}</td><td data-label="完成时间">{{p.finishTime}}</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </template>
+
+        <div class="empty" v-if="!bindings.length">未配置报表绑定</div>
+      </template>
+
+      <!-- 管理者：自由切换单合伙人 -->
+      <template v-else-if="isMgr && (renderRole==='resource' || renderRole==='region')">
         <div class="card" v-if="activePartner">
           <h3>{{activePartner.name}}（{{activeType}}合伙人）佣金账户</h3>
-          <div class="stat-grid">
+          <div class  ="stat-grid">
             <div class="stat-card"><div class="t">累计总佣金(含质押)</div><div class="v money">{{fmt(commission && commission.earned)}}</div></div>
             <div class="stat-card c2"><div class="t">累计已支付</div><div class="v money">{{fmt(commission && commission.paid)}}</div></div>
             <div class="stat-card c3"><div class="t">质押佣金</div><div class="v money">{{fmt(commission && commission.pledge)}}</div></div>
@@ -211,7 +291,7 @@ Pages['page-reportcenter'] = {
           <div class="table-wrap"><table class="grid">
             <thead><tr><th>序号</th><th>客户名</th><th>资源级别</th></tr></thead>
             <tbody>
-              <tr v-for="(c,i) in custLines"><td data-label="序号">{{i+1}}</td><td data-label="客户名">{{c.name}}</td><td data-label="资源级别">{{c.level}} 级</td></tr>
+              <tr v-for="(c,i) in custLines" :key="i"><td data-label="序号">{{i+1}}</td><td data-label="客户名">{{c.name}}</td><td data-label="资源级别">{{c.level}} 级</td></tr>
             </tbody>
           </table></div>
         </div>
@@ -221,7 +301,7 @@ Pages['page-reportcenter'] = {
           <div class="table-wrap"><table class="grid">
             <thead><tr><th>序号</th><th>客户名</th><th>销售净额</th><th>对应佣金</th><th>质押原因</th><th>完成时间</th></tr></thead>
             <tbody>
-              <tr v-for="(p,i) in pledges"><td data-label="序号">{{i+1}}</td><td data-label="客户名">{{p.custName}}</td><td class="num money" data-label="销售净额">{{fmt(p.net)}}</td><td class="num money" data-label="对应佣金">{{fmt(p.commission)}}</td><td data-label="质押原因">{{p.reasons.join('、')}}</td><td data-label="完成时间">{{p.finishTime}}</td></tr>
+              <tr v-for="(p,i) in pledges" :key="i"><td data-label="序号">{{i+1}}</td><td data-label="客户名">{{p.custName}}</td><td class="num money" data-label="销售净额">{{fmt(p.net)}}</td><td class="num money" data-label="对应佣金">{{fmt(p.commission)}}</td><td data-label="质押原因">{{p.reasons.join('、')}}</td><td data-label="完成时间">{{p.finishTime}}</td></tr>
             </tbody>
           </table></div>
         </div>

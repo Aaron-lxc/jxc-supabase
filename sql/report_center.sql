@@ -32,3 +32,8 @@ create policy p_rp_write on public.recipient_profiles for all
 drop policy if exists p_rec_select on public.records;
 create policy p_rec_select on public.records for select
   using (public.is_member(workspace_id) and public.my_role(workspace_id) <> '报表');
+
+-- 支持同一接收人同时绑定「资源合伙人」与「区域合伙人」：
+-- bindings 为数组 [{partner_id, partner_type('资源'/'区域'), partner_name}, ...]，服务端按全部绑定裁剪并合并报表；
+-- 旧的单绑定数据仍保留 partner_id/partner_type/partner_name 标量字段，前端/服务端均做降级兼容。
+alter table public.recipient_profiles add column if not exists bindings jsonb;

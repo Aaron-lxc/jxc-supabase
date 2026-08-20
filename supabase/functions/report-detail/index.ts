@@ -83,13 +83,31 @@ Deno.serve(async (req) => {
   if (error) return new Response(JSON.stringify({ error: String(error.message) }), { status: 500, headers });
   const db = buildDB(rows as any[]);
 
-  if (prof.role === 'resource' || prof.role === 'region') {
-    const type = prof.role === 'region' ? '区域' : '资源';
-    const pid = prof.partner_id;
-    if (!pid) return new Response(JSON.stringify({ error: 'profile missing partner_id' }), { status: 400, headers });
-    const partial = filterForPartner(db, type, pid);
-    const partner = (type === '区域' ? db.regionPartners : db.resourcePartners).find((p: any) => p.id == pid) || null;
-    return new Response(JSON.stringify({ role: prof.role, type, partner, partial }), { headers });
+  // 构建绑定列表：优先用 bindings 数组；否则降级为标量 partner_id/partner_type（旧单绑定数据兼容）
+  const bindings: any[] = (prof.bindings && Array.isArray(prof.bindings) && prof.bindings.length)
+    ? prof.bindings
+    : (prof.partner_id ? [{ partner_id: prof.partner_id, partner_type: prof.partner_type, partner_name: prof.partner_name }] : []);
+
+  if (bindings.length) {
+    const merged: any = {
+      settings: db.settings,
+      resourceRates: db.resourceRates,
+      regionRates: db.regionRates,
+      customers: [], sales: [], commissionPayments: []
+    };
+    const seenCust = new Set();
+    const seenSale = new Set();
+    const detailBindings = bindings.map((b: any) => {
+      const type = b.partner_type === '区域' ? '区域' : '资源';
+      const pid = b.partner_id;
+      const part = filterForPartner(db, type, pid);
+      part.customers.forEach((c: any) => { if (!seenCust.has(c.id)) { seenCust.add(c.id); merged.customers.push(c); } });
+      part.sales.forEach((s: any) => { if (!seenSale.has(s.id)) { seenSale.add(s.id); merged.sales.push(s); } });
+      part.commissionPayments.forEach((p: any) => merged.commissionPayments.push(p));
+      const partner = (type === '区域' ? db.regionPartners : db.resourcePartners).find((x: any) => x.id == pid) || null;
+      return { partner_id: pid, partner_type: type, partner };
+    });
+    return new Response(JSON.stringify({ role: prof.role, type: detailBindings.length === 1 ? detailBindings[0].partner_type : '', bindings: detailBindings, partial: merged }), { headers });
   }
 
   // 安全兜底：正常只会是 resource/region；其余情况按完整 db 返回（历史数据清理前兼容）
