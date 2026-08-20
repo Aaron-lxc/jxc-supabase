@@ -100,7 +100,37 @@ Pages['page-reportcenter'] = {
       return this.ovReg.filter(r => !k || (r.p.name || '').toLowerCase().includes(k.toLowerCase()));
     },
     ovResPaged() { return this.ovResRows.slice((this.pageRes - 1) * this.pageSizeRes, this.pageRes * this.pageSizeRes); },
-    ovRegPaged() { return this.ovRegRows.slice((this.pageReg - 1) * this.pageSizeReg, this.pageReg * this.pageSizeReg); }
+    ovRegPaged() { return this.ovRegRows.slice((this.pageReg - 1) * this.pageSizeReg, this.pageReg * this.pageSizeReg); },
+    /* 总览：资源全体 + 区域全体 合计（基于全集，不受搜索过滤，语义=全公司佣金总盘） */
+    ovCombined() {
+      const sum = rows => rows.reduce((t, r) => {
+        const c = r.c || {};
+        t.earned += c.earned || 0; t.paid += c.paid || 0;
+        t.pledge += c.pledge || 0; t.payable += c.payable || 0;
+        return t;
+      }, { earned: 0, paid: 0, pledge: 0, payable: 0 });
+      const a = sum(this.ovRes), b = sum(this.ovReg);
+      return { earned: a.earned + b.earned, paid: a.paid + b.paid,
+               pledge: a.pledge + b.pledge, payable: a.payable + b.payable };
+    },
+    /* 资源合伙人佣金一览：全集合计（含搜索过滤前的全部合伙人，跨分页） */
+    ovResTotal() {
+      return this.ovResRows.reduce((t, r) => {
+        const c = r.c || {};
+        t.earned += c.earned || 0; t.paid += c.paid || 0;
+        t.pledge += c.pledge || 0; t.payable += c.payable || 0;
+        return t;
+      }, { earned: 0, paid: 0, pledge: 0, payable: 0 });
+    },
+    /* 区域合伙人佣金一览：全集合计 */
+    ovRegTotal() {
+      return this.ovRegRows.reduce((t, r) => {
+        const c = r.c || {};
+        t.earned += c.earned || 0; t.paid += c.paid || 0;
+        t.pledge += c.pledge || 0; t.payable += c.payable || 0;
+        return t;
+      }, { earned: 0, paid: 0, pledge: 0, payable: 0 });
+    }
   },
   watch: {
     fResName() { this.pageRes = 1; },
@@ -199,6 +229,13 @@ Pages['page-reportcenter'] = {
                 <td class="num money" data-label="质押">{{fmt(r.c && r.c.pledge)}}</td>
                 <td class="num money red" data-label="待支付">{{fmt(r.c && r.c.payable)}}</td></tr>
               <tr v-if="!ovResPaged.length"><td colspan="6" class="empty">{{ovResRows.length?'无匹配结果':'暂无数据'}}</td></tr>
+              <tr v-if="ovResRows.length" style="background:#eff6ff;font-weight:700">
+                <td colspan="2" style="text-align:right">合计</td>
+                <td class="num money">{{fmt(ovResTotal.earned)}}</td>
+                <td class="num money">{{fmt(ovResTotal.paid)}}</td>
+                <td class="num money">{{fmt(ovResTotal.pledge)}}</td>
+                <td class="num money red">{{fmt(ovResTotal.payable)}}</td>
+              </tr>
             </tbody>
           </table></div>
           <x-pager :total="ovResRows.length" v-model:page="pageRes" v-model:size="pageSizeRes"/>
@@ -220,10 +257,28 @@ Pages['page-reportcenter'] = {
                 <td class="num money" data-label="质押">{{fmt(r.c && r.c.pledge)}}</td>
                 <td class="num money red" data-label="待支付">{{fmt(r.c && r.c.payable)}}</td></tr>
               <tr v-if="!ovRegPaged.length"><td colspan="6" class="empty">{{ovRegRows.length?'无匹配结果':'暂无数据'}}</td></tr>
+              <tr v-if="ovRegRows.length" style="background:#eff6ff;font-weight:700">
+                <td colspan="2" style="text-align:right">合计</td>
+                <td class="num money">{{fmt(ovRegTotal.earned)}}</td>
+                <td class="num money">{{fmt(ovRegTotal.paid)}}</td>
+                <td class="num money">{{fmt(ovRegTotal.pledge)}}</td>
+                <td class="num money red">{{fmt(ovRegTotal.payable)}}</td>
+              </tr>
             </tbody>
           </table></div>
           <x-pager :total="ovRegRows.length" v-model:page="pageReg" v-model:size="pageSizeReg"/>
         </div>
+
+        <div class="card" v-if="ovRes.length || ovReg.length">
+          <h3>合计（资源 + 区域）</h3>
+          <div class="stat-grid">
+            <div class="stat-card"><div class="t">累计总佣金(含质押)</div><div class="v money">{{fmt(ovCombined.earned)}}</div></div>
+            <div class="stat-card c2"><div class="t">累计已支付</div><div class="v money">{{fmt(ovCombined.paid)}}</div></div>
+            <div class="stat-card c3"><div class="t">质押佣金</div><div class="v money">{{fmt(ovCombined.pledge)}}</div></div>
+            <div class="stat-card c4"><div class="t">待支付佣金</div><div class="v money red">{{fmt(ovCombined.payable)}}</div></div>
+          </div>
+        </div>
+
         <div class="empty" v-if="!ovRes.length && !ovReg.length">暂无合伙人佣金数据</div>
       </template>
 
