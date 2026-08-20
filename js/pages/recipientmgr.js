@@ -23,16 +23,6 @@ Pages['page-recipientmgr'] = {
     S() { return window.S; },
     P() { return window.P; },
     wsId() { return Cloud.state.ws ? Cloud.state.ws.id : null; },
-    partnerOptsFor(type) {
-      if (!type) return [];
-      const coll = type === '区域' ? 'regionPartners' : 'resourcePartners';
-      return (this.S.db[coll] || []).map(p => ({ value: p.id, label: p.name }));
-    },
-    nameOf(type, pid) {
-      const coll = type === '区域' ? 'regionPartners' : 'resourcePartners';
-      const p = (this.S.db[coll] || []).find(x => x.id === pid);
-      return p ? p.name : '';
-    },
     filteredMembers() {
       const kw = (this.fEmail || '').trim().toLowerCase();
       const cf = this.fCreatedFrom, ct = this.fCreatedTo;
@@ -55,6 +45,16 @@ Pages['page-recipientmgr'] = {
     }
   },
   methods: {
+    partnerOptsFor(type) {
+      if (!type) return [];
+      const coll = type === '区域' ? 'regionPartners' : 'resourcePartners';
+      return (this.S.db[coll] || []).map(p => ({ value: p.id, label: p.name }));
+    },
+    nameOf(type, pid) {
+      const coll = type === '区域' ? 'regionPartners' : 'resourcePartners';
+      const p = (this.S.db[coll] || []).find(x => x.id === pid);
+      return p ? p.name : '';
+    },
     recipientOf(m) { return this.recips.find(r => r.auth_uid === m.user_id) || null; },
     rpLabel(role) {
       return { resource: '资源合伙人', region: '区域合伙人' }[role] || '—';
