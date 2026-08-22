@@ -36,6 +36,7 @@ create table if not exists public.workspace_members (
   role         text not null default 'member',
   permissions  jsonb not null default '{}'::jsonb,
   status       text not null default '已启用',
+  name         text,
   created_at   timestamptz not null default now(),
   unique (workspace_id, user_id)
 );
@@ -63,6 +64,7 @@ create table if not exists public.invites (
   email        text not null,
   role         text not null default 'member',
   permissions  jsonb not null default '{}'::jsonb,
+  name         text,
   status       text not null default '待接受' check (status in ('待接受', '已接受', '已取消')),
   created_by   uuid,
   created_at   timestamptz not null default now()
@@ -380,7 +382,8 @@ $$;
 
 -- 添加成员：已注册直接入伙；未注册写入邀请，注册后自动生效
 create or replace function public.add_member(
-  ws uuid, member_email text, member_role text default 'member', perms jsonb default '{}'::jsonb
+  ws uuid, member_email text, member_role text default 'member',
+  perms jsonb default '{}'::jsonb, member_name text default ''
 ) returns text language plpgsql security definer set search_path = public as $$
 declare uid uuid;
 begin
@@ -390,14 +393,15 @@ begin
   select id into uid from public.profiles where lower(email) = lower(trim(member_email)) limit 1;
 
   if uid is not null then
-    insert into public.workspace_members (workspace_id, user_id, role, permissions)
-    values (ws, uid, member_role, perms)
+    insert into public.workspace_members (workspace_id, user_id, role, permissions, name)
+    values (ws, uid, member_role, perms, nullif(trim(member_name), ''))
     on conflict (workspace_id, user_id)
-      do update set role = excluded.role, permissions = excluded.permissions, status = '已启用';
+      do update set role = excluded.role, permissions = excluded.permissions,
+                    status = '已启用', name = coalesce(excluded.name, workspace_members.name);
     return 'joined';
   else
-    insert into public.invites (workspace_id, email, role, permissions, created_by)
-    values (ws, lower(trim(member_email)), member_role, perms, auth.uid());
+    insert into public.invites (workspace_id, email, role, permissions, created_by, name)
+    values (ws, lower(trim(member_email)), member_role, perms, auth.uid(), nullif(trim(member_name), ''));
     return 'invited';
   end if;
 end;
@@ -415,10 +419,11 @@ begin
   if not found then raise exception '邀请不存在或已失效'; end if;
   select id into uid from public.profiles where lower(email) = iv.email limit 1;
   if uid is null then raise exception '账号尚未创建'; end if;
-  insert into public.workspace_members (workspace_id, user_id, role, permissions, status)
-  values (iv.workspace_id, uid, iv.role, iv.permissions, '已启用')
+  insert into public.workspace_members (workspace_id, user_id, role, permissions, status, name)
+  values (iv.workspace_id, uid, iv.role, iv.permissions, '已启用', nullif(trim(iv.name), ''))
   on conflict (workspace_id, user_id)
-    do update set role = excluded.role, permissions = excluded.permissions, status = '已启用';
+    do update set role = excluded.role, permissions = excluded.permissions,
+                  status = '已启用', name = coalesce(excluded.name, workspace_members.name);
   update public.invites set status = '已接受' where id = invite_id;
 end;
 $$;
@@ -448,7 +453,7 @@ returns table (
   last_sign_in_at timestamptz
 )
 language sql security definer stable set search_path = public as $$
-  select m.id, m.user_id, p.email, p.name, m.role, m.permissions, m.status, m.created_at,
+  select m.id, m.user_id, p.email, coalesce(m.name, p.name) as name, m.role, m.permissions, m.status, m.created_at,
          u.last_sign_in_at
     from public.workspace_members m
     left join public.profiles p on p.id = m.user_id

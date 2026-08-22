@@ -222,9 +222,10 @@ window.Cloud = {
     return data || [];
   },
 
-  async addMember(wsId, email, role, permissions) {
+  async addMember(wsId, email, role, permissions, name) {
     const { data, error } = await this.sb.rpc('add_member', {
-      ws: wsId, member_email: email, member_role: role || 'member', perms: permissions || {}
+      ws: wsId, member_email: email, member_role: role || 'member',
+      perms: permissions || {}, member_name: name || ''
     });
     if (error) return { error: this._dbErr(error) };
     return { result: data };  // 'joined' | 'invited'

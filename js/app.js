@@ -82,7 +82,7 @@
         fUrl: '', fKey: '',
         /* 认证 */
         authTab: 'login',        // login | signup
-        aName: '', aEmail: '', aPwd: '',
+        aEmail: '', aPwd: '',
         showPwd: false,          // 密码框明文切换
         /* 账套 */
         wsName: '',
@@ -245,7 +245,7 @@
           this.err = ''; this.busy = true;
           /* 仅受邀注册：先经 Edge Function（service_role）创建用户并加入账套，
              再用同一凭据 signIn 拿 session。无有效邀请会被 Edge Function 拒绝。 */
-          const e = await Cloud.inviteSignup(this.aEmail, this.aPwd, this.aName);
+          const e = await Cloud.inviteSignup(this.aEmail, this.aPwd);
           if (e) { this.busy = false; this.err = e; return; }
           const e2 = await Cloud.signIn(this.aEmail, this.aPwd);
           if (e2) { this.busy = false; this.err = e2; return; }
@@ -445,8 +445,6 @@
 
           <template v-else>
             <div class="form-hint" style="margin-bottom:6px">本项目仅接受受邀注册：请使用管理员在「账户管理」中邀请的邮箱注册，其它邮箱无法注册。</div>
-            <div class="form-item"><label>昵称</label>
-              <input type="text" v-model="aName" placeholder="显示名称（可选）"></div>
             <div class="form-item"><label>邮箱</label>
               <input type="text" v-model="aEmail" placeholder="注册邮箱"></div>
             <div class="form-item"><label>密码（至少 6 位）</label>

@@ -10,12 +10,13 @@ Pages['page-members'] = {
       /* 检索条件 */
       filter: {
         email: '', role: '', status: '',
+        realName: '',
         createdStart: '', createdEnd: '',
         loginStart: '', loginEnd: ''
       },
       /* 添加 */
       showAdd: false,
-      add: { email: '', role: 'member', permissions: {} },
+      add: { email: '', role: 'member', realName: '', permissions: {} },
       addMsg: '',
       /* 编辑成员 */
       showEdit: false,
@@ -40,8 +41,10 @@ Pages['page-members'] = {
     filteredMembers() {
       const f = this.filter;
       const kw = (f.email || '').trim().toLowerCase();
+      const nkw = (f.realName || '').trim().toLowerCase();
       return this.members.filter(m => {
         if (kw && !String(m.email || '').toLowerCase().includes(kw)) return false;
+        if (nkw && !String(m.name || '').toLowerCase().includes(nkw)) return false;
         if (f.role && m.role !== f.role) return false;
         if (f.status && (m.status || '已启用') !== f.status) return false;
         if (f.createdStart && this.dateOnly(m.created_at) < f.createdStart) return false;
@@ -56,8 +59,10 @@ Pages['page-members'] = {
     filteredInvites() {
       const f = this.filter;
       const kw = (f.email || '').trim().toLowerCase();
+      const nkw = (f.realName || '').trim().toLowerCase();
       return this.invites.filter(iv => {
         if (kw && !String(iv.email || '').toLowerCase().includes(kw)) return false;
+        if (nkw && !String(iv.name || '').toLowerCase().includes(nkw)) return false;
         if (f.role && iv.role !== f.role) return false;
         if (f.status && iv.status !== f.status) return false;
         if (f.createdStart && this.dateOnly(iv.created_at) < f.createdStart) return false;
@@ -83,7 +88,7 @@ Pages['page-members'] = {
       return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
     },
     resetFilter() {
-      this.filter = { email: '', role: '', status: '', createdStart: '', createdEnd: '', loginStart: '', loginEnd: '' };
+      this.filter = { email: '', role: '', status: '', realName: '', createdStart: '', createdEnd: '', loginStart: '', loginEnd: '' };
     },
 
     /* ---- 数据 ---- */
@@ -100,7 +105,7 @@ Pages['page-members'] = {
     /* ---- 添加成员 ---- */
     openAdd() {
       this.addMsg = '';
-      this.add = { email: '', role: 'member', permissions: P.defaultPermissions() };
+      this.add = { email: '', role: 'member', realName: '', permissions: P.defaultPermissions() };
       this.showAdd = true;
     },
     setAddPerm(key, val) { this.add.permissions[key] = val; },
@@ -108,7 +113,7 @@ Pages['page-members'] = {
       const email = (this.add.email || '').trim();
       if (!email) return alert('请填写成员邮箱');
       this.addMsg = '提交中…';
-      const r = await Cloud.addMember(this.wsId, email, this.add.role, P.normalize(this.add.permissions));
+      const r = await Cloud.addMember(this.wsId, email, this.add.role, P.normalize(this.add.permissions), this.add.realName);
       this.addMsg = '';
       if (r.error) return alert(r.error);
       alert(r.result === 'invited'
@@ -243,6 +248,7 @@ Pages['page-members'] = {
       <div class="card">
         <div class="filter-grid">
           <div class="form-item"><label>邮箱（模糊）</label><input type="text" v-model="filter.email" placeholder="含关键词即可"></div>
+          <div class="form-item"><label>真实姓名（模糊）</label><input type="text" v-model="filter.realName" placeholder="按姓名模糊匹配"></div>
           <div class="form-item"><label>角色</label>
             <select v-model="filter.role">
               <option value="">全部</option>
@@ -282,7 +288,7 @@ Pages['page-members'] = {
             </thead>
             <tbody>
               <tr v-for="m in filteredMembers" :key="m.id">
-                <td data-label="邮箱 / 名称">{{ m.email || '—' }} <span class="muted" v-if="isSelf(m)">（我）</span></td>
+                <td data-label="邮箱 / 名称">{{ m.email || '—' }} <span class="muted" v-if="m.name">（{{ m.name }}）</span> <span class="muted" v-if="isSelf(m)">（我）</span></td>
                 <td data-label="角色"><span :class="roleTag(m.role)">{{ roleLabel(m.role) }}</span></td>
                 <td class="muted" data-label="权限">{{ summary(m.permissions, m.role) }}</td>
                 <td data-label="状态"><span :class="statusTag(m.status)">{{ m.status || '已启用' }}</span></td>
@@ -313,10 +319,11 @@ Pages['page-members'] = {
         <h3>待接受的邀请（{{filteredInvites.length}}）</h3>
         <div class="table-wrap">
           <table class="grid">
-            <thead><tr><th>邮箱</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+            <thead><tr><th>邮箱</th><th>名称</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
             <tbody>
               <tr v-for="iv in filteredInvites" :key="iv.id">
                 <td data-label="邮箱">{{ iv.email }}</td>
+                <td data-label="名称" class="muted">{{ iv.name || '—' }}</td>
                 <td data-label="角色"><span :class="roleTag(iv.role)">{{ roleLabel(iv.role) }}</span></td>
                 <td data-label="状态"><span class="tag tag-orange">{{ iv.status }}</span></td>
                 <td class="col-created muted" data-label="创建时间">{{ fmt(iv.created_at) }}</td>
@@ -328,7 +335,7 @@ Pages['page-members'] = {
                   <button class="btn btn-sm btn-danger" :disabled="iv.status !== '已取消'" @click="deleteInvite(iv)">删除</button>
                 </td>
               </tr>
-              <tr v-if="!filteredInvites.length"><td colspan="5" class="muted" style="text-align:center;padding:18px">暂无匹配邀请</td></tr>
+              <tr v-if="!filteredInvites.length"><td colspan="6" class="muted" style="text-align:center;padding:18px">暂无匹配邀请</td></tr>
             </tbody>
           </table>
         </div>
@@ -341,6 +348,8 @@ Pages['page-members'] = {
       <div class="form-grid">
         <div class="form-item full"><label>成员邮箱<b class="req">*</b></label>
           <input type="text" v-model="add.email" placeholder="对方注册所用的邮箱"></div>
+        <div class="form-item full"><label>真实姓名</label>
+          <input type="text" v-model="add.realName" placeholder="选填，留空则注册后显示邮箱前缀"></div>
         <div class="form-item"><label>角色</label>
           <select v-model="add.role">
             <option value="member">成员</option>

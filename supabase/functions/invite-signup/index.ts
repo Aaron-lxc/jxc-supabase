@@ -12,7 +12,7 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
-    const { email, password, name } = await req.json();
+    const { email, password } = await req.json();
     if (!email || !password) {
       return json(400, { error: '邮箱和密码必填' }, corsHeaders);
     }
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     const { data: created, error: createErr } = await supabase.auth.admin.createUser({
       email: lower,
       password,
-      user_metadata: { name: (name || lower.split('@')[0]).toString() },
+      user_metadata: { name: lower.split('@')[0] },
       email_confirm: true,
     });
     if (createErr) {
