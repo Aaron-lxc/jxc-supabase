@@ -112,6 +112,8 @@ Pages['page-members'] = {
     async submitAdd() {
       const email = (this.add.email || '').trim();
       if (!email) return alert('请填写成员邮箱');
+      const realName = (this.add.realName || '').trim();
+      if (!realName) return alert('请填写真实姓名');
       this.addMsg = '提交中…';
       const r = await Cloud.addMember(this.wsId, email, this.add.role, P.normalize(this.add.permissions), this.add.realName);
       this.addMsg = '';
@@ -348,8 +350,8 @@ Pages['page-members'] = {
       <div class="form-grid">
         <div class="form-item full"><label>成员邮箱<b class="req">*</b></label>
           <input type="text" v-model="add.email" placeholder="对方注册所用的邮箱"></div>
-        <div class="form-item full"><label>真实姓名</label>
-          <input type="text" v-model="add.realName" placeholder="选填，留空则注册后显示邮箱前缀"></div>
+        <div class="form-item full"><label>真实姓名<b class="req">*</b></label>
+          <input type="text" v-model="add.realName" placeholder="请输入真实姓名"></div>
         <div class="form-item"><label>角色</label>
           <select v-model="add.role">
             <option value="member">成员</option>
