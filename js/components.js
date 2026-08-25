@@ -94,11 +94,14 @@ AppComponents['dict-page'] = {
     title: String       /* 页面标题 */
   },
   data() {
-    return { kw: '', st: '', page: 1, pageSize: 10, showForm: false, editing: null, formName: '', formMin: 0, formMax: '' };
+    return { kw: '', st: '', page: 1, pageSize: 10, showForm: false, editing: null, formName: '', formMin: 0, formMax: '', formScore: 0 };
   },
   computed: {
     S() { return window.S; },
     isCustLevels() { return this.coll === 'custLevels'; },
+    isScoreType() { return this.coll === 'complaintTypes' || this.coll === 'rewardTypes'; },
+    scoreField() { return this.coll === 'rewardTypes' ? 'rewardScore' : 'penaltyScore'; },
+    scoreLabel() { return this.coll === 'rewardTypes' ? '奖励分数' : '奖惩分数'; },
     statusOpts() { return [{ value: '', label: '全部状态' }, { value: '已启用', label: '已启用' }, { value: '未启用', label: '未启用' }]; },
     rows() {
       return (S.db[this.coll] || []).filter(r =>
@@ -108,8 +111,8 @@ AppComponents['dict-page'] = {
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); }
   },
   methods: {
-    openNew() { this.editing = null; this.formName = ''; this.formMin = 0; this.formMax = ''; this.showForm = true; },
-    openEdit(r) { this.editing = r; this.formName = r.name; this.formMin = r.minAmount || 0; this.formMax = (r.maxAmount == null ? '' : r.maxAmount); this.showForm = true; },
+    openNew() { this.editing = null; this.formName = ''; this.formMin = 0; this.formMax = ''; this.formScore = 0; this.showForm = true; },
+    openEdit(r) { this.editing = r; this.formName = r.name; this.formMin = r.minAmount || 0; this.formMax = (r.maxAmount == null ? '' : r.maxAmount); this.formScore = r[this.scoreField] || 0; this.showForm = true; },
     save() {
       const name = this.formName.trim();
       if (!name) return alert('请输入' + this.label);
@@ -118,6 +121,7 @@ AppComponents['dict-page'] = {
       const extra = this.isCustLevels
         ? { minAmount: Number(this.formMin) || 0, maxAmount: (this.formMax === '' || this.formMax == null) ? null : Number(this.formMax) }
         : {};
+      if (this.isScoreType) extra[this.scoreField] = Number(this.formScore) || 0;
       if (this.editing) { Object.assign(this.editing, Object.assign({ name }, extra)); }
       else { S.db[this.coll].push(Object.assign({ id: S.genId(), name, createTime: U.now(), status: '已启用' }, extra)); }
       this.showForm = false;
@@ -139,12 +143,13 @@ AppComponents['dict-page'] = {
     </div>
     <div class="table-wrap">
     <table class="grid">
-      <thead><tr><th>序号</th><th>{{label}}</th><th v-if="isCustLevels">金额范围</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
+      <thead><tr><th>序号</th><th>{{label}}</th><th v-if="isCustLevels">金额范围</th><th v-if="isScoreType">{{scoreLabel}}</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
       <tbody>
         <tr v-for="(r,i) in paged" :key="r.id">
           <td data-label="序号">{{(page-1)*pageSize+i+1}}</td>
           <td :data-label="label">{{r.name}}</td>
           <td v-if="isCustLevels" data-label="金额范围">{{(r.minAmount||0) + ' ~ ' + (r.maxAmount==null?'∞':r.maxAmount)}}</td>
+          <td v-if="isScoreType" class="num" :data-label="scoreLabel">{{r[scoreField]||0}}</td>
           <td data-label="创建时间">{{r.createTime}}</td>
           <td data-label="状态"><x-status :v="r.status"/></td>
           <td class="ops" data-label="操作">
@@ -153,7 +158,7 @@ AppComponents['dict-page'] = {
             <span class="link" :class="r.status==='已启用'?'warn':'green'" @click="toggle(r)">{{r.status==='已启用'?'停用':'启用'}}</span>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td :colspan="isCustLevels?6:5" class="empty">暂无数据</td></tr>
+        <tr v-if="!paged.length"><td :colspan="(isCustLevels?1:0)+(isScoreType?1:0)+5" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
     </div>
@@ -168,6 +173,10 @@ AppComponents['dict-page'] = {
           <input type="number" min="0" step="0.01" v-model.number="formMin" placeholder="0"></div>
         <div class="form-item"><label>月采购上限(元，留空=不限)</label>
           <input type="number" min="0" step="0.01" v-model.number="formMax" placeholder="留空=不限"></div>
+      </template>
+      <template v-if="isScoreType">
+        <div class="form-item"><label>{{scoreLabel}}</label>
+          <input type="number" min="0" step="1" v-model.number="formScore" placeholder="0"></div>
       </template>
       <template #foot>
         <button class="btn" @click="showForm=false">取消</button>

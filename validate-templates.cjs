@@ -133,18 +133,18 @@ if (failures) process.exit(1);
 let asserts = 0, failed = 0;
 function ok(cond, msg) { asserts++; if (!cond) { failed++; console.error('  ✗ ' + msg); } }
 
-/* 页面数量：17 业务模块页 + 账户管理 + 报表接收人 = 19 */
-ok(Object.keys(sandbox.Pages || {}).length === 19, 'Pages 应有 19 个页面（17 模块 + members + recipientmgr）');
+/* 页面数量：18 业务模块页 + 账户管理 + 报表接收人 = 20 */
+ok(Object.keys(sandbox.Pages || {}).length === 20, 'Pages 应有 20 个页面（18 模块 + members + recipientmgr）');
 ok(!!sandbox.Pages['page-members'], '应存在 page-members 账户管理页');
 ok(!!sandbox.Pages['page-recipientmgr'], '应存在 page-recipientmgr 报表接收人页');
 
 /* 权限 / 菜单过滤 */
 sandbox.Cloud.state.ws = { id: 'w1', role: 'owner', permissions: {}, name: '测试账套' };
-ok(sandbox.P.menus().length === 19, 'owner 的菜单应为 17 模块 + 账户管理 + 报表接收人 = 19 项');
+ok(sandbox.P.menus().length === 20, 'owner 的菜单应为 18 模块 + 账户管理 + 报表接收人 = 20 项');
 sandbox.Cloud.state.ws = { id: 'w2', role: 'member', permissions: sandbox.P.defaultPermissions() };
 const mm = sandbox.P.menus();
 console.log('  [debug] member menus =', mm.map(m => m.key).join(','), '| isManager=', sandbox.P.isManager());
-ok(mm.length === 11, 'member 默认权限下菜单应为 11 项（无财务/佣金/设置/账户管理）');
+ok(mm.length === 12, 'member 默认权限下菜单应为 12 项（含奖励管理，无财务/佣金/设置/账户管理）');
 ok(!mm.some(m => m.key === 'finance' || m.key === 'commission' || m.key === 'settings'),
   'member 默认不应看到 财务/佣金/设置');
 ok(sandbox.P.canEdit('goods') && !sandbox.P.canEdit('finance'), '默认权限：商品可编辑、财务不可编辑');

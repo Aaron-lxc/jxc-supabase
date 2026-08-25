@@ -44,7 +44,7 @@
     customers: 'js/pages/customers.js', partners: 'js/pages/partners.js',
     warehouse: 'js/pages/warehouse.js', purchase: 'js/pages/purchase.js',
     production: 'js/pages/production.js', inventory: 'js/pages/inventory.js', sales: 'js/pages/sales.js',
-    finance: 'js/pages/finance.js', complaint: 'js/pages/complaint.js',
+    finance: 'js/pages/finance.js', complaint: 'js/pages/complaint.js', reward: 'js/pages/complaint.js',
     report: 'js/pages/report.js', commission: 'js/pages/commission.js',
     members: 'js/pages/members.js', settings: 'js/pages/settings.js',
     opening: 'js/pages/opening.js', capital: 'js/pages/capital.js',

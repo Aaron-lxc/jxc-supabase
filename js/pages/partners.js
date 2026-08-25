@@ -275,21 +275,131 @@ function partnerListFactory(isRegion) {
   };
 }
 
+/* 区域考核：按自然年考核区域合伙人得分（得分=100-惩罚+奖励），每年自动归档上一年 */
+const RegionAssess = {
+  data() {
+    return { selectedYear: 'current', kw: '', rankKw: '', d1: '', d2: '', page: 1, pageSize: 10 };
+  },
+  computed: {
+    S() { return window.S; },
+    curYear() { return Number(U.today().slice(0, 4)); },
+    yearOpts() {
+      const ys = new Set([this.curYear]);
+      S.db.regionAssessArchive.forEach(a => ys.add(a.year));
+      return ['current'].concat([...ys].sort((a, b) => b - a).map(y => String(y)));
+    },
+    /* 当前年实时计算 */
+    currentRows() {
+      const y = this.curYear;
+      return S.db.regionPartners.map(p => {
+        const deduct = S.db.complaints.filter(c => c.regionPartnerId === p.id && (c.time || '').slice(0, 4) === String(y))
+          .reduce((a, c) => a + (Number(c.penaltyScore) || 0), 0);
+        const reward = S.db.rewards.filter(r => r.regionPartnerId === p.id && (r.time || '').slice(0, 4) === String(y))
+          .reduce((a, r) => a + (Number(r.rewardScore) || 0), 0);
+        return { pid: p.id, name: p.name, year: y, createTime: p.createTime, score: 100 - deduct + reward, deduct, reward, archived: false, rank: 0 };
+      });
+    },
+    archiveRows() {
+      const y = Number(this.selectedYear);
+      return S.db.regionAssessArchive.filter(a => a.year === y)
+        .map(a => ({ pid: a.partnerId, name: a.name, year: a.year, createTime: a.createTime, score: a.score, deduct: a.deductTotal, reward: a.rewardTotal, rank: a.rank, archived: true }));
+    },
+    rows() {
+      let base = this.selectedYear === 'current' ? this.currentRows : this.archiveRows;
+      if (this.selectedYear === 'current') {
+        const sorted = [...base].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+        sorted.forEach((r, i) => { r.rank = i + 1; });
+      }
+      return base.filter(r =>
+        U.kw(r.name, this.kw) &&
+        (!this.rankKw || String(r.rank).includes(this.rankKw)) &&
+        U.inRange(r.createTime, this.d1, this.d2)
+      );
+    },
+    paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); }
+  },
+  methods: {
+    yearLabel(y) { return y === 'current' ? '本年（进行中）' : (y + '年'); },
+    /* 进页面时自动把"上一年"快照写入归档（若尚未归档），实现跨年自动重置 */
+    ensureArchive() {
+      const prev = this.curYear - 1;
+      if (prev < 2000) return;
+      if (S.db.regionAssessArchive.some(a => a.year === prev)) return;
+      const snap = S.db.regionPartners.map(p => {
+        const deduct = S.db.complaints.filter(c => c.regionPartnerId === p.id && (c.time || '').slice(0, 4) === String(prev))
+          .reduce((a, c) => a + (Number(c.penaltyScore) || 0), 0);
+        const reward = S.db.rewards.filter(r => r.regionPartnerId === p.id && (r.time || '').slice(0, 4) === String(prev))
+          .reduce((a, r) => a + (Number(r.rewardScore) || 0), 0);
+        return { pid: p.id, name: p.name, createTime: p.createTime, score: 100 - deduct + reward, deduct, reward };
+      }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+      snap.forEach((r, i) => {
+        S.db.regionAssessArchive.push({ id: S.genId(), year: prev, partnerId: r.pid, name: r.name, createTime: r.createTime, score: r.score, deductTotal: r.deduct, rewardTotal: r.reward, rank: i + 1, archivedAt: U.now() });
+      });
+      this.selectedYear = 'current';
+    },
+    exportData() {
+      U.exportExcel('区域考核' + (this.selectedYear === 'current' ? '本年' : this.selectedYear + '年') + '.xlsx',
+        this.rows.map((r, i) => ({
+          '序号': i + 1, '区域合伙人': r.name, '年份': r.year + (r.archived ? '（已归档）' : '（进行中）'),
+          '得分': r.score, '累计扣除分数': r.deduct, '累计奖励分数': r.reward, '排名': r.rank, '合作开始时间': r.createTime
+        })));
+    }
+  },
+  watch: { selectedYear() { this.page = 1; } },
+  mounted() { this.ensureArchive(); },
+  template: `
+  <div>
+    <div class="toolbar">
+      <x-combobox v-model="selectedYear" :options="yearOpts.map(y=>({value:y,label:yearLabel(y)}))" style="width:140px"/>
+      <input type="text" v-model="kw" placeholder="区域合伙人" style="width:120px">
+      <input type="text" v-model="rankKw" placeholder="排名" style="width:80px">
+      <span style="display:inline-flex;align-items:center;gap:4px">合作开始
+        <input type="date" v-model="d1"> - <input type="date" v-model="d2"></span>
+      <div class="spacer"></div>
+      <button class="btn" @click="exportData">导出</button>
+    </div>
+    <div class="form-hint" style="margin:6px 0">得分 = 100 - 本年累计惩罚分数 + 本年累计奖励分数；每年初自动将上一年度快照归档并重置当年分数。当前为「{{yearLabel(selectedYear)}}」。</div>
+    <div class="table-wrap">
+    <table class="grid">
+      <thead><tr>
+        <th>序号</th><th>区域合伙人</th><th>年份</th><th class="num">得分</th><th class="num">累计扣除分数</th><th class="num">累计奖励分数</th><th class="num">排名</th><th>合作开始时间</th>
+      </tr></thead>
+      <tbody>
+        <tr v-for="(r,i) in paged" :key="r.pid+'-'+r.year">
+          <td data-label="序号">{{(page-1)*pageSize+i+1}}</td>
+          <td data-label="区域合伙人">{{r.name}}</td>
+          <td data-label="年份"><span class="tag" :class="r.archived?'tag-gray':'tag-blue'">{{r.year}}{{r.archived?'(已归档)':'(进行中)'}}</span></td>
+          <td class="num money" data-label="得分"><b :class="r.score<60?'red':''">{{r.score}}</b></td>
+          <td class="num" data-label="累计扣除分数">{{r.deduct}}</td>
+          <td class="num" data-label="累计奖励分数">{{r.reward}}</td>
+          <td class="num" data-label="排名"><span class="tag" :class="r.rank===1?'tag-orange':''">第 {{r.rank}} 名</span></td>
+          <td data-label="合作开始时间">{{r.createTime}}</td>
+        </tr>
+        <tr v-if="!paged.length"><td colspan="8" class="empty">暂无数据</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
+  </div>`
+};
+
 Pages['page-partners'] = {
   components: {
     'resource-partner-list': partnerListFactory(false),
-    'region-partner-list': partnerListFactory(true)
+    'region-partner-list': partnerListFactory(true),
+    'region-assess': RegionAssess
   },
   data() { return { tab: '资源合伙人' }; },
   template: `
   <div>
     <div class="page-title">合伙人管理</div>
     <div class="tabs">
-      <div class="tab" v-for="t in ['资源合伙人','区域合伙人']" :key="t" :class="{active:tab===t}" @click="tab=t">{{t}}</div>
+      <div class="tab" v-for="t in ['资源合伙人','区域合伙人','区域考核']" :key="t" :class="{active:tab===t}" @click="tab=t">{{t}}</div>
     </div>
     <div class="card">
       <resource-partner-list v-if="tab==='资源合伙人'"/>
-      <region-partner-list v-else/>
+      <region-partner-list v-else-if="tab==='区域合伙人'"/>
+      <region-assess v-else/>
     </div>
   </div>`
 };

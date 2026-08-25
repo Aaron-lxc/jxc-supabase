@@ -171,6 +171,32 @@ Pages['page-dashboard'] = {
       out.forEach((r, i) => { r.seq = i + 1; });
       return out;
     },
+    /* 客户流失预警：连续 >=60 天未下单（仅统计已完成销售单） */
+    churnAlerts() {
+      const CHURN_DAYS = 60;
+      const today = U.today();
+      const out = [];
+      S.enabled('customers').forEach(c => {
+        const orders = S.db.sales.filter(s => s.customerId === c.id && s.status === '已完成');
+        let lastOrder = '';
+        orders.forEach(s => {
+          const t = (s.finishTime || s.createTime || '').slice(0, 10);
+          if (t && (!lastOrder || t > lastOrder)) lastOrder = t;
+        });
+        const days = lastOrder ? U.daysBetween(lastOrder, today) : 9999;
+        if (days < CHURN_DAYS) return;
+        out.push({
+          seq: 0,
+          name: c.name,
+          days,
+          regionPartnerName: c.regionPartnerId ? S.name('regionPartners', c.regionPartnerId) : '-',
+          resNames: [c.r1, c.r2, c.r3].filter(Boolean).map(id => S.name('resourcePartners', id)).join('、') || '-'
+        });
+      });
+      out.sort((a, b) => b.days - a.days);
+      out.forEach((r, i) => { r.seq = i + 1; });
+      return out;
+    },
     /* ---------- 纵向分析 ---------- */
     ranking() {
       const d1 = this.vd1, d2 = this.vd2, db = S.db;
@@ -303,6 +329,10 @@ Pages['page-dashboard'] = {
         name = '超期未支付预警.xlsx'; rows = this.payAlerts;
         cols = [['序号', (r, i) => i + 1], ['客户名称', r => r.name], ['账期', r => r.period], ['应付日期', r => r.due || '-'],
           ['超期天数', r => r.days], ['超期未支付金额', r => r.amt], ['累计未支付金额', r => r.total]];
+      } else if (kind === 'churn') {
+        name = '客户流失预警.xlsx'; rows = this.churnAlerts;
+        cols = [['序号', (r, i) => r.seq], ['客户名称', r => r.name], ['未下单天数', r => r.days],
+          ['区域合伙人', r => r.regionPartnerName], ['资源合伙人', r => r.resNames]];
       } else {
         name = '仓库预警.xlsx'; rows = this.whAlerts;
         cols = [['序号', (r, i) => i + 1], ['仓库名称', r => r.name], ['仓库地址', r => r.address], ['负责人', r => r.manager],
@@ -315,7 +345,7 @@ Pages['page-dashboard'] = {
       }));
     },
     alertRows(key, all) {
-      const src = key === 'stock' ? this.stockAlerts : key === 'pay' ? this.payAlerts : key === 'expiring' ? this.expiringAlerts : this.whAlerts;
+      const src = key === 'stock' ? this.stockAlerts : key === 'pay' ? this.payAlerts : key === 'expiring' ? this.expiringAlerts : key === 'churn' ? this.churnAlerts : this.whAlerts;
       return all ? src : src.slice(0, 10);
     },
     /* ---------- 横向分析图 ---------- */
@@ -592,6 +622,23 @@ Pages['page-dashboard'] = {
               <td class="num" data-label="临期天数"><span class="tag" :class="r.days<=0?'tag-red':(r.days<=7?'tag-orange':'tag-green')">{{r.days}} 天</span></td>
               <td data-label="仓库负责人">{{r.manager}}</td><td data-label="联系电话">{{r.phone}}</td></tr>
             <tr v-if="!expiringAlerts.length"><td colspan="8" class="empty">暂无临期预警</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px">
+        <div class="section-title">客户流失预警 <span class="muted">（连续 60 天及以上未下单客户，按未下单天数从大到小）</span>
+          <span style="float:right;font-weight:400">
+            <button class="btn btn-sm" @click="expanded.churn=!expanded.churn">{{expanded.churn?'收起':'更多'}}</button>
+            <button class="btn btn-sm" @click="exportAlert('churn')">导出</button>
+          </span>
+        </div>
+        <table class="grid">
+          <thead><tr><th>序号</th><th>客户名称</th><th class="num">未下单天数</th><th>区域合伙人</th><th>资源合伙人</th></tr></thead>
+          <tbody>
+            <tr v-for="(r,i) in alertRows('churn',expanded.churn)"><td data-label="序号">{{r.seq}}</td><td data-label="客户名称">{{r.name}}</td>
+              <td class="num" data-label="未下单天数"><span class="tag" :class="r.days>=120?'tag-red':(r.days>=90?'tag-orange':'tag-gray')">{{r.days}} 天</span></td>
+              <td data-label="区域合伙人">{{r.regionPartnerName}}</td><td data-label="资源合伙人">{{r.resNames}}</td></tr>
+            <tr v-if="!churnAlerts.length"><td colspan="5" class="empty">暂无流失预警（所有客户近 60 天内均有下单）</td></tr>
           </tbody>
         </table>
       </div>

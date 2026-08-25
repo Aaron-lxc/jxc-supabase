@@ -18,6 +18,8 @@ window.Sync = {
     'warehouses', 'purchases', 'stocks', 'stockChecks',
     'sales', 'returns', 'transfers', 'productions', 'expenseCats', 'expenses',
     'complaintTypes', 'complaints',
+    'rewardTypes', 'rewards',
+    'regionAssessArchive',
     'resourceRates', 'regionRates', 'commissionPayments',
     'openingStocks', 'openingAr', 'openingAp', 'openingFunds', 'capitalInjections'
   ],

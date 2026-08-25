@@ -15,6 +15,7 @@ window.P = {
     { key: 'sales',      label: '销售管理',  ico: '💰' },
     { key: 'finance',    label: '财务管理',  ico: '💳' },
     { key: 'complaint',  label: '投诉管理',  ico: '📣' },
+    { key: 'reward',     label: '奖励管理',  ico: '🎁' },
     { key: 'commission', label: '佣金管理',  ico: '🎯' },
     { key: 'reportcenter', label: '佣金报表', ico: '📊', readonly: true },
     { key: 'report',     label: '运营报表',  ico: '📈', readonly: true },
@@ -39,7 +40,7 @@ window.P = {
       dashboard: 'view',       goods: 'edit', customers: 'edit', partners: 'view',
       warehouse: 'view', purchase: 'edit', production: 'edit', inventory: 'edit', sales: 'edit', loss: 'edit', overflow: 'edit',
       opening: 'none', capital: 'none',
-      finance: 'none', complaint: 'edit', report: 'view',
+      finance: 'none', complaint: 'edit', reward: 'edit', report: 'view',
       commission: 'none', settings: 'none'
     };
   },

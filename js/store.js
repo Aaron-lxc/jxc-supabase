@@ -24,6 +24,8 @@ window.S = {
       transfers: [], productions: [],
       expenseCats: [], expenses: [],
       complaintTypes: [], complaints: [],
+      rewardTypes: [], rewards: [],
+      regionAssessArchive: [],
       resourceRates: [], regionRates: [],
       commissionPayments: [],
       openingStocks: [], openingAr: [], openingAp: [], openingFunds: [],

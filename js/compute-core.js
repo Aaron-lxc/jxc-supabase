@@ -55,6 +55,8 @@
       sales: [], returns: [], productions: [],
       expenseCats: [], expenses: [],
       complaintTypes: [], complaints: [],
+      rewardTypes: [], rewards: [],
+      regionAssessArchive: [],
       resourceRates: [], regionRates: [], commissionPayments: [],
       openingStocks: [], openingAr: [], openingAp: [], openingFunds: [], capitalInjections: [],
       settings: {
