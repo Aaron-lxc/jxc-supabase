@@ -55,7 +55,7 @@
       sales: [], returns: [], productions: [],
       expenseCats: [], expenses: [],
       complaintTypes: [], complaints: [],
-      rewardTypes: [], rewards: [],
+      rewardTypes: [], rewards: [], dealerRewards: [],
       regionAssessArchive: [],
       resourceRates: [], regionRates: [], commissionPayments: [],
       openingStocks: [], openingAr: [], openingAp: [], openingFunds: [], capitalInjections: [],
@@ -288,6 +288,60 @@
         const pledge = this.pledgeAmount(partnerId, type);
         const payable = U.round2(Math.max(0, earned - paid - pledge));
         return { earned: U.round2(earned), paid, pledge, payable, unpaid: U.round2(earned - paid) };
+      },
+
+      /* 经销商 / 年度采购奖励（与 store.js 口径一致） */
+      dealerTypeIds() { return ((db.settings && db.settings.dealerReward && db.settings.dealerReward.typeIds) || []).map(Number).filter(Boolean); },
+      isDealer(customerId) {
+        const c = this.byId('customers', customerId);
+        if (!c) return false;
+        return this.dealerTypeIds().includes(Number(c.typeId));
+      },
+      dealerAnnualPurchase(customerId, year) {
+        const yPrefix = String(year);
+        return U.round2((db.sales || []).filter(s =>
+          s.customerId === customerId && s.status === '已完成' &&
+          (s.finishTime || s.createTime || '').slice(0, 4) === yPrefix
+        ).reduce((a, s) => a + this.saleNet(s), 0));
+      },
+      dealerRewardTier(amount) {
+        const dr = (db.settings && db.settings.dealerReward) || {};
+        const tiers = (dr.tiers || []).slice().sort((a, b) => (Number(a.min) || 0) - (Number(b.min) || 0));
+        if (!tiers.length) return null;
+        for (const t of tiers) {
+          const min = Number(t.min) || 0;
+          const max = (t.max == null || t.max === '') ? Infinity : Number(t.max);
+          if (amount >= min && amount < max) return t;
+        }
+        return tiers[tiers.length - 1];
+      },
+      dealerRewardReport(year) {
+        const ids = this.dealerTypeIds();
+        if (!ids.length) return [];
+        return (db.customers || []).filter(c => ids.includes(Number(c.typeId))).map(c => {
+          const amount = this.dealerAnnualPurchase(c.id, year);
+          const tier = this.dealerRewardTier(amount);
+          const reward = tier ? U.round2(amount * Number(tier.rate || 0) / 100) : 0;
+          return {
+            id: c.id, name: c.name, region: this.name('regions', c.regionId),
+            annualAmount: amount, tier, rewardAmount: reward,
+            prepaidBalance: this.dealerPrepaidBalance(c.id),
+            settled: this.dealerSettledAmount(c.id, year)
+          };
+        }).sort((a, b) => b.annualAmount - a.annualAmount);
+      },
+      dealerPrepaidBalance(customerId) {
+        let total = 0, used = 0;
+        (db.dealerRewards || []).forEach(r => {
+          if (r.dealerId !== customerId || r.settleType !== '预存货款') return;
+          total += Number(r.rewardAmount) || 0;
+          used += Number(r.usedAmount) || 0;
+        });
+        return U.round2(total - used);
+      },
+      dealerSettledAmount(customerId, year) {
+        return U.round2((db.dealerRewards || []).filter(r => r.dealerId === customerId && r.year === year)
+          .reduce((a, r) => a + (Number(r.rewardAmount) || 0), 0));
       },
 
       /* 库存 */

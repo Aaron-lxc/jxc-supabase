@@ -42,6 +42,7 @@
   const PAGE_FILES = {
     dashboard: 'js/pages/dashboard.js', goods: 'js/pages/goods.js',
     customers: 'js/pages/customers.js', partners: 'js/pages/partners.js',
+    dealer: 'js/pages/dealer.js',
     warehouse: 'js/pages/warehouse.js', purchase: 'js/pages/purchase.js',
     production: 'js/pages/production.js', inventory: 'js/pages/inventory.js', sales: 'js/pages/sales.js',
     finance: 'js/pages/finance.js', complaint: 'js/pages/complaint.js', reward: 'js/pages/complaint.js',

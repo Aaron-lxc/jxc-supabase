@@ -95,7 +95,7 @@ const files = [
   'js/utils.js', 'js/config.js', 'js/cloud.js', 'js/perm.js', 'js/sync.js',
   'js/store.js', 'js/demo-data.js', 'js/components.js',
   'js/pages/dashboard.js', 'js/pages/goods.js', 'js/pages/customers.js',
-  'js/pages/partners.js', 'js/pages/warehouse.js', 'js/pages/purchase.js',
+  'js/pages/dealer.js', 'js/pages/partners.js', 'js/pages/warehouse.js', 'js/pages/purchase.js',
   'js/pages/production.js',
   'js/pages/inventory.js', 'js/pages/sales.js', 'js/pages/opening.js', 'js/pages/capital.js', 'js/pages/finance.js',
   'js/pages/complaint.js', 'js/pages/report.js', 'js/pages/commission.js',
@@ -133,18 +133,18 @@ if (failures) process.exit(1);
 let asserts = 0, failed = 0;
 function ok(cond, msg) { asserts++; if (!cond) { failed++; console.error('  ✗ ' + msg); } }
 
-/* 页面数量：18 业务模块页 + 账户管理 + 报表接收人 = 20 */
-ok(Object.keys(sandbox.Pages || {}).length === 20, 'Pages 应有 20 个页面（18 模块 + members + recipientmgr）');
+/* 页面数量：19 业务模块页 + 账户管理 + 报表接收人 = 21 */
+ok(Object.keys(sandbox.Pages || {}).length === 21, 'Pages 应有 21 个页面（19 模块 + members + recipientmgr）');
 ok(!!sandbox.Pages['page-members'], '应存在 page-members 账户管理页');
 ok(!!sandbox.Pages['page-recipientmgr'], '应存在 page-recipientmgr 报表接收人页');
 
 /* 权限 / 菜单过滤 */
 sandbox.Cloud.state.ws = { id: 'w1', role: 'owner', permissions: {}, name: '测试账套' };
-ok(sandbox.P.menus().length === 20, 'owner 的菜单应为 18 模块 + 账户管理 + 报表接收人 = 20 项');
+ok(sandbox.P.menus().length === 21, 'owner 的菜单应为 19 模块 + 账户管理 + 报表接收人 = 21 项');
 sandbox.Cloud.state.ws = { id: 'w2', role: 'member', permissions: sandbox.P.defaultPermissions() };
 const mm = sandbox.P.menus();
 console.log('  [debug] member menus =', mm.map(m => m.key).join(','), '| isManager=', sandbox.P.isManager());
-ok(mm.length === 12, 'member 默认权限下菜单应为 12 项（含奖励管理，无财务/佣金/设置/账户管理）');
+ok(mm.length === 13, 'member 默认权限下菜单应为 13 项（含经销商管理，无财务/佣金/设置/账户管理）');
 ok(!mm.some(m => m.key === 'finance' || m.key === 'commission' || m.key === 'settings'),
   'member 默认不应看到 财务/佣金/设置');
 ok(sandbox.P.canEdit('goods') && !sandbox.P.canEdit('finance'), '默认权限：商品可编辑、财务不可编辑');

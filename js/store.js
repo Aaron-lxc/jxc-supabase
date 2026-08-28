@@ -25,6 +25,7 @@ window.S = {
       expenseCats: [], expenses: [],
       complaintTypes: [], complaints: [],
       rewardTypes: [], rewards: [],
+      dealerRewards: [],
       regionAssessArchive: [],
       resourceRates: [], regionRates: [],
       commissionPayments: [],
@@ -566,6 +567,116 @@ window.S = {
       if (match && c.levelId !== match.id) { c.levelId = match.id; changed++; }
     }
     return changed;
+  },
+
+  /* ------- 经销商 / 年度采购奖励 -------
+     经销商 = 客户类型（由 settings.dealerReward.typeIds 指定哪些 custTypes 算经销商）。
+     全年采购额 = 该客户当年「已完成」销售净额（saleNet，已扣退货）。
+     奖励 = 全额档：命中全局阶梯 tier.rate% × 全年采购额。
+     预存货款：奖励计提为「预存货款」后进入可用余额，销售结算时可手动抵扣。 */
+  dealerTypeIds() {
+    const dr = (this.db.settings && this.db.settings.dealerReward) || {};
+    return (dr.typeIds || []).map(Number).filter(Boolean);
+  },
+  isDealer(customerId) {
+    const c = this.byId('customers', customerId);
+    if (!c) return false;
+    return this.dealerTypeIds().includes(Number(c.typeId));
+  },
+  dealerAnnualPurchase(customerId, year) {
+    const yPrefix = String(year);
+    return U.round2((this.db.sales || []).filter(s =>
+      s.customerId === customerId && s.status === '已完成' &&
+      (s.finishTime || s.createTime || '').slice(0, 4) === yPrefix
+    ).reduce((a, s) => a + this.saleNet(s), 0));
+  },
+  dealerRewardTier(amount) {
+    const dr = (this.db.settings && this.db.settings.dealerReward) || {};
+    const tiers = (dr.tiers || []).slice().sort((a, b) => (Number(a.min) || 0) - (Number(b.min) || 0));
+    if (!tiers.length) return null;
+    for (const t of tiers) {
+      const min = Number(t.min) || 0;
+      const max = (t.max == null || t.max === '') ? Infinity : Number(t.max);
+      if (amount >= min && amount < max) return t;
+    }
+    return tiers[tiers.length - 1]; // 超出最高档也按最高档（建议最高档 max 留空=∞）
+  },
+  dealerRewardReport(year) {
+    const ids = this.dealerTypeIds();
+    if (!ids.length) return [];
+    return (this.db.customers || []).filter(c => ids.includes(Number(c.typeId))).map(c => {
+      const amount = this.dealerAnnualPurchase(c.id, year);
+      const tier = this.dealerRewardTier(amount);
+      const reward = tier ? U.round2(amount * Number(tier.rate || 0) / 100) : 0;
+      return {
+        id: c.id, name: c.name, region: this.name('regions', c.regionId),
+        annualAmount: amount, tier, rewardAmount: reward,
+        prepaidBalance: this.dealerPrepaidBalance(c.id),
+        settled: this.dealerSettledAmount(c.id, year)
+      };
+    }).sort((a, b) => b.annualAmount - a.annualAmount);
+  },
+  /* 预存货款可用余额 = Σ(预存货款类奖励金额 - 已抵扣) */
+  dealerPrepaidBalance(customerId) {
+    let total = 0, used = 0;
+    (this.db.dealerRewards || []).forEach(r => {
+      if (r.dealerId !== customerId || r.settleType !== '预存货款') return;
+      total += Number(r.rewardAmount) || 0;
+      used += Number(r.usedAmount) || 0;
+    });
+    return U.round2(total - used);
+  },
+  /* 本年已计提奖励总额（两种类型合计） */
+  dealerSettledAmount(customerId, year) {
+    return U.round2((this.db.dealerRewards || []).filter(r => r.dealerId === customerId && r.year === year)
+      .reduce((a, r) => a + (Number(r.rewardAmount) || 0), 0));
+  },
+  /* FIFO 消费预存货款：从最早记录开始扣 usedAmount */
+  applyPrepaidDeduct(customerId, amount) {
+    let remain = Number(amount) || 0;
+    if (remain <= 0) return { ok: true };
+    const list = (this.db.dealerRewards || [])
+      .filter(r => r.dealerId === customerId && r.settleType === '预存货款' &&
+        (Number(r.rewardAmount) - Number(r.usedAmount || 0) > 0))
+      .sort((a, b) => (a.year - b.year) || ((a.createdAt || '') < (b.createdAt || '') ? -1 : 1));
+    for (const r of list) {
+      if (remain <= 0) break;
+      const avail = Number(r.rewardAmount) - Number(r.usedAmount || 0);
+      const take = Math.min(avail, remain);
+      r.usedAmount = U.round2((Number(r.usedAmount || 0) + take));
+      remain = U.round2(remain - take);
+    }
+    if (remain > 0.005) return { ok: false, msg: '预存货款余额不足' };
+    return { ok: true };
+  },
+  /* 回补预存货款（撤销抵扣时） */
+  releasePrepaidDeduct(customerId, amount) {
+    let remain = Number(amount) || 0;
+    if (remain <= 0) return;
+    const list = (this.db.dealerRewards || [])
+      .filter(r => r.dealerId === customerId && r.settleType === '预存货款' && Number(r.usedAmount || 0) > 0)
+      .sort((a, b) => (b.year - a.year) || ((b.createdAt || '') < (a.createdAt || '') ? -1 : 1)); // 反向：晚的先回补
+    for (const r of list) {
+      if (remain <= 0) break;
+      const take = Math.min(Number(r.usedAmount || 0), remain);
+      r.usedAmount = U.round2((Number(r.usedAmount || 0) - take));
+      remain = U.round2(remain - take);
+    }
+  },
+  addDealerReward(rec) {
+    const existing = (this.db.dealerRewards || []).find(r => r.dealerId === rec.dealerId && r.year === rec.year);
+    if (existing) { Object.assign(existing, rec, { id: existing.id }); return existing; }
+    const data = Object.assign({ id: this.genId(), usedAmount: 0 }, rec);
+    (this.db.dealerRewards = this.db.dealerRewards || []).push(data);
+    return data;
+  },
+  deleteDealerReward(id) {
+    const r = this.byId('dealerRewards', id);
+    if (!r) return '不存在';
+    if (r.settleType === '预存货款' && (Number(r.usedAmount) || 0) > 0)
+      return '该预存货款已被销售结算抵扣 ￥' + U.fmtMoney(Number(r.usedAmount)) + '，无法删除，请先在结算中撤销抵扣';
+    this.db.dealerRewards = this.db.dealerRewards.filter(x => x.id !== id);
+    return null;
   },
 
   /* ------- 报损 / 报溢（库存管理下的两个独立核算单） -------

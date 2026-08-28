@@ -742,7 +742,7 @@ const ReturnList = {
 /* ---------------- 结算管理 ---------------- */
 const SettleList = {
   data() {
-    return { q: { cust: '', pay: '', overdue: false }, page: 1, pageSize: 10, showSettle: false, cur: null, settleForm: { method: '', actualPaid: null, deliveryFee: 0 } };
+    return { q: { cust: '', pay: '', overdue: false }, page: 1, pageSize: 10, showSettle: false, cur: null, settleForm: { method: '', actualPaid: null, deliveryFee: 0, prepaidDeduct: 0 } };
   },
   computed: {
     S() { return window.S; },
@@ -770,6 +770,14 @@ const SettleList = {
       if (!this.cur) return 0;
       const rate = S.feeRateOf(this.settleForm.method);
       return U.round2((Number(this.settleForm.actualPaid) || 0) * rate / 100);
+    },
+    /* 当前单据客户可用预存货款余额（仅经销商且存在余额时展示抵扣） */
+    prepaidAvail() {
+      if (!this.cur) return 0;
+      return S.isDealer(this.cur.s.customerId) ? S.dealerPrepaidBalance(this.cur.s.customerId) : 0;
+    },
+    totalReceived() {
+      return U.round2((Number(this.settleForm.actualPaid) || 0) + (Number(this.settleForm.prepaidDeduct) || 0));
     }
   },
   methods: {
@@ -795,29 +803,45 @@ const SettleList = {
     },
     markPaid(r) {
       this.cur = r;
-      this.settleForm = { method: r.s.payMethod || '', actualPaid: S.salePayable(r.s), deliveryFee: r.s.deliveryFee || 0 };
+      this.settleForm = { method: r.s.payMethod || '', actualPaid: S.salePayable(r.s), deliveryFee: r.s.deliveryFee || 0, prepaidDeduct: r.s.prepaidDeduct || 0 };
       this.showSettle = true;
     },
     /* 已支付单据再次修改结算（重选支付方式 / 重录实际收款，并重新计算手续费） */
     editSettle(r) {
       this.cur = r;
-      this.settleForm = { method: r.s.payMethod || '', actualPaid: r.s.actualPaid || S.salePayable(r.s), deliveryFee: r.s.deliveryFee || 0 };
+      this.settleForm = { method:  r.s.payMethod || '', actualPaid: r.s.actualPaid || S.salePayable(r.s), deliveryFee: r.s.deliveryFee || 0, prepaidDeduct: r.s.prepaidDeduct || 0 };
       this.showSettle = true;
     },
     confirmSettle() {
       const r = this.cur; if (!r) return;
       if (!this.settleForm.method) return alert('请选择支付方式');
       if (!this.settleForm.actualPaid || this.settleForm.actualPaid <= 0) return alert('请填写实际支付金额');
+      const deduct = U.round2(Number(this.settleForm.prepaidDeduct) || 0);
+      /* 改单时先回补旧抵扣，使余额恢复；再校验并扣减新抵扣 */
+      if (r.s.prepaidDeduct) S.releasePrepaidDeduct(r.s.customerId, r.s.prepaidDeduct);
+      if (deduct > 0) {
+        if (!S.isDealer(r.s.customerId)) {
+          if (r.s.prepaidDeduct) S.applyPrepaidDeduct(r.s.customerId, r.s.prepaidDeduct); // 还原旧值
+          return alert('当前客户不是经销商，不能使用预存货款抵扣');
+        }
+        const res = S.applyPrepaidDeduct(r.s.customerId, deduct);
+        if (!res.ok) {
+          if (r.s.prepaidDeduct) S.applyPrepaidDeduct(r.s.customerId, r.s.prepaidDeduct); // 还原旧值，避免余额错乱
+          return alert(res.msg);
+        }
+      }
       r.s.payMethod = this.settleForm.method;
       r.s.actualPaid = U.round2(Number(this.settleForm.actualPaid));
       r.s.fee = this.settleFee;
       r.s.deliveryFee = U.round2(Number(this.settleForm.deliveryFee) || 0);
+      r.s.prepaidDeduct = deduct;
       r.s.payStatus = '已支付';
       r.s.payTime = U.now();
       this.showSettle = false; this.cur = null;
     },
     unpay(r) {
       if (!U.confirm('撤销支付标记？该单将重新计入客户欠款，且已记录的支付方式/手续费将清空。')) return;
+      if (r.s.prepaidDeduct) { S.releasePrepaidDeduct(r.s.customerId, r.s.prepaidDeduct); r.s.prepaidDeduct = 0; }
       r.s.payStatus = '未支付';
       r.s.payMethod = r.s.payMethod || '';
       r.s.actualPaid = '';
@@ -828,7 +852,7 @@ const SettleList = {
       U.exportExcel('结算明细.xlsx', this.rows.map((r, i) => ({
         '序号': i + 1, '销售单号': r.no, '客户名称': r.cust, '账期': r.cycle,
         '销售金额': r.total, '退货金额': r.returned, '税点费用': S.saleTaxCost(r.s), '应收净额(含税)': S.salePayable(r.s),
-        '支付方式': r.s.payMethod || '', '实际收款': r.s.actualPaid || '', '手续费': r.s.fee || '', '配送费': r.delivery || 0,
+        '支付方式': r.s.payMethod || '', '实际收款': r.s.actualPaid || '', '手续费': r.s.fee || '', '配送费': r.delivery || 0, '预存货款抵扣': r.s.prepaidDeduct || 0,
         '应付日期': r.due, '超期天数': r.overdue, '支付状态': r.payStatus, '支付时间': r.payTime || ''
       })));
     }
@@ -847,7 +871,7 @@ const SettleList = {
       <thead><tr>
         <th>序号</th><th>销售单号</th><th>客户名称</th><th>账期</th>
         <th class="num">销售金额</th><th class="num">退货金额</th><th class="num">税点费用</th><th class="num">应收净额(含税)</th>
-        <th>支付方式</th><th class="num">实际收款</th><th class="num">手续费</th><th class="num">配送费</th>
+        <th>支付方式</th><th class="num">实际收款</th><th class="num">手续费</th><th class="num">配送费</th><th class="num">预存货款抵扣</th>
         <th>应付日期</th><th>超期</th><th>支付状态</th><th>支付时间</th><th>操作</th>
       </tr></thead>
       <tbody>
@@ -861,6 +885,7 @@ const SettleList = {
           <td class="num money" data-label="实际收款">{{r.s.actualPaid?fmtMoney(r.s.actualPaid):'-'}}</td>
           <td class="num money" :class="{red:r.s.fee>0}" data-label="手续费">{{r.s.fee?fmtMoney(r.s.fee):'-'}}</td>
           <td class="num money" data-label="配送费">{{r.delivery?fmtMoney(r.delivery):'-'}}</td>
+          <td class="num money" :class="{green:r.s.prepaidDeduct>0}" data-label="预存货款抵扣">{{r.s.prepaidDeduct?fmtMoney(r.s.prepaidDeduct):'-'}}</td>
           <td data-label="应付日期">{{r.due}}</td>
           <td data-label="超期"><span v-if="r.overdue>0" class="tag tag-red">超期{{r.overdue}}天</span><span v-else class="muted">-</span></td>
           <td data-label="支付状态"><x-status :v="r.payStatus"/></td><td data-label="支付时间">{{r.payTime||'-'}}</td>
@@ -872,7 +897,7 @@ const SettleList = {
             </template>
           </td>
         </tr>
-          <tr v-if="!paged.length"><td colspan="17" class="empty">暂无已完成的销售单</td></tr>
+          <tr v-if="!paged.length"><td colspan="18" class="empty">暂无已完成的销售单</td></tr>
         </tbody>
       </table>
       </div>
@@ -886,6 +911,15 @@ const SettleList = {
         <div class="form-item"><label>支付方式<b class="req">*</b></label><x-combobox v-model="settleForm.method" :options="methodOpts" placeholder="请选择"/></div>
         <div class="form-item"><label>实际支付金额<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="settleForm.actualPaid"></div>
         <div class="form-item"><label>配送费（不计入应收）</label><input type="number" min="0" step="0.01" v-model.number="settleForm.deliveryFee" placeholder="0"></div>
+        <template v-if="prepaidAvail>0">
+          <div class="form-item full"><label>可用预存货款</label>
+            <input type="text" :value="fmtMoney(prepaidAvail)" disabled>
+            <span class="muted" style="font-size:12px">该经销商往年/本年计提的预存货款余额，可在下方手动填写抵扣额</span></div>
+          <div class="form-item full"><label>预存货款抵扣（手动填写，≤可用余额）</label>
+            <input type="number" min="0" :max="prepaidAvail" step="0.01" v-model.number="settleForm.prepaidDeduct" placeholder="0"></div>
+          <div class="form-item full"><label>合计收款（现金 + 预存货款）</label>
+            <input type="text" :value="fmtMoney(totalReceived)" disabled></div>
+        </template>
         <div class="form-item full"><label>手续费（成本）</label>
           <input type="text" :value="fmtMoney(settleFee)" disabled>
           <span class="muted" style="font-size:12px">按「系统设置」中该支付方式手续费比例自动计算，结算后固定不变</span></div>
