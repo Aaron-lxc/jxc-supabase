@@ -1,5 +1,5 @@
 /* 经销商管理：经销商列表 / 奖励规则 / 奖励发放
-   经销商 = 客户类型（settings.dealerReward.typeIds 指定的 custTypes）。
+   经销商 = 客户类型（固定为 custTypes 中 name === '经销商' 的类型）。
    全年采购额 = 该客户当年已完成销售净额；奖励 = 全年采购额 × 命中阶梯比例（全额档）。
    奖励可「计提为预存货款」（进入可用余额，销售结算时手动抵扣）或「现金发放」。 */
 window.Pages = window.Pages || {};
@@ -80,7 +80,7 @@ const DealerList = {
             <span class="link" @click="detail=r">查看</span>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="9" class="empty">暂无经销商客户（请在「奖励规则」中选择经销商类型）</td></tr>
+        <tr v-if="!paged.length"><td colspan="9" class="empty">暂无客户类型为「经销商」的客户（请先在「客户类型」中添加）</td></tr>
       </tbody>
     </table>
     </div>
@@ -100,15 +100,14 @@ const DealerList = {
 /* ---------------- 奖励规则 ---------------- */
 const DealerRule = {
   data() {
-    return { form: { tiers: [], typeIds: [] } };
+    return { form: { tiers: [] } };
   },
   computed: {
     S() { return window.S; },
-    custTypes() { return S.enabled('custTypes'); }
+    dealerType() { return S.enabled('custTypes').find(x => String(x.name || '').trim() === '经销商'); }
   },
   created() {
     const dr = (S.db.settings.dealerReward) || {};
-    this.form.typeIds = (dr.typeIds || []).slice();
     this.form.tiers = (dr.tiers && dr.tiers.length)
       ? dr.tiers.map(t => ({ min: t.min, max: t.max, rate: t.rate }))
       : [{ min: 0, max: '', rate: 0 }];
@@ -122,7 +121,6 @@ const DealerRule = {
         .filter(t => t.min != null && t.min !== '')
         .map(t => ({ min: Number(t.min) || 0, max: (t.max === '' || t.max == null) ? '' : Number(t.max), rate: Number(t.rate) || 0 }))
         .sort((a, b) => a.min - b.min);
-      dr.typeIds = this.form.typeIds.map(Number).filter(Boolean);
       alert('奖励规则已保存');
     }
   },
@@ -131,12 +129,14 @@ const DealerRule = {
     <div class="card" style="padding:16px;margin-bottom:14px">
       <div class="form-grid">
         <div class="form-item full">
-          <label>选择「经销商」客户类型（多选：被勾选的客户类型视为经销商）</label>
-          <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px">
-            <label v-for="t in custTypes" :key="t.id" style="display:flex;align-items:center;gap:4px">
-              <input type="checkbox" :value="t.id" v-model="form.typeIds"> {{t.name}}
-            </label>
-            <span v-if="!custTypes.length" class="muted">请先在「客户类型」中创建类型</span>
+          <label>默认客户类型</label>
+          <div style="margin-top:6px">
+            <span v-if="dealerType" class="tag tag-blue">经销商</span>
+            <span v-else class="tag tag-red">未找到</span>
+            <span class="muted" style="margin-left:8px">系统将自动把「客户类型 = 经销商」的客户视为经销商</span>
+          </div>
+          <div v-if="!dealerType" class="form-hint" style="color:#dc2626;margin-top:6px">
+            请先在「系统设置 → 客户类型」中新增一个名为「经销商」的客户类型，否则经销商列表为空。
           </div>
         </div>
       </div>
@@ -266,7 +266,7 @@ const DealerSettle = {
             <span v-else class="muted">已抵扣</span>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="9" class="empty">暂无经销商客户（请在「奖励规则」中选择经销商类型）</td></tr>
+        <tr v-if="!paged.length"><td colspan="9" class="empty">暂无客户类型为「经销商」的客户（请先在「客户类型」中添加）</td></tr>
       </tbody>
     </table>
     </div>

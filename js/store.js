@@ -570,13 +570,13 @@ window.S = {
   },
 
   /* ------- 经销商 / 年度采购奖励 -------
-     经销商 = 客户类型（由 settings.dealerReward.typeIds 指定哪些 custTypes 算经销商）。
+     经销商 = 客户类型（固定为 custTypes 中 name === '经销商' 的类型）。
      全年采购额 = 该客户当年「已完成」销售净额（saleNet，已扣退货）。
      奖励 = 全额档：命中全局阶梯 tier.rate% × 全年采购额。
      预存货款：奖励计提为「预存货款」后进入可用余额，销售结算时可手动抵扣。 */
   dealerTypeIds() {
-    const dr = (this.db.settings && this.db.settings.dealerReward) || {};
-    return (dr.typeIds || []).map(Number).filter(Boolean);
+    const t = (this.db.custTypes || []).find(x => String(x.name || '').trim() === '经销商');
+    return t ? [Number(t.id)] : [];
   },
   isDealer(customerId) {
     const c = this.byId('customers', customerId);

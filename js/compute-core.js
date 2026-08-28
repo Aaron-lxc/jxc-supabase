@@ -291,7 +291,10 @@
       },
 
       /* 经销商 / 年度采购奖励（与 store.js 口径一致） */
-      dealerTypeIds() { return ((db.settings && db.settings.dealerReward && db.settings.dealerReward.typeIds) || []).map(Number).filter(Boolean); },
+      dealerTypeIds() {
+        const t = (db.custTypes || []).find(x => String(x.name || '').trim() === '经销商');
+        return t ? [Number(t.id)] : [];
+      },
       isDealer(customerId) {
         const c = this.byId('customers', customerId);
         if (!c) return false;
