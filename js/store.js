@@ -269,6 +269,7 @@ window.S = {
     if (!rec.lots) rec.lots = [];
     let l = rec.lots.find(x => x.batchNo === lot.batchNo);
     if (!l) { l = { batchNo: lot.batchNo, productionDate: lot.productionDate || null, qty: 0, cost: lot.cost || 0 }; rec.lots.push(l); }
+    if (lot.opened) l.opened = true;   // 透传期初标记，参与 FEFO 优先
     return l;
   },
   addLotQty(rec, lot, qty) {
@@ -289,6 +290,9 @@ window.S = {
   /* 按 FEFO(到期日升序) 排序 lots 副本；无生产日期视为不过期排最后 */
   _sortLotsFEFO(g, lots) {
     return lots.slice().sort((a, b) => {
+      /* 期初批次(opened)永远最前，确保「期初最先销售」；其余仍按 FEFO 到期日升序 */
+      const oa = a.opened ? 0 : 1, ob = b.opened ? 0 : 1;
+      if (oa !== ob) return oa - ob;
       const ea = a.productionDate ? U.addDays(a.productionDate, g.shelfLife || 0) : '9999-12-31';
       const eb = b.productionDate ? U.addDays(b.productionDate, g.shelfLife || 0) : '9999-12-31';
       if (ea !== eb) return ea < eb ? -1 : 1;
@@ -420,6 +424,23 @@ window.S = {
     }
     let seq = max + 1;
     if (seq > 99999) seq = 1;   // 超出上限回绕
+    return prefix + String(seq).padStart(5, '0');
+  },
+  /* 期初批次号：QC-启用日期-顺序号（留空自动生成，手填则用手填值） */
+  genOpeningBatch() {
+    const d = (U.today() || '').replace(/-/g, '');
+    const prefix = 'QC-' + d + '-';
+    let max = 0;
+    for (const s of (this.db.stocks || [])) {
+      for (const l of (s.lots || [])) {
+        if (l.batchNo && l.batchNo.indexOf(prefix) === 0) {
+          const n = parseInt(l.batchNo.slice(prefix.length), 10);
+          if (!isNaN(n) && n > max) max = n;
+        }
+      }
+    }
+    let seq = max + 1;
+    if (seq > 99999) seq = 1;
     return prefix + String(seq).padStart(5, '0');
   },
   addProduction(d) {
@@ -849,8 +870,10 @@ window.S = {
     (this.db.openingStocks || []).forEach(o => {
       const rec = this.stockRec(o.whId, o.goodsId, true);
       const g = this.byId('goods', o.goodsId) || {};
-      const batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? o.batchNo : ('OP-' + (o.id || ''));
-      this.addLotQty(rec, { batchNo, productionDate: o.productionDate || null, cost: Number(o.price) || 0 }, Number(o.qty));
+      let batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? String(o.batchNo).trim() : '';
+      if (!batchNo) batchNo = this.genOpeningBatch();   // 留空自动生成 QC-启用日期-顺序号
+      o.batchNo = batchNo;   // 回填，保证 reverseOpening 按同一批次号扣回
+      this.addLotQty(rec, { batchNo, productionDate: o.productionDate || null, cost: Number(o.price) || 0, opened: true }, Number(o.qty));
       if (!rec.lastInTime) rec.lastInTime = U.now();
     });
     this.db.settings.opened = true;
@@ -865,7 +888,7 @@ window.S = {
       const rec = this.stockRec(o.whId, o.goodsId, false);
       if (!rec) return;
       const g = this.byId('goods', o.goodsId) || {};
-      const batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? o.batchNo : ('OP-' + o.id);
+      const batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? o.batchNo : this.genOpeningBatch();
       this.consumeLotSelected(rec, g, Number(o.qty), batchNo);
     });
     /* 清理反初始化后数量为 0 的空库存记录（避免库存明细残留空行） */

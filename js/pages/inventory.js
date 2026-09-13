@@ -99,7 +99,7 @@ Pages['page-inventory'] = {
             whName: S.name('warehouses', s.whId), goodsName: g.name || '', typeId: g.typeId, typeName: S.name('goodsTypes', g.typeId),
             sku: g.sku || '', unitName: S.name('units', g.unitId), supplierName: S.name('suppliers', g.supplierId),
             batchNo: l.batchNo || '未分批次', productionDate: l.productionDate || '-',
-            expiryDate: ei.expiryDate || '-', days: ei.expiryDate ? ei.days : '',
+            opened: !!l.opened, expiryDate: ei.expiryDate || '-', days: ei.expiryDate ? ei.days : '',
             qty: l.qty, expiring: ei.expiring, minStock: g.minStock || 0,
             cost: U.round2(l.qty * (g.purchasePrice || 0)), value: U.round2(l.qty * (g.retailPrice || 0)),
             lastInTime: s.lastInTime || '-', lastCheckTime: s.lastCheckTime || '-'
@@ -486,7 +486,7 @@ Pages['page-inventory'] = {
           <tr v-for="(r,i) in paged" :key="r.id">
             <td data-label="序号">{{(page-1)*pageSize+i+1}}</td><td data-label="仓库名称">{{r.whName}}</td><td data-label="商品名称">{{r.goodsName}}</td><td data-label="商品类型">{{r.typeName}}</td>
             <td data-label="SKU">{{r.sku}}</td><td data-label="单位">{{r.unitName}}</td><td data-label="供应商">{{r.supplierName}}</td>
-            <td data-label="批次号">{{r.batchNo}}</td><td data-label="生产日期">{{r.productionDate}}</td><td data-label="到期日">{{r.expiryDate}}</td>
+            <td data-label="批次号">{{r.batchNo}}<span v-if="r.opened" class="tag tag-blue" style="margin-left:6px">期初</span></td><td data-label="生产日期">{{r.productionDate}}</td><td data-label="到期日">{{r.expiryDate}}</td>
             <td class="num" :class="{red: r.expiring}" data-label="临期天数">{{r.days}}</td>
             <td class="num" :class="{red: r.qty < r.minStock}" data-label="当前库存"><b>{{r.qty}}</b>
               <span v-if="r.qty < r.minStock" class="tag tag-red">低于下限</span></td>

@@ -184,7 +184,7 @@ Pages['page-opening'] = {
           <div class="form-item"><label>商品<b class="req">*</b></label><x-combobox v-model="form.goodsId" :options="goodsOpts" placeholder="请选择"/></div>
           <div class="form-item"><label>数量<b class="req">*</b></label><input type="number" min="1" v-model.number="form.qty"></div>
           <div class="form-item"><label>单价<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="form.price"></div>
-          <div class="form-item"><label>批次号</label><input type="text" v-model="form.batchNo" placeholder="留空=未分批次"></div>
+          <div class="form-item"><label>批次号<span class="muted">（留空=启用时自动生成 QC-日期-序号）</span></label><input type="text" v-model="form.batchNo" placeholder="留空=自动生成"></div>
           <div class="form-item"><label>生产日期</label><input type="date" v-model="form.productionDate"></div>
           <div class="form-item"><label>保质期(天)<span class="muted">（选商品自动带出）</span></label><input type="number" min="0" v-model.number="form.shelfLife"></div>
           <div class="form-item"><label>到期日<span class="muted">（自动计算）</span></label><input type="text" :value="openingExpiry" disabled></div>
