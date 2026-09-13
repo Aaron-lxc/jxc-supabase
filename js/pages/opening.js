@@ -48,8 +48,15 @@ Pages['page-opening'] = {
   },
   watch: {
     'form.goodsId'(v) {
-      if (v) { const g = S.byId('goods', v); if (g) this.form.shelfLife = g.shelfLife || 0; }
-      else this.form.shelfLife = 0;
+      if (v) {
+        const g = S.byId('goods', v);
+        if (g) {
+          this.form.shelfLife = g.shelfLife || 0;
+          if (this.form.price == null || this.form.price === '') this.form.price = g.purchasePrice || 0;
+        }
+      } else {
+        this.form.shelfLife = 0;
+      }
     }
   },
   methods: {
