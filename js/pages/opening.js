@@ -5,12 +5,12 @@ window.Pages = window.Pages || {};
 Pages['page-opening'] = {
   data() {
     return {
-      tab: '期初库存', busy: '', uploadingImage: false,
+      tab: '期初库存', busy: '', uploadingImageCount: 0,
       editingStockId: null,
       priceTouched: false,
       editingArId: null, editingApId: null, editingFundId: null,
       form: { whId: '', goodsId: '', qty: null, price: null, batchNo: '', productionDate: '', shelfLife: 0, remark: '' },
-      formAr: { customerId: '', amount: null, remark: '', docImage: '' },
+      formAr: { customerId: '', amount: null, remark: '', docImages: [] },
       formAp: { supplierId: '', amount: null, remark: '' },
       formFund: { payMethod: '', amount: null, remark: '' },
       /* 分页 */
@@ -29,6 +29,7 @@ Pages['page-opening'] = {
   computed: {
     S() { return window.S; },
     P() { return window.P; },
+    uploadingImage() { return this.uploadingImageCount > 0; },
     /* 有期初编辑权限即可看到添加表单 */
     canEditOpening() { return P.canEdit('opening'); },
     viewerReadOnly() { return !P.canEdit('opening') && !P.isManager(); },
@@ -168,9 +169,11 @@ Pages['page-opening'] = {
         if (this.openedAr) { this.resetArForm(); return alert('期初应收已启用，不可修改历史记录。如需调整请先由管理员「反初始化期初应收」。'); }
         const r = S.db.openingAr.find(x => x.id === this.editingArId);
         if (!r) return alert('未找到要修改的记录');
-        Object.assign(r, { customerId: f.customerId, amount: U.round2(Number(f.amount)), remark: f.remark || '', docImage: f.docImage || '' });
+        const imgs = Array.isArray(f.docImages) ? f.docImages.slice() : (f.docImage ? [f.docImage] : []);
+        Object.assign(r, { customerId: f.customerId, amount: U.round2(Number(f.amount)), remark: f.remark || '', docImages: imgs, docImage: imgs[0] || '' });
       } else {
-        const rec = { id: S.genId(), customerId: f.customerId, amount: U.round2(Number(f.amount)), remark: f.remark || '', docImage: f.docImage || '' };
+        const imgs = Array.isArray(f.docImages) ? f.docImages.slice() : (f.docImage ? [f.docImage] : []);
+        const rec = { id: S.genId(), customerId: f.customerId, amount: U.round2(Number(f.amount)), remark: f.remark || '', docImages: imgs, docImage: imgs[0] || '' };
         S.db.openingAr.push(rec);
         if (this.openedAr) { await S.persistNow(); alert('已补录期初应收。'); }   // 启用后补录：立即落库（客户台账实时计入）
       }
@@ -178,11 +181,18 @@ Pages['page-opening'] = {
     },
     editAr(r) {
       this.editingArId = r.id;
-      this.formAr = { customerId: r.customerId, amount: r.amount, remark: r.remark || '', docImage: r.docImage || '' };
+      this.formAr = { customerId: r.customerId, amount: r.amount, remark: r.remark || '', docImages: this._normDocImages(r) };
     },
-    resetArForm() { this.editingArId = null; this.formAr = { customerId: '', amount: null, remark: '', docImage: '' }; },
+    resetArForm() { this.editingArId = null; this.formAr = { customerId: '', amount: null, remark: '', docImages: [] }; },
     cancelEditAr() { this.resetArForm(); },
     delAr(r) { S.db.openingAr = S.db.openingAr.filter(x => x.id !== r.id); },
+    /* 兼容旧数据的单字符串 docImage：统一转为数组 */
+    _normDocImages(r) {
+      if (!r) return [];
+      if (Array.isArray(r.docImages)) return r.docImages.slice();
+      if (r.docImage) return [r.docImage];
+      return [];
+    },
     /* ---- 期初应付 ---- */
     async addAp() {
       const f = this.formAp;
@@ -250,21 +260,24 @@ Pages['page-opening'] = {
       await S.persistNow();
       alert(`${labels[type]}已反初始化。`);
     },
-    /* ---- 历史单据图片（仅期初应收） ---- */
+    /* ---- 历史单据图片（仅期初应收，支持多张） ---- */
     onDocImageSelect(e) {
-      const file = e.target.files && e.target.files[0];
-      if (file) this.uploadDocImage(file);
+      const files = e.target.files;
+      if (files && files.length) {
+        Array.from(files).forEach(file => this.uploadDocImage(file));
+      }
       e.target.value = '';
     },
     async uploadDocImage(file) {
-      this.uploadingImage = true;
+      this.uploadingImageCount++;
       try {
         const url = await Cloud.uploadOpeningDoc(file);
-        this.formAr.docImage = url;
+        if (!this.formAr.docImages) this.formAr.docImages = [];
+        this.formAr.docImages.push(url);
       } catch (err) {
         alert('图片上传失败：' + (err.message || err));
       } finally {
-        this.uploadingImage = false;
+        this.uploadingImageCount--;
       }
     },
     onDocImagePaste(e) {
@@ -273,8 +286,11 @@ Pages['page-opening'] = {
       if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
       const files = e.clipboardData && e.clipboardData.files;
       if (!files || !files.length) return;
-      const img = Array.from(files).find(f => f.type && f.type.startsWith('image/'));
-      if (img) { e.preventDefault(); this.uploadDocImage(img); }
+      const imgs = Array.from(files).filter(f => f.type && f.type.startsWith('image/'));
+      if (imgs.length) { e.preventDefault(); imgs.forEach(img => this.uploadDocImage(img)); }
+    },
+    removeDocImage(idx) {
+      if (this.formAr.docImages && idx >= 0 && idx < this.formAr.docImages.length) this.formAr.docImages.splice(idx, 1);
     }
   },
   template: `
@@ -369,8 +385,10 @@ Pages['page-opening'] = {
             <tr v-for="(r,i) in arPaged"><td data-label="序号">{{(pageAr-1)*sizeAr+i+1}}</td><td data-label="客户">{{S.name('customers',r.customerId)}}</td>
               <td class="num money" data-label="金额">{{fmtMoney(r.amount)}}</td><td data-label="备注">{{r.remark||'-'}}</td>
               <td data-label="历史单据">
-                <span v-if="!r.docImage" class="muted">-</span>
-                <img v-else :src="r.docImage" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer" @click="previewImage=r.docImage; showImagePreview=true">
+                <span v-if="!_normDocImages(r).length" class="muted">-</span>
+                <div v-else style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  <img v-for="(url, idx) in _normDocImages(r)" :key="idx" :src="url" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer" @click="previewImage=url; showImagePreview=true">
+                </div>
               </td>
               <td v-if="!openedAr" class="ops" data-label="操作">
                 <span class="link" @click="editAr(r)">修改</span>
@@ -387,13 +405,15 @@ Pages['page-opening'] = {
           <div class="form-item full">
             <label>历史单据</label>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <input type="file" accept="image/*" ref="arFile" style="display:none" @change="onDocImageSelect">
+              <input type="file" accept="image/*" multiple ref="arFile" style="display:none" @change="onDocImageSelect">
               <button class="btn" @click="$refs.arFile.click()">上传图片</button>
-              <span class="muted">或在此页面按 Ctrl+V 粘贴截图</span>
+              <span class="muted">或在此页面按 Ctrl+V 粘贴截图（支持多张）</span>
               <span v-if="uploadingImage" class="muted">上传中…</span>
-              <div v-if="formAr.docImage" style="display:flex;align-items:center;gap:8px">
-                <img :src="formAr.docImage" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer" @click="previewImage=formAr.docImage; showImagePreview=true">
-                <span class="link danger" @click="formAr.docImage=''">删除</span>
+              <div v-if="formAr.docImages && formAr.docImages.length" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <div v-for="(url, idx) in formAr.docImages" :key="idx" style="display:flex;align-items:center;gap:4px">
+                  <img :src="url" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer" @click="previewImage=url; showImagePreview=true">
+                  <span class="link danger" @click="removeDocImage(idx)">删除</span>
+                </div>
               </div>
             </div>
           </div>
