@@ -171,7 +171,12 @@ Pages['page-production'] = {
     onProdItemGoods(it) {
       it.batchNo = ''; it.price = null; it.productionDate = ''; it.shelfLife = 0; it.expiryDate = ''; it.goodsName = '';
       const g = it.goodsId ? S.byId('goods', it.goodsId) : null;
-      if (g) { it.unitId = g.unitId; it.goodsName = g.name; }
+      if (g) {
+        it.unitId = g.unitId; it.goodsName = g.name;
+        it.price = Number(g.purchasePrice) || 0;          // 选商品即带出采购单价
+        it.shelfLife = Number(g.shelfLife) || 0;          // 带出保质期
+      }
+      this.recalcItem(it);
     },
     onProdItemBatch(it) {
       const realBatch = (it.batchNo && it.batchNo !== '__NONE__') ? it.batchNo : null;
