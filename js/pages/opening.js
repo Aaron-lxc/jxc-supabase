@@ -19,10 +19,9 @@ Pages['page-opening'] = {
       /* 已启用期初 → 只读；或当前账号无编辑权限 */
       return S.db.settings.opened || !P.canEdit('opening');
     },
-    isManager() { return P.isManager(); },
     opened() { return S.db.settings.opened; },
     /* 非管理员且只读（无编辑权限的查看者提示） */
-    viewerReadOnly() { return this.ro && !this.isManager(); },
+    viewerReadOnly() { return this.ro && !P.isManager(); },
     /* 选项 */
     whOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('warehouses').map(w => ({ value: w.id, label: w.name }))); },
     goodsOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
@@ -92,7 +91,7 @@ Pages['page-opening'] = {
       alert('期初已启用，库存基准已并入。');
     },
     reverseOpening() {
-      if (!this.isManager()) return alert('仅创建者/管理员可执行反初始化');
+      if (!P.isManager()) return alert('仅创建者/管理员可执行反初始化');
       if (!U.confirm('确认反初始化期初？将回滚期初库存并解除只读。\n（仅当账套无任何业务数据时可反初始化）')) return;
       const err = S.reverseOpening();
       if (err) return alert(err);
@@ -211,7 +210,7 @@ Pages['page-opening'] = {
         <span class="muted">启用后库存/应收/应付/资金基准将生效，本模块转为只读。</span>
       </template>
       <template v-else>
-        <button class="btn btn-danger" v-if="isManager()" @click="reverseOpening">反初始化期初</button>
+        <button class="btn btn-danger" v-if="P.isManager()" @click="reverseOpening">反初始化期初</button>
         <span class="muted">仅创建者/管理员可反初始化；反初始化会回滚期初库存。</span>
       </template>
     </div>
