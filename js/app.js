@@ -97,7 +97,9 @@
         drawerOpen: false,
         drawerTitle: '',
         drawerFields: [],
-        selectedRow: null
+        selectedRow: null,
+        /* 侧边栏可展开的父菜单 */
+        openedMenus: {}
       };
     },
 
@@ -109,7 +111,10 @@
         const def = ['sales', 'goods', 'partners', 'customers', 'purchase'];
         const cfg = (S.db && S.db.settings && Array.isArray(S.db.settings.tabbar) && S.db.settings.tabbar.length)
           ? S.db.settings.tabbar : def;
-        const map = this.menu.reduce((acc, m) => { acc[m.key] = m; return acc; }, {});
+        const flat = [];
+        const walk = (list) => { list.forEach(m => { flat.push(m); if (m.children) walk(m.children); }); };
+        walk(this.menu);
+        const map = flat.reduce((acc, m) => { acc[m.key] = m; return acc; }, {});
         const list = cfg.map(k => map[k]).filter(Boolean);
         return list.length ? list : def.map(k => map[k]).filter(Boolean);
       },
@@ -312,6 +317,13 @@
         });
       },
       toggleNav() { this.navOpen = !this.navOpen; },
+      isMenuOpen(key) { return !!this.openedMenus[key]; },
+      toggleMenu(key) { this.openedMenus[key] = !this.openedMenus[key]; },
+      isChildActive(m) { return m.children && m.children.some(c => c.key === this.cur); },
+      goParent(m) {
+        if (m.children && m.children.length && !this.openedMenus[m.key]) this.openedMenus[m.key] = true;
+        this.go(m.key);
+      },
       initMobile() {
         try {
           const mq = window.matchMedia('(max-width: 820px)');
@@ -508,10 +520,19 @@
       <div class="layout" v-else-if="step==='app'" :class="{'nav-open': navOpen}">
         <aside class="sidebar">
           <div class="logo">进销存管理系统<small>{{company || '云端版'}}</small></div>
-          <div class="menu-item" v-for="m in menu" :key="m.key" :class="{active:cur===m.key}" @click="go(m.key)">
-            <span class="ico">{{m.ico}}</span>{{m.label}}
-            <span class="badge" v-if="m.key==='reportcenter' && unread">新</span>
-          </div>
+          <template v-for="m in menu" :key="m.key">
+            <div class="menu-item" :class="{active:cur===m.key || isChildActive(m), open:isMenuOpen(m.key)}" @click="goParent(m)">
+              <span class="ico">{{m.ico}}</span>{{m.label}}
+              <span class="badge" v-if="m.key==='reportcenter' && unread">新</span>
+              <span v-if="m.children && m.children.length" class="arrow" @click.stop="toggleMenu(m.key)">▶</span>
+            </div>
+            <div v-if="m.children && m.children.length && isMenuOpen(m.key)" class="sub-menu">
+              <div class="menu-item sub" v-for="c in m.children" :key="c.key" :class="{active:cur===c.key}" @click="go(c.key)">
+                <span class="ico">{{c.ico}}</span>{{c.label}}
+                <span class="badge" v-if="c.key==='reportcenter' && unread">新</span>
+              </div>
+            </div>
+          </template>
         </aside>
         <div class="nav-overlay" @click="navOpen=false"></div>
         <main class="content">

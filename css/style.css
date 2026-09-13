@@ -28,6 +28,14 @@ aside.sidebar {
   margin-left: auto; background: #e53935; color: #fff; font-size: 11px; line-height: 16px;
   min-width: 16px; height: 16px; border-radius: 8px; padding: 0 5px; text-align: center;
 }
+.menu-item .arrow {
+  margin-left: auto; font-size: 10px; color: #94a3b8; transition: transform .15s;
+}
+.menu-item.open .arrow { transform: rotate(90deg); color: #fff; }
+.sub-menu { background: #0b1120; border-left: 3px solid transparent; }
+.menu-item.sub { padding-left: 32px; font-size: 13px; }
+.menu-item.sub:hover { background: #162032; }
+.menu-item.sub.active { background: #1e40af; color: #fff; border-left-color: #60a5fa; }
 
 main.content { flex: 1; overflow-y: auto; padding: 16px 20px; }
 

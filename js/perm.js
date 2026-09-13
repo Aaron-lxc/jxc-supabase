@@ -4,7 +4,11 @@ window.P = {
   MODULES: [
     { key: 'dashboard',  label: '仪表盘',    ico: '📊', readonly: true },
     { key: 'goods',      label: '商品管理',  ico: '📦' },
-    { key: 'partners',   label: '合伙人管理', ico: '🤝' },
+    { key: 'partners',   label: '合伙人管理', ico: '🤝', children: [
+      { key: 'reward',     label: '奖励管理',  ico: '🎁' },
+      { key: 'commission', label: '佣金管理',  ico: '🎯' },
+      { key: 'reportcenter', label: '佣金报表', ico: '📊', readonly: true }
+    ]},
     { key: 'customers',  label: '客户管理',  ico: '👥' },
     { key: 'dealer',     label: '经销商管理', ico: '🏬' },
     { key: 'warehouse',  label: '仓库管理',  ico: '🏬' },
@@ -16,9 +20,9 @@ window.P = {
     { key: 'sales',      label: '销售管理',  ico: '💰' },
     { key: 'finance',    label: '财务管理',  ico: '💳' },
     { key: 'complaint',  label: '投诉管理',  ico: '📣' },
-    { key: 'reward',     label: '奖励管理',  ico: '🎁' },
-    { key: 'commission', label: '佣金管理',  ico: '🎯' },
-    { key: 'reportcenter', label: '佣金报表', ico: '📊', readonly: true },
+    { key: 'reward',     label: '奖励管理',  ico: '🎁', hidden: true },
+    { key: 'commission', label: '佣金管理',  ico: '🎯', hidden: true },
+    { key: 'reportcenter', label: '佣金报表', ico: '📊', readonly: true, hidden: true },
     { key: 'report',     label: '运营报表',  ico: '📈', readonly: true },
     { key: 'capital',    label: '注资管理',  ico: '🏦' },
     { key: 'opening',    label: '期初管理',  ico: '🗓️' },
@@ -81,8 +85,17 @@ window.P = {
   menus() {
     // 纯接收人（非管理者）独占报表中心；管理者保留全部菜单并额外带报表中心入口
     if (this.isRecipient() && !this.isManager()) return [{ key: 'reportcenter', label: '佣金报表', ico: '📊' }];
+    const mapChildren = (children) => (children || []).filter(c => this.canView(c.key))
+      .map(c => ({ key: c.key, label: c.label, ico: c.ico, readonly: c.readonly }));
     const list = this.MODULES.filter(m => !m.hidden && this.canView(m.key))
-      .map(m => ({ key: m.key, label: m.label, ico: m.ico }));
+      .map(m => {
+        const item = { key: m.key, label: m.label, ico: m.ico };
+        if (m.children) {
+          const children = mapChildren(m.children);
+          if (children.length) item.children = children;
+        }
+        return item;
+      });
     if (this.isManager()) {
       // 账户管理 / 报表接收人 插入在「运营报表」之后、「注资管理」之前（按指定顺序排列）
       const extra = [{ ...this.MEMBER_MENU }, { ...this.RECIPIENT_MENU }];

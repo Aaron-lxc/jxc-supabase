@@ -140,13 +140,18 @@ ok(!!sandbox.Pages['page-recipientmgr'], '应存在 page-recipientmgr 报表接�
 
 /* 权限 / 菜单过滤 */
 sandbox.Cloud.state.ws = { id: 'w1', role: 'owner', permissions: {}, name: '测试账套' };
-ok(sandbox.P.menus().length === 21, 'owner 的菜单应为 19 模块 + 账户管理 + 报表接收人 = 21 项');
+const om = sandbox.P.menus();
+ok(om.length === 18, 'owner 的菜单应为 16 个可见顶级模块 + 账户管理 + 报表接收人 = 18 项');
+ok(om.find(m => m.key === 'partners') && om.find(m => m.key === 'partners').children.length === 3,
+  'owner 的合伙人管理下应展开 3 个子菜单');
 sandbox.Cloud.state.ws = { id: 'w2', role: 'member', permissions: sandbox.P.defaultPermissions() };
 const mm = sandbox.P.menus();
 console.log('  [debug] member menus =', mm.map(m => m.key).join(','), '| isManager=', sandbox.P.isManager());
-ok(mm.length === 13, 'member 默认权限下菜单应为 13 项（含经销商管理，无财务/佣金/设置/账户管理）');
+ok(mm.length === 12, 'member 默认权限下菜单应为 12 项（合伙人管理折叠后含奖励管理、佣金报表，无佣金管理/财务/设置/账户管理）');
 ok(!mm.some(m => m.key === 'finance' || m.key === 'commission' || m.key === 'settings'),
   'member 默认不应看到 财务/佣金/设置');
+ok(mm.find(m => m.key === 'partners') && mm.find(m => m.key === 'partners').children.some(c => c.key === 'reward'),
+  'member 默认在合伙人管理下可看到奖励管理');
 ok(sandbox.P.canEdit('goods') && !sandbox.P.canEdit('finance'), '默认权限：商品可编辑、财务不可编辑');
 ok(sandbox.P.isManager() === false, 'member 不是管理员');
 
