@@ -99,17 +99,20 @@ Pages['page-opening'] = {
     },
     delFund(r) { S.db.openingFunds = S.db.openingFunds.filter(x => x.id !== r.id); },
     /* ---- 启用 / 反初始化 ---- */
-    enableOpening() {
+    async enableOpening() {
+      if (!S.db.openingStocks || !S.db.openingStocks.length) return alert('请先在上方「期初库存」中添加至少一条数据，再启用期初。');
       if (!U.confirm('确认启用期初？启用后本模块将只读，且期初库存将并入正式库存。\n（仅当账套无任何业务数据时可启用）')) return;
       const err = S.applyOpening();
       if (err) return alert(err);
-      alert('期初已启用，库存基准已并入。');
+      await S.persistNow();   // 立即把并入的库存与「已启用」状态落库，避免刷新/切换后丢失
+      alert('期初已启用，库存基准已并入并保存。');
     },
-    reverseOpening() {
+    async reverseOpening() {
       if (!P.isManager()) return alert('仅创建者/管理员可执行反初始化');
       if (!U.confirm('确认反初始化期初？将回滚期初库存并解除只读。\n（仅当账套无任何业务数据时可反初始化）')) return;
       const err = S.reverseOpening();
       if (err) return alert(err);
+      await S.persistNow();
       alert('期初已反初始化。');
     }
   },
