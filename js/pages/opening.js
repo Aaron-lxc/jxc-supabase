@@ -23,6 +23,8 @@ Pages['page-opening'] = {
     opened() { return S.db.settings.opened; },
     /* 非管理员且只读（无编辑权限的查看者提示） */
     viewerReadOnly() { return this.ro && !P.isManager(); },
+    /* 有期初编辑权限即可看到添加表单（已启用时仅允许新增补录，不允许改/删历史） */
+    canEditOpening() { return P.canEdit('opening'); },
     /* 选项 */
     whOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('warehouses').map(w => ({ value: w.id, label: w.name }))); },
     goodsOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
@@ -64,13 +66,17 @@ Pages['page-opening'] = {
     fmtMoney: U.fmtMoney,
     openTab(t) { this.tab = t; },
     /* ---- 期初库存 ---- */
-    addStock() {
+    async addStock() {
       const f = this.form;
       if (!f.whId) return alert('请选择仓库');
       if (!f.goodsId) return alert('请选择商品');
       if (!f.qty || f.qty <= 0) return alert('请填写数量');
       if (f.price == null || f.price < 0) return alert('请填写单价');
       if (this.editingStockId) {
+        if (S.db.settings.opened) {   // 已启用时不许改历史
+          this.resetStockForm();
+          return alert('期初已启用，不可修改历史记录。如需调整请先由管理员「反初始化」。');
+        }
         const r = S.db.openingStocks.find(x => x.id === this.editingStockId);
         if (!r) return alert('未找到要修改的记录');
         Object.assign(r, {
@@ -79,12 +85,18 @@ Pages['page-opening'] = {
           shelfLife: Number(f.shelfLife) || 0, remark: f.remark || ''
         });
       } else {
-        S.db.openingStocks.push({
+        const rec = {
           id: S.genId(), whId: f.whId, goodsId: f.goodsId,
           qty: Number(f.qty), price: Number(f.price),
           batchNo: f.batchNo || '', productionDate: f.productionDate || null,
           shelfLife: Number(f.shelfLife) || 0, remark: f.remark || ''
-        });
+        };
+        S.db.openingStocks.push(rec);
+        if (S.db.settings.opened) {   // 启用后补录：立即并入正式库存并保存
+          S.applyOpeningOne(rec);
+          await S.persistNow();
+          alert('已补录期初库存并并入现有库存。');
+        }
       }
       this.resetStockForm();
     },
@@ -162,7 +174,7 @@ Pages['page-opening'] = {
 
     <!-- 只读提示 -->
     <div v-if="viewerReadOnly" class="form-hint" style="margin:10px 0">当前账号对「期初管理」仅有查看权限，且期初已启用为只读，如需修改请联系账套管理员。</div>
-    <div v-if="opened" class="form-hint" style="margin:10px 0">期初已启用，数据为只读。如需调整请由创建者/管理员「反初始化」后修改。</div>
+    <div v-if="opened" class="form-hint" style="margin:10px 0">期初已启用：历史记录为只读，但下方仍可<b>补录新增期初库存</b>（遗漏商品直接加，立即并入现有库存）；如需修改/删除历史记录，请由创建者/管理员「反初始化」。</div>
 
     <div class="card">
       <!-- 期初库存 -->
@@ -188,8 +200,8 @@ Pages['page-opening'] = {
             <tr v-if="!stockRows.length"><td colspan="12" class="empty">暂无期初库存</td></tr>
           </tbody>
         </table>
-        <div v-if="!ro" class="form-grid" style="margin-top:12px">
-          <div v-if="editingStockId" class="form-hint full" style="margin-bottom:4px">正在修改期初库存，保存后生效。</div>
+        <div v-if="canEditOpening" class="form-grid" style="margin-top:12px">
+          <div v-if="editingStockId && !opened" class="form-hint full" style="margin-bottom:4px">正在修改期初库存，保存后生效。</div>
           <div class="form-item"><label>仓库<b class="req">*</b></label><x-combobox v-model="form.whId" :options="whOpts" placeholder="请选择"/></div>
           <div class="form-item"><label>商品<b class="req">*</b></label><x-combobox v-model="form.goodsId" :options="goodsOpts" placeholder="请选择"/></div>
           <div class="form-item"><label>数量<b class="req">*</b></label><input type="number" min="1" v-model.number="form.qty"></div>

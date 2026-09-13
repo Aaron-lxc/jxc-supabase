@@ -880,6 +880,16 @@ window.S = {
     this.db.settings.openTime = U.now();
     return null;
   },
+  applyOpeningOne(o) {
+    /* 启用后期初补录：将单条期初库存并入正式库存（批次级，带 opened 标记，与 applyOpening 同源） */
+    const rec = this.stockRec(o.whId, o.goodsId, true);
+    let batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? String(o.batchNo).trim() : '';
+    if (!batchNo) batchNo = this.genOpeningBatch();   // 留空自动生成 QC-启用日期-顺序号
+    o.batchNo = batchNo;   // 回填，保证 reverseOpening 按同一批次号扣回
+    this.addLotQty(rec, { batchNo, productionDate: o.productionDate || null, cost: Number(o.price) || 0, opened: true }, Number(o.qty));
+    if (!rec.lastInTime) rec.lastInTime = U.now();
+    return null;
+  },
   reverseOpening() {
     if (!this.db.settings.opened) return '账套尚未启用期初';
     if (this.hasBusinessData()) return '当前账套已存在业务数据（采购/销售/退货/已计算运营支出），无法反初始化期初，请先清空业务数据';
