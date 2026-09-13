@@ -181,13 +181,13 @@ Pages['page-opening'] = {
     },
     editAr(r) {
       this.editingArId = r.id;
-      this.formAr = { customerId: r.customerId, amount: r.amount, remark: r.remark || '', docImages: this._normDocImages(r) };
+      this.formAr = { customerId: r.customerId, amount: r.amount, remark: r.remark || '', docImages: this.normDocImages(r) };
     },
     resetArForm() { this.editingArId = null; this.formAr = { customerId: '', amount: null, remark: '', docImages: [] }; },
     cancelEditAr() { this.resetArForm(); },
     delAr(r) { S.db.openingAr = S.db.openingAr.filter(x => x.id !== r.id); },
     /* 兼容旧数据的单字符串 docImage：统一转为数组 */
-    _normDocImages(r) {
+    normDocImages(r) {
       if (!r) return [];
       if (Array.isArray(r.docImages)) return r.docImages.slice();
       if (r.docImage) return [r.docImage];
@@ -385,9 +385,9 @@ Pages['page-opening'] = {
             <tr v-for="(r,i) in arPaged"><td data-label="序号">{{(pageAr-1)*sizeAr+i+1}}</td><td data-label="客户">{{S.name('customers',r.customerId)}}</td>
               <td class="num money" data-label="金额">{{fmtMoney(r.amount)}}</td><td data-label="备注">{{r.remark||'-'}}</td>
               <td data-label="历史单据">
-                <span v-if="!_normDocImages(r).length" class="muted">-</span>
+                <span v-if="!normDocImages(r).length" class="muted">-</span>
                 <div v-else style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-                  <img v-for="(url, idx) in _normDocImages(r)" :key="idx" :src="url" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer" @click="previewImage=url; showImagePreview=true">
+                  <img v-for="(url, idx) in normDocImages(r)" :key="idx" :src="url" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer" @click="previewImage=url; showImagePreview=true">
                 </div>
               </td>
               <td v-if="!openedAr" class="ops" data-label="操作">
