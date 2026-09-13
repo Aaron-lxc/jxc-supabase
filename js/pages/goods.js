@@ -209,7 +209,7 @@ const SupplierList = {
     payableAmt(s) {
       /* 供应商累计应付 = 累计采购额 + 启用后的期初应付（与期初库存口径一致：启用后生效） */
       let amt = this.purchaseAmt(s);
-      if (S.db.settings.opened) amt += S.supplierOpeningAp(s.id);
+      if (S.db.settings.openingFlags.ap) amt += S.supplierOpeningAp(s.id);
       return U.round2(amt);
     },
     blank() {

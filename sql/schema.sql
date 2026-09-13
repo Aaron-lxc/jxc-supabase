@@ -500,6 +500,21 @@ end $$;
 alter table public.records replica identity full;
 
 -- ============================================================================
+-- 七、Storage（期初应收历史单据图片）
+-- ============================================================================
+insert into storage.buckets (id, name, public) values ('opening-docs', 'opening-docs', true)
+on conflict (id) do nothing;
+
+create policy if not exists "opening-docs select" on storage.objects
+  for select to authenticated using (bucket_id = 'opening-docs');
+
+create policy if not exists "opening-docs insert" on storage.objects
+  for insert to authenticated with check (bucket_id = 'opening-docs');
+
+create policy if not exists "opening-docs delete" on storage.objects
+  for delete to authenticated using (bucket_id = 'opening-docs' and storage.foldername(name)[2] = auth.uid()::text);
+
+-- ============================================================================
 -- 完成。返回一行提示。
 -- ============================================================================
 select '进销存管理系统 · Supabase 初始化完成' as status;

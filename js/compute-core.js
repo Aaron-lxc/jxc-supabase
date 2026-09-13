@@ -61,7 +61,9 @@
       openingStocks: [], openingAr: [], openingAp: [], openingFunds: [], capitalInjections: [],
       settings: {
         company: '我的公司', fixedCosts: [], backupKeep: 20, backupDays: 0,
-        saleTemplate: null, opened: false, openTime: '',
+        saleTemplate: null,
+        openingFlags: { stock: false, ar: false, ap: false, funds: false },
+        openingTimes: { stock: '', ar: '', ap: '', funds: '' },
         feeRates: { '现金': 0, '微信': 0, '支付宝': 0, '收款码': 0, '对公': 0, '银行卡': 0, '其他': 0 }
       }
     };
@@ -103,8 +105,24 @@
     for (const k of Object.keys(base)) if (db.settings[k] === undefined) db.settings[k] = base[k];
     if (!db.settings.feeRates || typeof db.settings.feeRates !== 'object') db.settings.feeRates = Object.assign({}, base.feeRates);
     else for (const m of Object.keys(base.feeRates)) if (db.settings.feeRates[m] === undefined) db.settings.feeRates[m] = base.feeRates[m];
-    if (db.settings.opened === undefined) db.settings.opened = false;
-    if (db.settings.openTime === undefined) db.settings.openTime = '';
+    /* 迁移旧版全局 opened/openTime → 按 Tab 的 openingFlags/openingTimes */
+    if (db.settings.opened === true) {
+      const t = db.settings.openTime || '';
+      db.settings.openingFlags = { stock: true, ar: true, ap: true, funds: true };
+      db.settings.openingTimes = { stock: t, ar: t, ap: t, funds: t };
+    }
+    if (!db.settings.openingFlags || typeof db.settings.openingFlags !== 'object') {
+      db.settings.openingFlags = { stock: false, ar: false, ap: false, funds: false };
+    } else {
+      for (const k of ['stock', 'ar', 'ap', 'funds']) if (db.settings.openingFlags[k] === undefined) db.settings.openingFlags[k] = false;
+    }
+    if (!db.settings.openingTimes || typeof db.settings.openingTimes !== 'object') {
+      db.settings.openingTimes = { stock: '', ar: '', ap: '', funds: '' };
+    } else {
+      for (const k of ['stock', 'ar', 'ap', 'funds']) if (db.settings.openingTimes[k] === undefined) db.settings.openingTimes[k] = '';
+    }
+    delete db.settings.opened;
+    delete db.settings.openTime;
   }
 
   /* ---------------- 计算引擎 ---------------- */

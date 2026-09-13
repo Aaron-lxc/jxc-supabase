@@ -281,6 +281,20 @@ window.Cloud = {
     if (w) this.state.ws = w;
   },
 
+  /* ---------- 文件存储：期初历史单据图片 ---------- */
+  async uploadOpeningDoc(file) {
+    if (!this.sb) throw new Error('未连接云端');
+    if (!this.state.ws) throw new Error('未选择账套');
+    const ws = this.state.ws.id;
+    const uid = this.state.user ? this.state.user.id : 'anon';
+    const ext = (file.name && file.name.split('.').pop()) || 'png';
+    const path = `${ws}/${uid}/${Date.now()}.${ext}`;
+    const { error } = await this.sb.storage.from('opening-docs').upload(path, file, { contentType: file.type || 'image/png' });
+    if (error) throw error;
+    const { data } = this.sb.storage.from('opening-docs').getPublicUrl(path);
+    return data.publicUrl;
+  },
+
   _dbErr(error) {
     const m = String(error.message || error);
     if (/could not find the function|function .* does not exist|schema cache/i.test(m)) {

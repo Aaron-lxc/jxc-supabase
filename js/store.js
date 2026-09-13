@@ -34,7 +34,8 @@ window.S = {
       settings: {
         company: '我的公司', fixedCosts: [], backupKeep: 20, backupDays: 0,
         saleTemplate: null,
-        opened: false, openTime: '',
+        openingFlags: { stock: false, ar: false, ap: false, funds: false },
+        openingTimes: { stock: '', ar: '', ap: '', funds: '' },
         tabbar: null,
         feeRates: { '现金': 0, '微信': 0, '支付宝': 0, '收款码': 0, '对公': 0, '银行卡': 0, '其他': 0 }
       }
@@ -140,8 +141,24 @@ window.S = {
         if (db.settings.feeRates[m] === undefined) db.settings.feeRates[m] = base.feeRates[m];
       }
     }
-    if (db.settings.opened === undefined) db.settings.opened = false;
-    if (db.settings.openTime === undefined) db.settings.openTime = '';
+    /* 迁移旧版全局 opened/openTime → 按 Tab 的 openingFlags/openingTimes */
+    if (db.settings.opened === true) {
+      const t = db.settings.openTime || '';
+      db.settings.openingFlags = { stock: true, ar: true, ap: true, funds: true };
+      db.settings.openingTimes = { stock: t, ar: t, ap: t, funds: t };
+    }
+    if (!db.settings.openingFlags || typeof db.settings.openingFlags !== 'object') {
+      db.settings.openingFlags = { stock: false, ar: false, ap: false, funds: false };
+    } else {
+      for (const k of ['stock', 'ar', 'ap', 'funds']) if (db.settings.openingFlags[k] === undefined) db.settings.openingFlags[k] = false;
+    }
+    if (!db.settings.openingTimes || typeof db.settings.openingTimes !== 'object') {
+      db.settings.openingTimes = { stock: '', ar: '', ap: '', funds: '' };
+    } else {
+      for (const k of ['stock', 'ar', 'ap', 'funds']) if (db.settings.openingTimes[k] === undefined) db.settings.openingTimes[k] = '';
+    }
+    delete db.settings.opened;
+    delete db.settings.openTime;
     /* 期初资金旧数据（仅有 type/name）补齐 payMethod，兼容历史 / 演示数据 */
     (db.openingFunds || []).forEach(x => {
       if (!x.payMethod) x.payMethod = (window.PAY_METHODS && window.PAY_METHODS.indexOf(x.type) >= 0) ? x.type : '现金';
@@ -863,21 +880,44 @@ window.S = {
       || (d.returns && d.returns.length) || (d.expenses && d.expenses.some(x => x.status === '已计算'))
     );
   },
-  applyOpening() {
-    if (this.db.settings.opened) return '账套已启用期初，无需重复启用';
-    if (this.hasBusinessData()) return '当前账套已存在业务数据（采购/销售/退货/已计算运营支出），无法启用期初，请先清空业务数据后再启用';
-    /* 期初库存并入 stocks（批次级，与采购同源：写入 lots，后续采购/销售/临期逻辑无缝衔接） */
-    (this.db.openingStocks || []).forEach(o => {
-      const rec = this.stockRec(o.whId, o.goodsId, true);
-      const g = this.byId('goods', o.goodsId) || {};
-      let batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? String(o.batchNo).trim() : '';
-      if (!batchNo) batchNo = this.genOpeningBatch();   // 留空自动生成 QC-启用日期-顺序号
-      o.batchNo = batchNo;   // 回填，保证 reverseOpening 按同一批次号扣回
-      this.addLotQty(rec, { batchNo, productionDate: o.productionDate || null, cost: Number(o.price) || 0, opened: true }, Number(o.qty));
-      if (!rec.lastInTime) rec.lastInTime = U.now();
-    });
-    this.db.settings.opened = true;
-    this.db.settings.openTime = U.now();
+  /* 按 Tab 检查是否存在后续业务数据，用于限制各自启用/反初始化 */
+  hasOpeningBusinessData(type) {
+    const d = this.db;
+    switch (type) {
+      case 'stock': return !!(d.purchases?.length || d.sales?.length || d.returns?.length || d.transfers?.length || d.productions?.length || d.losses?.length || d.overflows?.length);
+      case 'ar':    return !!(d.sales?.length || d.returns?.length);
+      case 'ap':    return !!(d.purchases?.length);
+      case 'funds': return !!(d.expenses?.length || d.capitalInjections?.length);
+      default:      return false;
+    }
+  },
+  applyOpening(type) {
+    const flags = this.db.settings.openingFlags;
+    const labels = { stock: '库存', ar: '应收', ap: '应付', funds: '资金' };
+    if (flags[type]) return `期初${labels[type]}已启用，无需重复启用`;
+    if (this.hasOpeningBusinessData(type)) {
+      const msgs = {
+        stock: '当前账套已存在业务数据（采购/销售/退货/调拨/生产/报损/报溢），无法启用期初库存',
+        ar: '当前账套已存在销售/退货数据，无法启用期初应收',
+        ap: '当前账套已存在采购数据，无法启用期初应付',
+        funds: '当前账套已存在运营支出/注资数据，无法启用期初资金'
+      };
+      return msgs[type] || '当前账套已存在业务数据';
+    }
+    if (type === 'stock') {
+      /* 期初库存并入 stocks（批次级，与采购同源：写入 lots，后续采购/销售/临期逻辑无缝衔接） */
+      (this.db.openingStocks || []).forEach(o => {
+        const rec = this.stockRec(o.whId, o.goodsId, true);
+        const g = this.byId('goods', o.goodsId) || {};
+        let batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? String(o.batchNo).trim() : '';
+        if (!batchNo) batchNo = this.genOpeningBatch();   // 留空自动生成 QC-启用日期-顺序号
+        o.batchNo = batchNo;   // 回填，保证 reverseOpening 按同一批次号扣回
+        this.addLotQty(rec, { batchNo, productionDate: o.productionDate || null, cost: Number(o.price) || 0, opened: true }, Number(o.qty));
+        if (!rec.lastInTime) rec.lastInTime = U.now();
+      });
+    }
+    flags[type] = true;
+    this.db.settings.openingTimes[type] = U.now();
     return null;
   },
   applyOpeningOne(o) {
@@ -890,21 +930,33 @@ window.S = {
     if (!rec.lastInTime) rec.lastInTime = U.now();
     return null;
   },
-  reverseOpening() {
-    if (!this.db.settings.opened) return '账套尚未启用期初';
-    if (this.hasBusinessData()) return '当前账套已存在业务数据（采购/销售/退货/已计算运营支出），无法反初始化期初，请先清空业务数据';
-    /* 回滚期初库存（批次级按期初批次扣回；扣空后清理残留的空 stock 记录） */
-    (this.db.openingStocks || []).forEach(o => {
-      const rec = this.stockRec(o.whId, o.goodsId, false);
-      if (!rec) return;
-      const g = this.byId('goods', o.goodsId) || {};
-      const batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? o.batchNo : this.genOpeningBatch();
-      this.consumeLotSelected(rec, g, Number(o.qty), batchNo);
-    });
-    /* 清理反初始化后数量为 0 的空库存记录（避免库存明细残留空行） */
-    this.db.stocks = this.db.stocks.filter(s => Number(s.qty) > 0);
-    this.db.settings.opened = false;
-    this.db.settings.openTime = '';
+  reverseOpening(type) {
+    const flags = this.db.settings.openingFlags;
+    const labels = { stock: '库存', ar: '应收', ap: '应付', funds: '资金' };
+    if (!flags[type]) return `期初${labels[type]}尚未启用`;
+    if (this.hasOpeningBusinessData(type)) {
+      const msgs = {
+        stock: '当前账套已存在业务数据（采购/销售/退货/调拨/生产/报损/报溢），无法反初始化期初库存',
+        ar: '当前账套已存在销售/退货数据，无法反初始化期初应收',
+        ap: '当前账套已存在采购数据，无法反初始化期初应付',
+        funds: '当前账套已存在运营支出/注资数据，无法反初始化期初资金'
+      };
+      return msgs[type] || '当前账套已存在业务数据';
+    }
+    if (type === 'stock') {
+      /* 回滚期初库存（批次级按期初批次扣回；扣空后清理残留的空 stock 记录） */
+      (this.db.openingStocks || []).forEach(o => {
+        const rec = this.stockRec(o.whId, o.goodsId, false);
+        if (!rec) return;
+        const g = this.byId('goods', o.goodsId) || {};
+        const batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? o.batchNo : this.genOpeningBatch();
+        this.consumeLotSelected(rec, g, Number(o.qty), batchNo);
+      });
+      /* 清理反初始化后数量为 0 的空库存记录（避免库存明细残留空行） */
+      this.db.stocks = this.db.stocks.filter(s => Number(s.qty) > 0);
+    }
+    flags[type] = false;
+    this.db.settings.openingTimes[type] = '';
     return null;
   },
   custOpeningAr(custId) {
@@ -1062,7 +1114,7 @@ window.S = {
     let amt = this.db.sales
       .filter(s => s.customerId === custId && s.status === '已完成' && s.payStatus !== '已支付')
       .reduce((a, s) => a + this.salePayable(s), 0);
-    if (this.db.settings.opened) amt += this.custOpeningAr(custId);   // 期初应收计入客户台账（启用后生效）
+    if (this.db.settings.openingFlags.ar) amt += this.custOpeningAr(custId);   // 期初应收计入客户台账（启用后生效）
     return U.round2(amt);
   },
   custOverdueArrears(custId) {
