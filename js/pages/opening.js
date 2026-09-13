@@ -6,6 +6,7 @@ Pages['page-opening'] = {
   data() {
     return {
       tab: '期初库存', busy: '', editingStockId: null,
+      priceTouched: false,
       form: { whId: '', goodsId: '', qty: null, price: null, batchNo: '', productionDate: '', shelfLife: 0, remark: '' },
       formAr: { customerId: '', amount: null, remark: '' },
       formAp: { supplierId: '', amount: null, remark: '' },
@@ -52,7 +53,7 @@ Pages['page-opening'] = {
         const g = S.byId('goods', v);
         if (g) {
           this.form.shelfLife = g.shelfLife || 0;
-          if (this.form.price == null || this.form.price === '') this.form.price = g.purchasePrice || 0;
+          if (!this.priceTouched) this.form.price = g.purchasePrice || 0;
         }
       } else {
         this.form.shelfLife = 0;
@@ -89,6 +90,7 @@ Pages['page-opening'] = {
     },
     editStock(r) {
       this.editingStockId = r.id;
+      this.priceTouched = false;
       this.form = {
         whId: r.whId, goodsId: r.goodsId, qty: r.qty, price: r.price,
         batchNo: r.batchNo || '', productionDate: r.productionDate || '',
@@ -97,6 +99,7 @@ Pages['page-opening'] = {
     },
     resetStockForm() {
       this.editingStockId = null;
+      this.priceTouched = false;
       this.form = { whId: '', goodsId: '', qty: null, price: null, batchNo: '', productionDate: '', shelfLife: 0, remark: '' };
     },
     cancelEditStock() { this.resetStockForm(); },
@@ -190,7 +193,7 @@ Pages['page-opening'] = {
           <div class="form-item"><label>仓库<b class="req">*</b></label><x-combobox v-model="form.whId" :options="whOpts" placeholder="请选择"/></div>
           <div class="form-item"><label>商品<b class="req">*</b></label><x-combobox v-model="form.goodsId" :options="goodsOpts" placeholder="请选择"/></div>
           <div class="form-item"><label>数量<b class="req">*</b></label><input type="number" min="1" v-model.number="form.qty"></div>
-          <div class="form-item"><label>单价<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="form.price"></div>
+          <div class="form-item"><label>单价<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="form.price" @input="priceTouched = true"></div>
           <div class="form-item"><label>批次号<span class="muted">（留空=启用时自动生成 QC-日期-序号）</span></label><input type="text" v-model="form.batchNo" placeholder="留空=自动生成"></div>
           <div class="form-item"><label>生产日期</label><input type="date" v-model="form.productionDate"></div>
           <div class="form-item"><label>保质期(天)<span class="muted">（选商品自动带出）</span></label><input type="number" min="0" v-model.number="form.shelfLife"></div>
