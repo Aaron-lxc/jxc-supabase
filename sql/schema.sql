@@ -515,7 +515,7 @@ create policy "opening-docs insert" on storage.objects
 
 drop policy if exists "opening-docs delete" on storage.objects;
 create policy "opening-docs delete" on storage.objects
-  for delete to authenticated using (bucket_id = 'opening-docs' and storage.foldername(name)[2] = auth.uid()::text);
+  for delete to authenticated using (bucket_id = 'opening-docs');
 
 -- ============================================================================
 -- 完成。返回一行提示。
