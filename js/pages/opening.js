@@ -5,7 +5,7 @@ window.Pages = window.Pages || {};
 Pages['page-opening'] = {
   data() {
     return {
-      tab: '期初库存', busy: '',
+      tab: '期初库存', busy: '', editingStockId: null,
       form: { whId: '', goodsId: '', qty: null, price: null, batchNo: '', productionDate: '', shelfLife: 0, remark: '' },
       formAr: { customerId: '', amount: null, remark: '' },
       formAp: { supplierId: '', amount: null, remark: '' },
@@ -62,14 +62,37 @@ Pages['page-opening'] = {
       if (!f.goodsId) return alert('请选择商品');
       if (!f.qty || f.qty <= 0) return alert('请填写数量');
       if (f.price == null || f.price < 0) return alert('请填写单价');
-      S.db.openingStocks.push({
-        id: S.genId(), whId: f.whId, goodsId: f.goodsId,
-        qty: Number(f.qty), price: Number(f.price),
-        batchNo: f.batchNo || '', productionDate: f.productionDate || null,
-        shelfLife: Number(f.shelfLife) || 0, remark: f.remark || ''
-      });
+      if (this.editingStockId) {
+        const r = S.db.openingStocks.find(x => x.id === this.editingStockId);
+        if (!r) return alert('未找到要修改的记录');
+        Object.assign(r, {
+          whId: f.whId, goodsId: f.goodsId, qty: Number(f.qty), price: Number(f.price),
+          batchNo: f.batchNo || '', productionDate: f.productionDate || null,
+          shelfLife: Number(f.shelfLife) || 0, remark: f.remark || ''
+        });
+      } else {
+        S.db.openingStocks.push({
+          id: S.genId(), whId: f.whId, goodsId: f.goodsId,
+          qty: Number(f.qty), price: Number(f.price),
+          batchNo: f.batchNo || '', productionDate: f.productionDate || null,
+          shelfLife: Number(f.shelfLife) || 0, remark: f.remark || ''
+        });
+      }
+      this.resetStockForm();
+    },
+    editStock(r) {
+      this.editingStockId = r.id;
+      this.form = {
+        whId: r.whId, goodsId: r.goodsId, qty: r.qty, price: r.price,
+        batchNo: r.batchNo || '', productionDate: r.productionDate || '',
+        shelfLife: r.shelfLife || 0, remark: r.remark || ''
+      };
+    },
+    resetStockForm() {
+      this.editingStockId = null;
       this.form = { whId: '', goodsId: '', qty: null, price: null, batchNo: '', productionDate: '', shelfLife: 0, remark: '' };
     },
+    cancelEditStock() { this.resetStockForm(); },
     delStock(r) { S.db.openingStocks = S.db.openingStocks.filter(x => x.id !== r.id); },
     /* ---- 期初应收 ---- */
     addAr() {
@@ -148,11 +171,15 @@ Pages['page-opening'] = {
               <td class="num" data-label="保质期(天)">{{r.shelfLife||0}}</td>
               <td data-label="到期日">{{r.productionDate && (r.shelfLife||0) ? U.addDays(r.productionDate, r.shelfLife||0) : '-'}}</td>
               <td data-label="备注">{{r.remark||'-'}}</td>
-              <td v-if="!ro" class="ops" data-label="操作"><span class="link danger" @click="delStock(r)">删除</span></td></tr>
+              <td v-if="!ro" class="ops" data-label="操作">
+                <span class="link" @click="editStock(r)">修改</span>
+                <span class="link danger" @click="delStock(r)" style="margin-left:8px">删除</span>
+              </td></tr>
             <tr v-if="!stockRows.length"><td colspan="12" class="empty">暂无期初库存</td></tr>
           </tbody>
         </table>
         <div v-if="!ro" class="form-grid" style="margin-top:12px">
+          <div v-if="editingStockId" class="form-hint full" style="margin-bottom:4px">正在修改期初库存，保存后生效。</div>
           <div class="form-item"><label>仓库<b class="req">*</b></label><x-combobox v-model="form.whId" :options="whOpts" placeholder="请选择"/></div>
           <div class="form-item"><label>商品<b class="req">*</b></label><x-combobox v-model="form.goodsId" :options="goodsOpts" placeholder="请选择"/></div>
           <div class="form-item"><label>数量<b class="req">*</b></label><input type="number" min="1" v-model.number="form.qty"></div>
@@ -162,7 +189,10 @@ Pages['page-opening'] = {
           <div class="form-item"><label>保质期(天)<span class="muted">（选商品自动带出）</span></label><input type="number" min="0" v-model.number="form.shelfLife"></div>
           <div class="form-item"><label>到期日<span class="muted">（自动计算）</span></label><input type="text" :value="openingExpiry" disabled></div>
           <div class="form-item full"><label>备注</label><input type="text" v-model="form.remark" placeholder="选填"></div>
-          <div class="form-item"><button class="btn btn-primary" @click="addStock">添加期初库存</button></div>
+          <div class="form-item">
+            <button class="btn btn-primary" @click="addStock">{{editingStockId?'保存修改':'添加期初库存'}}</button>
+            <button v-if="editingStockId" class="btn" @click="cancelEditStock" style="margin-left:8px">取消</button>
+          </div>
         </div>
       </template>
 
