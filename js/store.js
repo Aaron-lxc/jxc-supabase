@@ -1058,10 +1058,12 @@ window.S = {
     const d = U.daysBetween(this.saleDueDate(sale), U.today());
     return d > 0 ? d : 0;
   },
-  custArrears(custId) { /* 客户累计未支付（含税应付口径：净额 + 税点费用） */
-    return U.round2(this.db.sales
+  custArrears(custId) { /* 客户累计未支付（含税应付口径：净额 + 税点费用；含启用后的期初应收） */
+    let amt = this.db.sales
       .filter(s => s.customerId === custId && s.status === '已完成' && s.payStatus !== '已支付')
-      .reduce((a, s) => a + this.salePayable(s), 0));
+      .reduce((a, s) => a + this.salePayable(s), 0);
+    if (this.db.settings.opened) amt += this.custOpeningAr(custId);   // 期初应收计入客户台账（启用后生效）
+    return U.round2(amt);
   },
   custOverdueArrears(custId) {
     return U.round2(this.db.sales

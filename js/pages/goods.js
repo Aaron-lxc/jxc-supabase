@@ -206,6 +206,12 @@ const SupplierList = {
     purchaseAmt(s) {
       return U.round2(S.db.purchases.filter(p => p.supplierId === s.id).reduce((a, p) => a + Number(p.amount || 0), 0));
     },
+    payableAmt(s) {
+      /* 供应商累计应付 = 累计采购额 + 启用后的期初应付（与期初库存口径一致：启用后生效） */
+      let amt = this.purchaseAmt(s);
+      if (S.db.settings.opened) amt += S.supplierOpeningAp(s.id);
+      return U.round2(amt);
+    },
     blank() {
       return {
         name: '', address: '', contactBiz: '', contactBizWechat: '', contactFin: '', contactFinWechat: '',
@@ -242,7 +248,7 @@ const SupplierList = {
         '业务联系人': s.contactBiz || '', '业务微信': s.contactBizWechat || '',
         '财务联系人': s.contactFin || '', '财务微信': s.contactFinWechat || '',
         '支付周期': s.payCycle || '', '支付方式': s.payMethod || '', '开票税点(%)': s.taxPoint || 0,
-        '在售商品数': this.goodsCount(s), '累计采购金额': this.purchaseAmt(s),
+        '在售商品数': this.goodsCount(s), '累计采购金额': this.purchaseAmt(s), '累计应付(含期初应付)': this.payableAmt(s),
         '创建时间': s.createTime, '状态': s.status
       })));
     }
@@ -263,7 +269,7 @@ const SupplierList = {
     <table class="grid">
       <thead><tr>
         <th>序号</th><th>供应商名称</th><th>地址</th><th>业务联系人 / 电话或微信</th><th>财务联系人 / 电话或微信</th>
-        <th>支付周期</th><th>支付方式</th><th class="num">开票税点</th><th class="num">在售商品</th><th class="num">累计采购</th>
+        <th>支付周期</th><th>支付方式</th><th class="num">开票税点</th><th class="num">在售商品</th><th class="num">累计采购</th><th class="num">累计应付</th>
         <th>创建时间</th><th>状态</th><th>操作</th>
       </tr></thead>
       <tbody>
@@ -278,6 +284,7 @@ const SupplierList = {
           <td class="num" data-label="开票税点">{{s.taxPoint||0}}%</td>
           <td class="num" data-label="在售商品">{{goodsCount(s)}}</td>
           <td class="num money" data-label="累计采购">{{fmtMoney(purchaseAmt(s))}}</td>
+          <td class="num money" :class="{red: payableAmt(s)>purchaseAmt(s)}" data-label="累计应付">{{fmtMoney(payableAmt(s))}}</td>
           <td data-label="创建时间">{{s.createTime}}</td>
           <td data-label="状态"><x-status :v="s.status"/></td>
           <td class="ops" data-label="操作">
@@ -286,7 +293,7 @@ const SupplierList = {
             <span class="link" :class="s.status==='已启用'?'warn':'green'" @click="toggle(s)">{{s.status==='已启用'?'停用':'启用'}}</span>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="13" class="empty">暂无数据</td></tr>
+        <tr v-if="!paged.length"><td colspan="14" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
     </div>
@@ -327,6 +334,7 @@ const SupplierList = {
         <div><label>创建时间</label><span>{{detail.createTime}}</span></div>
         <div><label>在售商品数</label><span>{{goodsCount(detail)}}</span></div>
         <div><label>累计采购金额</label><span class="money">￥{{fmtMoney(purchaseAmt(detail))}}</span></div>
+        <div><label>累计应付（含期初应付）</label><span class="money red">￥{{fmtMoney(payableAmt(detail))}}</span></div>
         <div class="full"><label>备注</label><span>{{detail.remark||'-'}}</span></div>
       </div>
       <template #foot><button class="btn" @click="detail=null">关闭</button></template>

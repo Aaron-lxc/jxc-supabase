@@ -7,6 +7,7 @@ Pages['page-opening'] = {
     return {
       tab: '期初库存', busy: '', editingStockId: null,
       priceTouched: false,
+      editingArId: null, editingApId: null, editingFundId: null,
       form: { whId: '', goodsId: '', qty: null, price: null, batchNo: '', productionDate: '', shelfLife: 0, remark: '' },
       formAr: { customerId: '', amount: null, remark: '' },
       formAp: { supplierId: '', amount: null, remark: '' },
@@ -117,31 +118,76 @@ Pages['page-opening'] = {
     cancelEditStock() { this.resetStockForm(); },
     delStock(r) { S.db.openingStocks = S.db.openingStocks.filter(x => x.id !== r.id); },
     /* ---- 期初应收 ---- */
-    addAr() {
+    async addAr() {
       const f = this.formAr;
       if (!f.customerId) return alert('请选择客户');
       if (!f.amount || f.amount <= 0) return alert('请填写金额');
-      S.db.openingAr.push({ id: S.genId(), customerId: f.customerId, amount: U.round2(Number(f.amount)), remark: f.remark || '' });
-      this.formAr = { customerId: '', amount: null, remark: '' };
+      if (this.editingArId) {
+        if (S.db.settings.opened) { this.resetArForm(); return alert('期初已启用，不可修改历史记录。如需调整请先由管理员「反初始化」。'); }
+        const r = S.db.openingAr.find(x => x.id === this.editingArId);
+        if (!r) return alert('未找到要修改的记录');
+        Object.assign(r, { customerId: f.customerId, amount: U.round2(Number(f.amount)), remark: f.remark || '' });
+      } else {
+        const rec = { id: S.genId(), customerId: f.customerId, amount: U.round2(Number(f.amount)), remark: f.remark || '' };
+        S.db.openingAr.push(rec);
+        if (S.db.settings.opened) { await S.persistNow(); alert('已补录期初应收。'); }   // 启用后补录：立即落库（客户台账实时计入）
+      }
+      this.resetArForm();
     },
+    editAr(r) {
+      this.editingArId = r.id;
+      this.formAr = { customerId: r.customerId, amount: r.amount, remark: r.remark || '' };
+    },
+    resetArForm() { this.editingArId = null; this.formAr = { customerId: '', amount: null, remark: '' }; },
+    cancelEditAr() { this.resetArForm(); },
     delAr(r) { S.db.openingAr = S.db.openingAr.filter(x => x.id !== r.id); },
     /* ---- 期初应付 ---- */
-    addAp() {
+    async addAp() {
       const f = this.formAp;
       if (!f.supplierId) return alert('请选择供应商');
       if (!f.amount || f.amount <= 0) return alert('请填写金额');
-      S.db.openingAp.push({ id: S.genId(), supplierId: f.supplierId, amount: U.round2(Number(f.amount)), remark: f.remark || '' });
-      this.formAp = { supplierId: '', amount: null, remark: '' };
+      if (this.editingApId) {
+        if (S.db.settings.opened) { this.resetApForm(); return alert('期初已启用，不可修改历史记录。如需调整请先由管理员「反初始化」。'); }
+        const r = S.db.openingAp.find(x => x.id === this.editingApId);
+        if (!r) return alert('未找到要修改的记录');
+        Object.assign(r, { supplierId: f.supplierId, amount: U.round2(Number(f.amount)), remark: f.remark || '' });
+      } else {
+        const rec = { id: S.genId(), supplierId: f.supplierId, amount: U.round2(Number(f.amount)), remark: f.remark || '' };
+        S.db.openingAp.push(rec);
+        if (S.db.settings.opened) { await S.persistNow(); alert('已补录期初应付。'); }   // 启用后补录：立即落库（供应商台账实时计入）
+      }
+      this.resetApForm();
     },
+    editAp(r) {
+      this.editingApId = r.id;
+      this.formAp = { supplierId: r.supplierId, amount: r.amount, remark: r.remark || '' };
+    },
+    resetApForm() { this.editingApId = null; this.formAp = { supplierId: '', amount: null, remark: '' }; },
+    cancelEditAp() { this.resetApForm(); },
     delAp(r) { S.db.openingAp = S.db.openingAp.filter(x => x.id !== r.id); },
     /* ---- 期初资金 ---- */
-    addFund() {
+    async addFund() {
       const f = this.formFund;
       if (!f.payMethod) return alert('请选择支付方式');
       if (!f.amount || f.amount <= 0) return alert('请填写金额');
-      S.db.openingFunds.push({ id: S.genId(), payMethod: f.payMethod, amount: U.round2(Number(f.amount)), remark: f.remark || '' });
-      this.formFund = { payMethod: '', amount: null, remark: '' };
+      if (this.editingFundId) {
+        if (S.db.settings.opened) { this.resetFundForm(); return alert('期初已启用，不可修改历史记录。如需调整请先由管理员「反初始化」。'); }
+        const r = S.db.openingFunds.find(x => x.id === this.editingFundId);
+        if (!r) return alert('未找到要修改的记录');
+        Object.assign(r, { payMethod: f.payMethod, amount: U.round2(Number(f.amount)), remark: f.remark || '' });
+      } else {
+        const rec = { id: S.genId(), payMethod: f.payMethod, amount: U.round2(Number(f.amount)), remark: f.remark || '' };
+        S.db.openingFunds.push(rec);
+        if (S.db.settings.opened) { await S.persistNow(); alert('已补录期初资金。'); }   // 启用后补录：立即落库（期初资金汇总实时计入）
+      }
+      this.resetFundForm();
     },
+    editFund(r) {
+      this.editingFundId = r.id;
+      this.formFund = { payMethod: r.payMethod, amount: r.amount, remark: r.remark || '' };
+    },
+    resetFundForm() { this.editingFundId = null; this.formFund = { payMethod: '', amount: null, remark: '' }; },
+    cancelEditFund() { this.resetFundForm(); },
     delFund(r) { S.db.openingFunds = S.db.openingFunds.filter(x => x.id !== r.id); },
     /* ---- 启用 / 反初始化 ---- */
     async enableOpening() {
@@ -174,7 +220,7 @@ Pages['page-opening'] = {
 
     <!-- 只读提示 -->
     <div v-if="viewerReadOnly" class="form-hint" style="margin:10px 0">当前账号对「期初管理」仅有查看权限，且期初已启用为只读，如需修改请联系账套管理员。</div>
-    <div v-if="opened" class="form-hint" style="margin:10px 0">期初已启用：历史记录为只读，但下方仍可<b>补录新增期初库存</b>（遗漏商品直接加，立即并入现有库存）；如需修改/删除历史记录，请由创建者/管理员「反初始化」。</div>
+    <div v-if="opened" class="form-hint" style="margin:10px 0">期初已启用：历史记录为只读，但下方仍可<b>补录新增期初（库存/应收/应付/资金）</b>（遗漏项直接加，立即并入对应台账并落库）；如需修改/删除历史记录，请由创建者/管理员「反初始化」。</div>
 
     <div class="card">
       <!-- 期初库存 -->
@@ -227,15 +273,21 @@ Pages['page-opening'] = {
           <tbody>
             <tr v-for="(r,i) in arRows"><td data-label="序号">{{i+1}}</td><td data-label="客户">{{S.name('customers',r.customerId)}}</td>
               <td class="num money" data-label="金额">{{fmtMoney(r.amount)}}</td><td data-label="备注">{{r.remark||'-'}}</td>
-              <td v-if="!ro" class="ops" data-label="操作"><span class="link danger" @click="delAr(r)">删除</span></td></tr>
+              <td v-if="!ro" class="ops" data-label="操作">
+                <span class="link" @click="editAr(r)">修改</span>
+                <span class="link danger" @click="delAr(r)" style="margin-left:8px">删除</span></td></tr>
             <tr v-if="!arRows.length"><td colspan="5" class="empty">暂无期初应收</td></tr>
           </tbody>
         </table>
-        <div v-if="!ro" class="form-grid" style="margin-top:12px">
+        <div v-if="canEditOpening" class="form-grid" style="margin-top:12px">
+          <div v-if="editingArId && !opened" class="form-hint full" style="margin-bottom:4px">正在修改期初应收，保存后生效。</div>
           <div class="form-item"><label>客户<b class="req">*</b></label><x-combobox v-model="formAr.customerId" :options="custOpts" placeholder="请选择"/></div>
           <div class="form-item"><label>金额（元）<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="formAr.amount"></div>
           <div class="form-item full"><label>备注</label><input type="text" v-model="formAr.remark" placeholder="选填"></div>
-          <div class="form-item"><button class="btn btn-primary" @click="addAr">添加期初应收</button></div>
+          <div class="form-item">
+            <button class="btn btn-primary" @click="addAr">{{editingArId?'保存修改':'添加期初应收'}}</button>
+            <button v-if="editingArId" class="btn" @click="cancelEditAr" style="margin-left:8px">取消</button>
+          </div>
         </div>
       </template>
 
@@ -248,15 +300,21 @@ Pages['page-opening'] = {
           <tbody>
             <tr v-for="(r,i) in apRows"><td data-label="序号">{{i+1}}</td><td data-label="供应商">{{S.name('suppliers',r.supplierId)}}</td>
               <td class="num money" data-label="金额">{{fmtMoney(r.amount)}}</td><td data-label="备注">{{r.remark||'-'}}</td>
-              <td v-if="!ro" class="ops" data-label="操作"><span class="link danger" @click="delAp(r)">删除</span></td></tr>
+              <td v-if="!ro" class="ops" data-label="操作">
+                <span class="link" @click="editAp(r)">修改</span>
+                <span class="link danger" @click="delAp(r)" style="margin-left:8px">删除</span></td></tr>
             <tr v-if="!apRows.length"><td colspan="5" class="empty">暂无期初应付</td></tr>
           </tbody>
         </table>
-        <div v-if="!ro" class="form-grid" style="margin-top:12px">
+        <div v-if="canEditOpening" class="form-grid" style="margin-top:12px">
+          <div v-if="editingApId && !opened" class="form-hint full" style="margin-bottom:4px">正在修改期初应付，保存后生效。</div>
           <div class="form-item"><label>供应商<b class="req">*</b></label><x-combobox v-model="formAp.supplierId" :options="supOpts" placeholder="请选择"/></div>
           <div class="form-item"><label>金额（元）<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="formAp.amount"></div>
           <div class="form-item full"><label>备注</label><input type="text" v-model="formAp.remark" placeholder="选填"></div>
-          <div class="form-item"><button class="btn btn-primary" @click="addAp">添加期初应付</button></div>
+          <div class="form-item">
+            <button class="btn btn-primary" @click="addAp">{{editingApId?'保存修改':'添加期初应付'}}</button>
+            <button v-if="editingApId" class="btn" @click="cancelEditAp" style="margin-left:8px">取消</button>
+          </div>
         </div>
       </template>
 
@@ -269,15 +327,21 @@ Pages['page-opening'] = {
           <tbody>
             <tr v-for="(r,i) in fundRows"><td data-label="序号">{{i+1}}</td><td data-label="支付方式">{{r.payMethod}}</td>
               <td class="num money" data-label="金额">{{fmtMoney(r.amount)}}</td><td data-label="备注">{{r.remark||'-'}}</td>
-              <td v-if="!ro" class="ops" data-label="操作"><span class="link danger" @click="delFund(r)">删除</span></td></tr>
+              <td v-if="!ro" class="ops" data-label="操作">
+                <span class="link" @click="editFund(r)">修改</span>
+                <span class="link danger" @click="delFund(r)" style="margin-left:8px">删除</span></td></tr>
             <tr v-if="!fundRows.length"><td colspan="5" class="empty">暂无期初资金</td></tr>
           </tbody>
         </table>
-        <div v-if="!ro" class="form-grid" style="margin-top:12px">
+        <div v-if="canEditOpening" class="form-grid" style="margin-top:12px">
+          <div v-if="editingFundId && !opened" class="form-hint full" style="margin-bottom:4px">正在修改期初资金，保存后生效。</div>
           <div class="form-item"><label>支付方式<b class="req">*</b></label><x-combobox v-model="formFund.payMethod" :options="fundMethodOpts" placeholder="请选择"/></div>
           <div class="form-item"><label>金额（元）<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="formFund.amount"></div>
           <div class="form-item full"><label>备注</label><input type="text" v-model="formFund.remark" placeholder="选填"></div>
-          <div class="form-item"><button class="btn btn-primary" @click="addFund">添加期初资金</button></div>
+          <div class="form-item">
+            <button class="btn btn-primary" @click="addFund">{{editingFundId?'保存修改':'添加期初资金'}}</button>
+            <button v-if="editingFundId" class="btn" @click="cancelEditFund" style="margin-left:8px">取消</button>
+          </div>
         </div>
       </template>
     </div>
