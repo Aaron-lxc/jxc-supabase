@@ -845,10 +845,12 @@ window.S = {
   applyOpening() {
     if (this.db.settings.opened) return '账套已启用期初，无需重复启用';
     if (this.hasBusinessData()) return '当前账套已存在业务数据（采购/销售/退货/已计算运营支出），无法启用期初，请先清空业务数据后再启用';
-    /* 期初库存并入 stocks（与采购同源，后续采购/销售逻辑无缝衔接） */
+    /* 期初库存并入 stocks（批次级，与采购同源：写入 lots，后续采购/销售/临期逻辑无缝衔接） */
     (this.db.openingStocks || []).forEach(o => {
       const rec = this.stockRec(o.whId, o.goodsId, true);
-      rec.qty += Number(o.qty);
+      const g = this.byId('goods', o.goodsId) || {};
+      const batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? o.batchNo : ('OP-' + (o.id || ''));
+      this.addLotQty(rec, { batchNo, productionDate: o.productionDate || null, cost: Number(o.price) || 0 }, Number(o.qty));
       if (!rec.lastInTime) rec.lastInTime = U.now();
     });
     this.db.settings.opened = true;
@@ -858,11 +860,16 @@ window.S = {
   reverseOpening() {
     if (!this.db.settings.opened) return '账套尚未启用期初';
     if (this.hasBusinessData()) return '当前账套已存在业务数据（采购/销售/退货/已计算运营支出），无法反初始化期初，请先清空业务数据';
-    /* 回滚期初库存 */
+    /* 回滚期初库存（批次级按期初批次扣回；扣空后清理残留的空 stock 记录） */
     (this.db.openingStocks || []).forEach(o => {
       const rec = this.stockRec(o.whId, o.goodsId, false);
-      if (rec) rec.qty -= Number(o.qty);
+      if (!rec) return;
+      const g = this.byId('goods', o.goodsId) || {};
+      const batchNo = (o.batchNo && o.batchNo !== '__NONE__') ? o.batchNo : ('OP-' + o.id);
+      this.consumeLotSelected(rec, g, Number(o.qty), batchNo);
     });
+    /* 清理反初始化后数量为 0 的空库存记录（避免库存明细残留空行） */
+    this.db.stocks = this.db.stocks.filter(s => Number(s.qty) > 0);
     this.db.settings.opened = false;
     this.db.settings.openTime = '';
     return null;

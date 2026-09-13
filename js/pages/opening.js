@@ -6,7 +6,7 @@ Pages['page-opening'] = {
   data() {
     return {
       tab: '期初库存', busy: '',
-      form: { whId: '', goodsId: '', qty: null, price: null, remark: '' },
+      form: { whId: '', goodsId: '', qty: null, price: null, batchNo: '', productionDate: '', shelfLife: 0, remark: '' },
       formAr: { customerId: '', amount: null, remark: '' },
       formAp: { supplierId: '', amount: null, remark: '' },
       formFund: { payMethod: '', amount: null, remark: '' }
@@ -37,7 +37,20 @@ Pages['page-opening'] = {
     stockValue() { return S.totalOpeningStockValue(); },
     arTotal() { return S.totalOpeningAr(); },
     apTotal() { return S.totalOpeningAp(); },
-    fundTotal() { return S.totalOpeningFunds(); }
+    fundTotal() { return S.totalOpeningFunds(); },
+    /* 期初库存选中的商品（用于带出保质期/计算到期日） */
+    selGoods() { return this.form.goodsId ? S.byId('goods', this.form.goodsId) : null; },
+    openingExpiry() {
+      const g = this.selGoods;
+      if (this.form.productionDate && g && g.shelfLife) return U.addDays(this.form.productionDate, g.shelfLife);
+      return '';
+    }
+  },
+  watch: {
+    'form.goodsId'(v) {
+      if (v) { const g = S.byId('goods', v); if (g) this.form.shelfLife = g.shelfLife || 0; }
+      else this.form.shelfLife = 0;
+    }
   },
   methods: {
     fmtMoney: U.fmtMoney,
@@ -51,9 +64,11 @@ Pages['page-opening'] = {
       if (f.price == null || f.price < 0) return alert('请填写单价');
       S.db.openingStocks.push({
         id: S.genId(), whId: f.whId, goodsId: f.goodsId,
-        qty: Number(f.qty), price: Number(f.price), remark: f.remark || ''
+        qty: Number(f.qty), price: Number(f.price),
+        batchNo: f.batchNo || '', productionDate: f.productionDate || null,
+        shelfLife: Number(f.shelfLife) || 0, remark: f.remark || ''
       });
-      this.form = { whId: '', goodsId: '', qty: null, price: null, remark: '' };
+      this.form = { whId: '', goodsId: '', qty: null, price: null, batchNo: '', productionDate: '', shelfLife: 0, remark: '' };
     },
     delStock(r) { S.db.openingStocks = S.db.openingStocks.filter(x => x.id !== r.id); },
     /* ---- 期初应收 ---- */
@@ -119,14 +134,19 @@ Pages['page-opening'] = {
         <div class="toolbar"><b>期初库存</b><div class="spacer"></div>
           <span class="muted">合计库存金额 ￥{{fmtMoney(stockValue)}}</span></div>
         <table class="grid">
-          <thead><tr><th>序号</th><th>仓库</th><th>商品</th><th class="num">数量</th><th class="num">单价</th><th class="num">金额</th><th>备注</th><th v-if="!ro">操作</th></tr></thead>
+          <thead><tr><th>序号</th><th>仓库</th><th>商品</th><th class="num">数量</th><th class="num">单价</th><th class="num">金额</th><th>批次号</th><th>生产日期</th><th>保质期(天)</th><th>到期日</th><th>备注</th><th v-if="!ro">操作</th></tr></thead>
           <tbody>
             <tr v-for="(r,i) in stockRows"><td data-label="序号">{{i+1}}</td>
               <td data-label="仓库">{{S.name('warehouses',r.whId)}}</td><td data-label="商品">{{S.name('goods',r.goodsId)}}</td>
               <td class="num" data-label="数量">{{r.qty}}</td><td class="num money" data-label="单价">{{fmtMoney(r.price)}}</td>
-              <td class="num money" data-label="金额">{{fmtMoney(r.qty*r.price)}}</td><td data-label="备注">{{r.remark||'-'}}</td>
+              <td class="num money" data-label="金额">{{fmtMoney(r.qty*r.price)}}</td>
+              <td data-label="批次号">{{r.batchNo||'未分批次'}}</td>
+              <td data-label="生产日期">{{r.productionDate||'-'}}</td>
+              <td class="num" data-label="保质期(天)">{{r.shelfLife||0}}</td>
+              <td data-label="到期日">{{r.productionDate && (r.shelfLife||0) ? U.addDays(r.productionDate, r.shelfLife||0) : '-'}}</td>
+              <td data-label="备注">{{r.remark||'-'}}</td>
               <td v-if="!ro" class="ops" data-label="操作"><span class="link danger" @click="delStock(r)">删除</span></td></tr>
-            <tr v-if="!stockRows.length"><td colspan="8" class="empty">暂无期初库存</td></tr>
+            <tr v-if="!stockRows.length"><td colspan="12" class="empty">暂无期初库存</td></tr>
           </tbody>
         </table>
         <div v-if="!ro" class="form-grid" style="margin-top:12px">
@@ -134,6 +154,10 @@ Pages['page-opening'] = {
           <div class="form-item"><label>商品<b class="req">*</b></label><x-combobox v-model="form.goodsId" :options="goodsOpts" placeholder="请选择"/></div>
           <div class="form-item"><label>数量<b class="req">*</b></label><input type="number" min="1" v-model.number="form.qty"></div>
           <div class="form-item"><label>单价<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="form.price"></div>
+          <div class="form-item"><label>批次号</label><input type="text" v-model="form.batchNo" placeholder="留空=未分批次"></div>
+          <div class="form-item"><label>生产日期</label><input type="date" v-model="form.productionDate"></div>
+          <div class="form-item"><label>保质期(天)<span class="muted">（选商品自动带出）</span></label><input type="number" min="0" v-model.number="form.shelfLife"></div>
+          <div class="form-item"><label>到期日<span class="muted">（自动计算）</span></label><input type="text" :value="openingExpiry" disabled></div>
           <div class="form-item full"><label>备注</label><input type="text" v-model="form.remark" placeholder="选填"></div>
           <div class="form-item"><button class="btn btn-primary" @click="addStock">添加期初库存</button></div>
         </div>
