@@ -198,6 +198,7 @@ const PersonRef = {
       (window.S.db.personRefs || []).forEach(r => { if (r.recommender) set[r.recommender] = 1; });
       return Object.keys(set).map(v => ({ value: v, label: v }));
     },
+    recommenderAll() { return [{ value: '', label: '全部推荐人' }].concat(this.recommenderOpts); },
     statusOpts() { return [{ value: '', label: '全部状态' }, { value: '未发放', label: '未发放' }, { value: '已发放', label: '已发放' }]; },
     coopHint() { return this.form.refCustomerId ? window.S.coopTime(this.form.refCustomerId) : ''; },
     rows() {
@@ -255,8 +256,7 @@ const PersonRef = {
   <div>
     <div class="toolbar">
       <button class="btn btn-primary" v-if="canEdit" @click="openNew">新增</button>
-      <input list="prRecommenders" v-model="q.recommender" placeholder="推荐人（模糊）" style="width:150px">
-      <datalist id="prRecommenders"><option v-for="o in recommenderOpts" :key="o.value" :value="o.value"></option></datalist>
+      <x-combobox v-model="q.recommender" :options="recommenderAll" editable placeholder="推荐人" style="width:150px"/>
       <x-combobox v-model="q.refCustomerId" :options="custAll" placeholder="被推荐客户名称" style="width:160px"/>
       <x-combobox v-model="q.status" :options="statusOpts" placeholder="状态" style="width:120px"/>
       <label>创建时间</label><input type="date" v-model="q.d1"> - <input type="date" v-model="q.d2">
@@ -292,8 +292,7 @@ const PersonRef = {
     <x-modal v-if="showForm" :title="editingId?'修改个人推荐':'新增个人推荐'" :width="560" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>推荐人<b class="req">*</b></label>
-          <input list="prRecommenders" v-model="form.recommender" placeholder="可手填新推荐人">
-          <datalist id="prRecommenders"><option v-for="o in recommenderOpts" :key="o.value" :value="o.value"></option></datalist>
+          <x-combobox v-model="form.recommender" :options="recommenderOpts" editable placeholder="可手填新推荐人"/>
         </div>
         <div class="form-item"><label>联系电话/微信</label><input v-model="form.phone"></div>
         <div class="form-item"><label>被推荐客户名称<b class="req">*</b></label><x-combobox v-model="form.refCustomerId" :options="custPick" placeholder="请选择"/></div>
@@ -344,6 +343,7 @@ const PersonPromo = {
       (window.S.db.personPromos || []).forEach(r => { if (r.promoter) set[r.promoter] = 1; });
       return Object.keys(set).map(v => ({ value: v, label: v }));
     },
+    promoterAll() { return [{ value: '', label: '全部推广人' }].concat(this.promoterOpts); },
     batchOpts() {
       const rec = window.S.stockRec(this.form.whId, this.form.goodsId, false);
       if (!rec || !rec.lots || !rec.lots.length) return [{ value: '', label: '请先选仓库与商品' }];
@@ -402,8 +402,7 @@ const PersonPromo = {
   <div>
     <div class="toolbar">
       <button class="btn btn-primary" v-if="canEdit" @click="openNew">新增</button>
-      <input list="ppPromoters" v-model="q.promoter" placeholder="推广人（模糊）" style="width:150px">
-      <datalist id="ppPromoters"><option v-for="o in promoterOpts" :key="o.value" :value="o.value"></option></datalist>
+      <x-combobox v-model="q.promoter" :options="promoterAll" editable placeholder="推广人" style="width:150px"/>
       <x-combobox v-model="q.refCustomerId" :options="custAll" placeholder="被推荐客户名称" style="width:160px"/>
       <x-combobox v-model="q.status" :options="statusOpts" placeholder="状态" style="width:120px"/>
       <label>创建时间</label><input type="date" v-model="q.d1"> - <input type="date" v-model="q.d2">
@@ -440,8 +439,7 @@ const PersonPromo = {
     <x-modal v-if="showForm" :title="editingId?'修改个人推广':'新增个人推广'" :width="600" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
       <div class="form-grid">
         <div class="form-item"><label>推广人<b class="req">*</b></label>
-          <input list="ppPromoters" v-model="form.promoter" placeholder="可手填新推广人">
-          <datalist id="ppPromoters"><option v-for="o in promoterOpts" :key="o.value" :value="o.value"></option></datalist>
+          <x-combobox v-model="form.promoter" :options="promoterOpts" editable placeholder="可手填新推广人"/>
         </div>
         <div class="form-item"><label>联系电话/微信</label><input v-model="form.phone"></div>
         <div class="form-item"><label>被推荐客户名称<b class="req">*</b></label><x-combobox v-model="form.refCustomerId" :options="custPick" placeholder="请选择"/></div>

@@ -192,7 +192,8 @@ AppComponents['x-combobox'] = {
     modelValue: { default: '' },
     options: { type: Array, default: () => [] },   /* [{value,label}] 或 [string] */
     placeholder: { type: String, default: '请选择' },
-    disabled: Boolean
+    disabled: Boolean,
+    editable: Boolean               /* true: 可输入任意文本，同时支持下拉选择 */
   },
   emits: ['update:modelValue'],
   data() { return { open: false, kw: '', pos: { top: 0, left: 0, width: 0 } }; },
@@ -210,6 +211,9 @@ AppComponents['x-combobox'] = {
     labelOf() {
       const o = this.norm.find(x => x.value === this.modelValue);
       return o ? o.label : (this.modelValue === '' || this.modelValue == null ? '' : String(this.modelValue));
+    },
+    displayValue() {
+      return this.editable ? (this.modelValue == null ? '' : String(this.modelValue)) : this.labelOf;
     }
   },
   methods: {
@@ -271,19 +275,29 @@ AppComponents['x-combobox'] = {
       this.open = true; this.kw = '';
       this.$nextTick(() => { this.updatePos(); this.bindListeners(); });
     },
-    onInput(e) { this.kw = e.target.value; this.open = true; this.$nextTick(() => { this.updatePos(); this.bindListeners(); }); },
+    onInput(e) {
+      const v = e.target.value;
+      this.kw = v; this.open = true;
+      if (this.editable) this.$emit('update:modelValue', v);
+      this.$nextTick(() => { this.updatePos(); this.bindListeners(); });
+    },
     toggle() {
       if (this.disabled) return;
       this.open = !this.open; this.kw = '';
       if (this.open) this.$nextTick(() => { this.updatePos(); this.bindListeners(); }); else this.cleanup();
     },
     pick(o) { this.$emit('update:modelValue', o.value); this.open = false; this.kw = ''; this.cleanup(); },
-    onBlur() { setTimeout(() => { this.open = false; this.cleanup(); }, 120); }
+    onBlur() {
+      setTimeout(() => {
+        if (this.editable && this.kw !== '' && this.kw !== this.modelValue) this.$emit('update:modelValue', this.kw);
+        this.open = false; this.cleanup();
+      }, 120);
+    }
   },
   template: `
   <div class="x-combobox" :class="{open:open, disabled}">
     <div class="cb-control">
-      <input class="cb-input" :value="open ? kw : labelOf" @focus="onFocus" @input="onInput" @blur="onBlur"
+      <input class="cb-input" :value="open ? kw : displayValue" @focus="onFocus" @input="onInput" @blur="onBlur"
         :placeholder="placeholder" :disabled="disabled">
       <span class="cb-arrow" @mousedown.prevent="toggle">▾</span>
     </div>
