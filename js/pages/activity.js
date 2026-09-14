@@ -32,7 +32,7 @@ const MerchantRef = {
     return {
       page: 1, size: 10,
       q: { customerId: '', refCustomerId: '', status: '', d1: '', d2: '' },
-      form: { id: '', customerId: '', refCustomerId: '', reward: 200, coopTime: '', status: '未生效', remark: '' },
+      form: { id: '', customerId: '', refCustomerId: '', reward: 150, coopTime: '', status: '未生效', remark: '' },
       showForm: false, editingId: '',
       showIssue: false, issueForm: { amount: 0 }
     };
@@ -59,7 +59,7 @@ const MerchantRef = {
   },
   methods: {
     custName(id) { const c = window.S.byId('customers', id); return c ? c.name : ''; },
-    resetForm() { this.form = { id: '', customerId: '', refCustomerId: '', reward: 200, coopTime: '', status: '未生效', remark: '' }; this.editingId = ''; },
+    resetForm() { this.form = { id: '', customerId: '', refCustomerId: '', reward: 150, coopTime: '', status: '未生效', remark: '' }; this.editingId = ''; },
     openNew() { this.resetForm(); this.showForm = true; },
     openEdit(r) { this.form = Object.assign({}, r); this.editingId = r.id; this.showForm = true; },
     save() {
