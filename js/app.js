@@ -43,7 +43,7 @@
     dashboard: 'js/pages/dashboard.js', goods: 'js/pages/goods.js',
     customers: 'js/pages/customers.js', partners: 'js/pages/partners.js',
     dealer: 'js/pages/dealer.js',
-    merchantRef: 'js/pages/activity.js', personRef: 'js/pages/activity.js', personPromo: 'js/pages/activity.js',
+    activity: 'js/pages/activity.js',
     warehouse: 'js/pages/warehouse.js', purchase: 'js/pages/purchase.js',
     production: 'js/pages/production.js', inventory: 'js/pages/inventory.js', sales: 'js/pages/sales.js',
     finance: 'js/pages/finance.js', complaint: 'js/pages/complaint.js', reward: 'js/pages/complaint.js',

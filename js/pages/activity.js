@@ -1,5 +1,5 @@
 /* 活动管理：商家推荐明细 / 个人推荐明细 / 个人推广明细
-   三个子页面共用本文件，分别注册为 page-merchantRef / page-personRef / page-personPromo。
+   三个子模块在同一页面内通过 Tab 切换，注册为 page-activity。
    - 合作时间：系统自动匹配「被推荐客户」已完成销售单中含洗洁精≥5袋的最早时间（store.coopTime）。
    - 商家推荐「计提预存货款」复用 dealerRewards（绑定客户名称对应客户），销售结算可抵扣。
    - 商家/个人推荐「现金发放/发放」计入运营成本（expenses, status='已计算'）。
@@ -459,25 +459,20 @@ const PersonPromo = {
   </div>`
 };
 
-/* ==================== 活动管理根组件（3 子页路由共用） ==================== */
-function mkActivity(tab) {
-  return {
-    components: { 'merchant-ref': MerchantRef, 'person-ref': PersonRef, 'person-promo': PersonPromo },
-    data() { return { tab: tab }; },
-    template: `
-    <div>
-      <div class="page-title">活动管理</div>
-      <div class="tabs">
-        <div class="tab" v-for="t in ['商家推荐明细','个人推荐明细','个人推广明细']" :key="t" :class="{active:tab===t}" @click="tab=t">{{t}}</div>
-      </div>
-      <div class="card">
-        <merchant-ref v-if="tab==='商家推荐明细'"/>
-        <person-ref v-else-if="tab==='个人推荐明细'"/>
-        <person-promo v-else/>
-      </div>
-    </div>`
-  };
-}
-window.Pages['page-merchantRef'] = mkActivity('商家推荐明细');
-window.Pages['page-personRef'] = mkActivity('个人推荐明细');
-window.Pages['page-personPromo'] = mkActivity('个人推广明细');
+/* ==================== 活动管理根组件（一个页面，顶部 Tab 切换 3 子模块） ==================== */
+window.Pages['page-activity'] = {
+  components: { 'merchant-ref': MerchantRef, 'person-ref': PersonRef, 'person-promo': PersonPromo },
+  data() { return { tab: '商家推荐明细' }; },
+  template: `
+  <div>
+    <div class="page-title">活动管理</div>
+    <div class="tabs">
+      <div class="tab" v-for="t in ['商家推荐明细','个人推荐明细','个人推广明细']" :key="t" :class="{active:tab===t}" @click="tab=t">{{t}}</div>
+    </div>
+    <div class="card">
+      <merchant-ref v-if="tab==='商家推荐明细'"/>
+      <person-ref v-else-if="tab==='个人推荐明细'"/>
+      <person-promo v-else/>
+    </div>
+  </div>`
+};

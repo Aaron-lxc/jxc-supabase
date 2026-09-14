@@ -11,11 +11,7 @@ window.P = {
     ]},
     { key: 'customers',  label: '客户管理',  ico: '👥' },
     { key: 'dealer',     label: '经销商管理', ico: '🏬' },
-    { key: 'activity',    label: '活动管理',   ico: '🎉', children: [
-      { key: 'merchantRef', label: '商家推荐明细', ico: '🏪' },
-      { key: 'personRef',   label: '个人推荐明细', ico: '🙋' },
-      { key: 'personPromo', label: '个人推广明细', ico: '📣' }
-    ]},
+    { key: 'activity',   label: '活动管理',   ico: '🎉' },
     { key: 'warehouse',  label: '仓库管理',  ico: '🏬' },
     { key: 'purchase',   label: '采购管理',  ico: '🛒' },
     { key: 'production', label: '生产组装',  ico: '🏭' },
@@ -28,9 +24,6 @@ window.P = {
     { key: 'reward',     label: '奖励管理',  ico: '🎁', hidden: true },
     { key: 'commission', label: '佣金管理',  ico: '🎯', hidden: true },
     { key: 'reportcenter', label: '佣金报表', ico: '📊', readonly: true, hidden: true },
-    { key: 'merchantRef', label: '商家推荐明细', ico: '🏪', hidden: true },
-    { key: 'personRef',   label: '个人推荐明细', ico: '🙋', hidden: true },
-    { key: 'personPromo', label: '个人推广明细', ico: '📣', hidden: true },
     { key: 'report',     label: '运营报表',  ico: '📈', readonly: true },
     { key: 'capital',    label: '注资管理',  ico: '🏦' },
     { key: 'opening',    label: '期初管理',  ico: '🗓️' },
@@ -51,8 +44,7 @@ window.P = {
   defaultPermissions() {
     return {
       dashboard: 'view',       goods: 'edit', customers: 'edit', dealer: 'view', partners: 'view',
-      activity: 'view', merchantRef: 'view', personRef: 'view', personPromo: 'view',
-      warehouse: 'view', purchase: 'edit', production: 'edit', inventory: 'edit', sales: 'edit', loss: 'edit', overflow: 'edit',
+      activity: 'view', warehouse: 'view', purchase: 'edit', production: 'edit', inventory: 'edit', sales: 'edit', loss: 'edit', overflow: 'edit',
       opening: 'none', capital: 'none',
       finance: 'none', complaint: 'edit', reward: 'edit', report: 'view',
       commission: 'none', settings: 'none'
