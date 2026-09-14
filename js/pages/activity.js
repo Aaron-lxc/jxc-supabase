@@ -487,20 +487,228 @@ const PersonPromo = {
   </div>`
 };
 
-/* ==================== 活动管理根组件（一个页面，顶部 Tab 切换 3 子模块） ==================== */
+/* ==================== 活动运营汇总（三张汇总表，均支持分页 / 查询 / 导出） ==================== */
+const ActivitySummary = {
+  data() {
+    return {
+      mPage: 1, mSize: 10, mQ: { customerId: '' },
+      prPage: 1, prSize: 10, prQ: { recommender: '' },
+      ppPage: 1, ppSize: 10, ppQ: { promoter: '', goodsId: '' }
+    };
+  },
+  computed: {
+    S() { return window.S; },
+    custAll() { return actCustAll(); },
+    goodsAll() { return actGoodsAll(); },
+    recommenderOpts() {
+      const set = {};
+      (window.S.db.personRefs || []).forEach(r => { if (r.recommender) set[r.recommender] = 1; });
+      return Object.keys(set).map(v => ({ value: v, label: v }));
+    },
+    promoterOpts() {
+      const set = {};
+      (window.S.db.personPromos || []).forEach(r => { if (r.promoter) set[r.promoter] = 1; });
+      return Object.keys(set).map(v => ({ value: v, label: v }));
+    },
+
+    /* ① 商家推荐汇总：按客户名称分组 */
+    merchantRows() {
+      const S = window.S, q = this.mQ, acc = {};
+      (S.db.merchantRefs || []).forEach(r => {
+        if (r.status !== '已预存' && r.status !== '已发放') return;
+        if (q.customerId && r.customerId !== q.customerId) return;
+        if (!acc[r.customerId]) {
+          const c = S.byId('customers', r.customerId);
+          acc[r.customerId] = { id: r.customerId, name: c ? c.name : '', custSet: {}, reward: 0 };
+        }
+        if (r.refCustomerId) acc[r.customerId].custSet[r.refCustomerId] = 1;
+        acc[r.customerId].reward += Number(r.actualReward || 0);
+      });
+      return Object.values(acc).map(x => ({
+        name: x.name,
+        custCount: Object.keys(x.custSet).length,
+        reward: U.round2(x.reward)
+      })).sort((a, b) => b.reward - a.reward);
+    },
+    merchantPaged() { return this.merchantRows.slice((this.mPage - 1) * this.mSize, this.mPage * this.mSize); },
+    merchantTotal() {
+      return {
+        custCount: this.merchantRows.reduce((a, r) => a + r.custCount, 0),
+        reward: U.round2(this.merchantRows.reduce((a, r) => a + r.reward, 0))
+      };
+    },
+
+    /* ② 个人推荐汇总：按推荐人分组 */
+    personRefRows() {
+      const S = window.S, q = this.prQ, acc = {};
+      (S.db.personRefs || []).forEach(r => {
+        if (r.status !== '已发放') return;
+        if (q.recommender && !U.kw(r.recommender, q.recommender)) return;
+        const key = (r.recommender || '').trim();
+        if (!acc[key]) acc[key] = { name: key, custSet: {}, reward: 0 };
+        if (r.refCustomerId) acc[key].custSet[r.refCustomerId] = 1;
+        acc[key].reward += Number(r.paidAmount || 0);
+      });
+      return Object.values(acc).map(x => ({
+        name: x.name,
+        custCount: Object.keys(x.custSet).length,
+        reward: U.round2(x.reward)
+      })).sort((a, b) => b.reward - a.reward);
+    },
+    personRefPaged() { return this.personRefRows.slice((this.prPage - 1) * this.prSize, this.prPage * this.prSize); },
+    personRefTotal() {
+      return {
+        custCount: this.personRefRows.reduce((a, r) => a + r.custCount, 0),
+        reward: U.round2(this.personRefRows.reduce((a, r) => a + r.reward, 0))
+      };
+    },
+
+    /* ③ 个人推广汇总：按推广人 + 奖励商品分组 */
+    personPromoRows() {
+      const S = window.S, q = this.ppQ, acc = {};
+      (S.db.personPromos || []).forEach(r => {
+        if (r.status !== '已发放') return;
+        if (q.promoter && !U.kw(r.promoter, q.promoter)) return;
+        if (q.goodsId && r.goodsId !== q.goodsId) return;
+        const key = (r.promoter || '').trim() + '|' + r.goodsId;
+        const g = S.byId('goods', r.goodsId);
+        const goodsName = g ? (g.sku ? g.name + '（' + g.sku + '）' : g.name) : '';
+        if (!acc[key]) acc[key] = { promoter: (r.promoter || '').trim(), goods: goodsName, qty: 0 };
+        acc[key].qty += Number(r.qty || 0);
+      });
+      return Object.values(acc).map(x => ({
+        promoter: x.promoter, goods: x.goods, qty: U.round2(x.qty)
+      })).sort((a, b) => b.qty - a.qty);
+    },
+    personPromoPaged() { return this.personPromoRows.slice((this.ppPage - 1) * this.ppSize, this.ppPage * this.ppSize); },
+    personPromoTotal() {
+      return { qty: U.round2(this.personPromoRows.reduce((a, r) => a + r.qty, 0)) };
+    }
+  },
+  methods: {
+    custName(id) { const c = window.S.byId('customers', id); return c ? c.name : ''; },
+    exportMerchant() {
+      if (!this.merchantRows.length) return alert('没有可导出的数据');
+      U.exportExcel('商家推荐汇总.xlsx', this.merchantRows.map((r, i) => ({
+        序号: i + 1, 客户名称: r.name, 累计推荐客户数量: r.custCount, 累计实际奖励: r.reward
+      })));
+    },
+    exportPersonRef() {
+      if (!this.personRefRows.length) return alert('没有可导出的数据');
+      U.exportExcel('个人推荐汇总.xlsx', this.personRefRows.map((r, i) => ({
+        序号: i + 1, 推荐人: r.name, 累计推荐客户数量: r.custCount, 累计奖励: r.reward
+      })));
+    },
+    exportPersonPromo() {
+      if (!this.personPromoRows.length) return alert('没有可导出的数据');
+      U.exportExcel('个人推广汇总.xlsx', this.personPromoRows.map((r, i) => ({
+        序号: i + 1, 推广人: r.promoter, 奖励商品: r.goods, 累计奖励数量: r.qty
+      })));
+    }
+  },
+  template: `
+  <div>
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>商家推荐汇总（按客户）</span>
+        <div class="toolbar" style="margin:0">
+          <x-combobox v-model="mQ.customerId" :options="custAll" placeholder="客户名称" style="width:160px"/>
+          <button class="btn" @click="exportMerchant">导出</button>
+        </div>
+      </div>
+      <table class="grid">
+        <thead><tr><th>序号</th><th>客户名称</th><th>累计推荐客户数量</th><th>累计实际奖励</th></tr></thead>
+        <tbody>
+          <tr v-for="(r,i) in merchantPaged" :key="r.name">
+            <td>{{ (mPage-1)*mSize + i + 1 }}</td>
+            <td>{{ r.name }}</td>
+            <td>{{ r.custCount }}</td>
+            <td>￥{{ U.fmtMoney(r.reward) }}</td>
+          </tr>
+          <tr v-if="!merchantPaged.length"><td colspan="4" class="empty">暂无数据</td></tr>
+          <tr v-if="merchantPaged.length" style="background:#eff6ff;font-weight:700">
+            <td colspan="2">合计</td>
+            <td>{{ merchantTotal.custCount }}</td>
+            <td>￥{{ U.fmtMoney(merchantTotal.reward) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <x-pager :total="merchantRows.length" v-model:page="mPage" v-model:size="mSize"/>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>个人推荐汇总（按推荐人）</span>
+        <div class="toolbar" style="margin:0">
+          <x-combobox v-model="prQ.recommender" :options="recommenderOpts" editable placeholder="推荐人" style="width:150px"/>
+          <button class="btn" @click="exportPersonRef">导出</button>
+        </div>
+      </div>
+      <table class="grid">
+        <thead><tr><th>序号</th><th>推荐人</th><th>累计推荐客户数量</th><th>累计奖励</th></tr></thead>
+        <tbody>
+          <tr v-for="(r,i) in personRefPaged" :key="r.name">
+            <td>{{ (prPage-1)*prSize + i + 1 }}</td>
+            <td>{{ r.name }}</td>
+            <td>{{ r.custCount }}</td>
+            <td>￥{{ U.fmtMoney(r.reward) }}</td>
+          </tr>
+          <tr v-if="!personRefPaged.length"><td colspan="4" class="empty">暂无数据</td></tr>
+          <tr v-if="personRefPaged.length" style="background:#eff6ff;font-weight:700">
+            <td colspan="2">合计</td>
+            <td>{{ personRefTotal.custCount }}</td>
+            <td>￥{{ U.fmtMoney(personRefTotal.reward) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <x-pager :total="personRefRows.length" v-model:page="prPage" v-model:size="prSize"/>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>个人推广汇总（按推广人 + 奖励商品）</span>
+        <div class="toolbar" style="margin:0">
+          <x-combobox v-model="ppQ.promoter" :options="promoterOpts" editable placeholder="推广人" style="width:150px"/>
+          <x-combobox v-model="ppQ.goodsId" :options="goodsAll" placeholder="奖励商品" style="width:160px"/>
+          <button class="btn" @click="exportPersonPromo">导出</button>
+        </div>
+      </div>
+      <table class="grid">
+        <thead><tr><th>序号</th><th>推广人</th><th>奖励商品</th><th>累计奖励数量</th></tr></thead>
+        <tbody>
+          <tr v-for="(r,i) in personPromoPaged" :key="r.promoter + r.goods">
+            <td>{{ (ppPage-1)*ppSize + i + 1 }}</td>
+            <td>{{ r.promoter }}</td>
+            <td>{{ r.goods }}</td>
+            <td>{{ r.qty }}</td>
+          </tr>
+          <tr v-if="!personPromoPaged.length"><td colspan="4" class="empty">暂无数据</td></tr>
+          <tr v-if="personPromoPaged.length" style="background:#eff6ff;font-weight:700">
+            <td colspan="3">合计</td>
+            <td>{{ personPromoTotal.qty }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <x-pager :total="personPromoRows.length" v-model:page="ppPage" v-model:size="ppSize"/>
+    </div>
+  </div>`
+};
+
+/* ==================== 活动管理根组件（一个页面，顶部 Tab 切换 4 子模块） ==================== */
 window.Pages['page-activity'] = {
-  components: { 'merchant-ref': MerchantRef, 'person-ref': PersonRef, 'person-promo': PersonPromo },
+  components: { 'merchant-ref': MerchantRef, 'person-ref': PersonRef, 'person-promo': PersonPromo, 'activity-summary': ActivitySummary },
   data() { return { tab: '商家推荐明细' }; },
   template: `
   <div>
     <div class="page-title">活动管理</div>
     <div class="tabs">
-      <div class="tab" v-for="t in ['商家推荐明细','个人推荐明细','个人推广明细']" :key="t" :class="{active:tab===t}" @click="tab=t">{{t}}</div>
+      <div class="tab" v-for="t in ['商家推荐明细','个人推荐明细','个人推广明细','活动运营汇总']" :key="t" :class="{active:tab===t}" @click="tab=t">{{t}}</div>
     </div>
     <div class="card">
       <merchant-ref v-if="tab==='商家推荐明细'"/>
       <person-ref v-else-if="tab==='个人推荐明细'"/>
-      <person-promo v-else/>
+      <person-promo v-else-if="tab==='个人推广明细'"/>
+      <activity-summary v-else/>
     </div>
   </div>`
 };
