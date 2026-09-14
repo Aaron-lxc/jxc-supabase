@@ -100,7 +100,8 @@ const files = [
   'js/pages/inventory.js', 'js/pages/sales.js', 'js/pages/opening.js', 'js/pages/capital.js', 'js/pages/finance.js',
   'js/pages/complaint.js', 'js/pages/report.js', 'js/pages/commission.js',
   'js/pages/members.js', 'js/pages/settings.js',
-  'js/pages/recipientmgr.js', 'js/pages/report-center.js'
+  'js/pages/recipientmgr.js', 'js/pages/report-center.js',
+  'js/pages/activity.js'
 ];
 for (const f of files) {
   try { vm.runInContext(read(f), ctx, { filename: f }); }
@@ -133,21 +134,24 @@ if (failures) process.exit(1);
 let asserts = 0, failed = 0;
 function ok(cond, msg) { asserts++; if (!cond) { failed++; console.error('  ✗ ' + msg); } }
 
-/* 页面数量：19 业务模块页 + 账户管理 + 报表接收人 = 21 */
-ok(Object.keys(sandbox.Pages || {}).length === 21, 'Pages 应有 21 个页面（19 模块 + members + recipientmgr）');
+/* 页面数量：19 业务模块页 + 账户管理 + 报表接收人 + 活动管理 3 子页 = 24 */
+ok(Object.keys(sandbox.Pages || {}).length === 24, 'Pages 应有 24 个页面（19 模块 + members + recipientmgr + 活动管理 3 子页）');
 ok(!!sandbox.Pages['page-members'], '应存在 page-members 账户管理页');
 ok(!!sandbox.Pages['page-recipientmgr'], '应存在 page-recipientmgr 报表接收人页');
+ok(!!sandbox.Pages['page-merchantRef'] && !!sandbox.Pages['page-personRef'] && !!sandbox.Pages['page-personPromo'], '应存在活动管理 3 个子页');
 
 /* 权限 / 菜单过滤 */
 sandbox.Cloud.state.ws = { id: 'w1', role: 'owner', permissions: {}, name: '测试账套' };
 const om = sandbox.P.menus();
-ok(om.length === 18, 'owner 的菜单应为 16 个可见顶级模块 + 账户管理 + 报表接收人 = 18 项');
+ok(om.length === 19, 'owner 的菜单应为 17 个可见顶级模块 + 账户管理 + 报表接收人 = 19 项');
 ok(om.find(m => m.key === 'partners') && om.find(m => m.key === 'partners').children.length === 3,
   'owner 的合伙人管理下应展开 3 个子菜单');
+ok(om.find(m => m.key === 'activity') && om.find(m => m.key === 'activity').children.length === 3,
+  'owner 的活动管理下应展开 3 个子菜单');
 sandbox.Cloud.state.ws = { id: 'w2', role: 'member', permissions: sandbox.P.defaultPermissions() };
 const mm = sandbox.P.menus();
 console.log('  [debug] member menus =', mm.map(m => m.key).join(','), '| isManager=', sandbox.P.isManager());
-ok(mm.length === 12, 'member 默认权限下菜单应为 12 项（合伙人管理折叠后含奖励管理、佣金报表，无佣金管理/财务/设置/账户管理）');
+ok(mm.length === 13, 'member 默认权限下菜单应为 13 项（含活动管理父项，无财务/设置/账户管理）');
 ok(!mm.some(m => m.key === 'finance' || m.key === 'commission' || m.key === 'settings'),
   'member 默认不应看到 财务/佣金/设置');
 ok(mm.find(m => m.key === 'partners') && mm.find(m => m.key === 'partners').children.some(c => c.key === 'reward'),

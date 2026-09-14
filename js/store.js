@@ -26,6 +26,7 @@ window.S = {
       complaintTypes: [], complaints: [],
       rewardTypes: [], rewards: [],
       dealerRewards: [],
+      merchantRefs: [], personRefs: [], personPromos: [],
       regionAssessArchive: [],
       resourceRates: [], regionRates: [],
       commissionPayments: [],
@@ -715,6 +716,47 @@ window.S = {
       return '该预存货款已被销售结算抵扣 ￥' + U.fmtMoney(Number(r.usedAmount)) + '，无法删除，请先在结算中撤销抵扣';
     this.db.dealerRewards = this.db.dealerRewards.filter(x => x.id !== id);
     return null;
+  },
+
+  /* ------- 活动管理：合作时间 / 预存货款 / 推广扣库存 -------
+     合作时间口径：被推荐客户「已完成销售单」中含商品名含「洗洁精」、数量≥5、单位名含「袋」的最早一笔时间。 */
+  coopTime(customerId) {
+    const list = this.completedSalesIn(null, null).filter(s => s.customerId === customerId);
+    let best = '';
+    for (const s of list) {
+      const hit = (s.items || []).some(it => {
+        const gn = this.name('goods', it.goodsId);
+        if (!gn || !U.kw(gn, '洗洁精')) return false;
+        if (Number(it.qty) < 5) return false;
+        const un = this.name('units', it.unitId);
+        if (!un || !U.kw(un, '袋')) return false;
+        return true;
+      });
+      if (!hit) continue;
+      const t = s.finishTime || s.createTime || '';
+      if (t && (!best || t < best)) best = t;
+    }
+    return best;
+  },
+  /* 计提活动预存货款：绑定到「客户名称」对应客户，复用 dealerRewards（不复用 year 去重，允许多年多笔），返回记录 */
+  accrueActivityPrepaid(customerId, amount) {
+    const rec = {
+      id: this.genId(), dealerId: customerId, year: (new Date()).getFullYear(),
+      annualAmount: 0, tierRate: 0, rewardAmount: Number(amount) || 0, usedAmount: 0,
+      settleType: '预存货款', operator: (Cloud.state.user && Cloud.state.user.name) || '',
+      createdAt: U.now()
+    };
+    (this.db.dealerRewards = this.db.dealerRewards || []).push(rec);
+    return rec;
+  },
+  /* 个人推广发放：按所选仓库 whId + 批次 batchNo 精确扣减 奖励商品×数量；不足拦截 */
+  issuePromoReward(promo) {
+    const rec = this.stockRec(promo.whId, promo.goodsId, false);
+    const g = this.byId('goods', promo.goodsId);
+    if (!rec || rec.qty < Number(promo.qty))
+      return { ok: false, msg: '仓库「' + (this.name('warehouses', promo.whId) || '?') + '」库存不足，无法发放奖励商品' };
+    this.consumeLotSelected(rec, g, Number(promo.qty), promo.batchNo);
+    return { ok: true };
   },
 
   /* ------- 报损 / 报溢（库存管理下的两个独立核算单） -------
