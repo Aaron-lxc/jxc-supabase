@@ -323,7 +323,9 @@
       isChildActive(m) { return m.children && m.children.some(c => c.key === this.cur); },
       goParent(m) {
         if (m.children && m.children.length) {
-          this.toggleMenu(m.key);
+          // 父菜单本身有对应页面时（如合伙人管理），点击标签展开子菜单并进入该页面
+          this.openedMenus[m.key] = true;
+          if (PAGE_FILES[m.key]) this.go(m.key);
           return;
         }
         this.go(m.key);
