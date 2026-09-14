@@ -24,7 +24,10 @@ window.P = {
     { key: 'reward',     label: '奖励管理',  ico: '🎁', hidden: true },
     { key: 'commission', label: '佣金管理',  ico: '🎯', hidden: true },
     { key: 'reportcenter', label: '佣金报表', ico: '📊', readonly: true, hidden: true },
-    { key: 'report',     label: '运营报表',  ico: '📈', readonly: true },
+    { key: 'activitysummary', label: '活动运营情况汇总', ico: '🎯', readonly: true, hidden: true },
+    { key: 'report',     label: '运营报表',  ico: '📈', readonly: true, children: [
+      { key: 'activitysummary', label: '活动运营情况汇总', ico: '🎯', readonly: true }
+    ]},
     { key: 'capital',    label: '注资管理',  ico: '🏦' },
     { key: 'opening',    label: '期初管理',  ico: '🗓️' },
     { key: 'settings',   label: '系统设置',  ico: '⚙️' }
@@ -46,7 +49,7 @@ window.P = {
       dashboard: 'view',       goods: 'edit', customers: 'edit', dealer: 'view', partners: 'view',
       activity: 'view', warehouse: 'view', purchase: 'edit', production: 'edit', inventory: 'edit', sales: 'edit', loss: 'edit', overflow: 'edit',
       opening: 'none', capital: 'none',
-      finance: 'none', complaint: 'edit', reward: 'edit', report: 'view',
+      finance: 'none', complaint: 'edit', reward: 'edit', report: 'view', activitysummary: 'view',
       commission: 'none', settings: 'none'
     };
   },

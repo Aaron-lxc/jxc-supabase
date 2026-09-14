@@ -74,7 +74,7 @@ const MerchantRef = {
         const ex = window.S.byId('merchantRefs', this.editingId);
         if (ex) Object.assign(ex, f);
       } else {
-        window.S.db.merchantRefs.push({ id: window.S.genId(), createTime: U.now(), status: '未生效', prepaidRewardId: '', remark: f.remark, customerId: f.customerId, refCustomerId: f.refCustomerId, reward: f.reward, coopTime: ct });
+        window.S.db.merchantRefs.push({ id: window.S.genId(), createTime: U.now(), status: '未生效', prepaidRewardId: '', actualReward: 0, remark: f.remark, customerId: f.customerId, refCustomerId: f.refCustomerId, reward: f.reward, coopTime: ct });
       }
       this.showForm = false;
     },
@@ -82,6 +82,7 @@ const MerchantRef = {
       if (r.status !== '未生效') return alert('仅「未生效」记录可计提预存货款');
       const rec = window.S.accrueActivityPrepaid(r.customerId, r.reward);
       r.prepaidRewardId = rec.id;
+      r.actualReward = r.reward;
       r.status = '已预存';
       alert('已计提预存货款 ￥' + U.fmtMoney(r.reward) + '，可在销售结算时抵扣');
     },
@@ -92,6 +93,7 @@ const MerchantRef = {
       const amt = Number(this.issueForm.amount) || 0;
       if (amt <= 0) return alert('请填写发放金额');
       window.S.db.expenses.push({ id: window.S.genId(), catId: null, amount: amt, desc: '活动奖励-商家推荐现金发放', payMethod: '', createTime: U.now(), status: '已计算' });
+      r.actualReward = amt;
       r.status = '已发放';
       this.showIssue = false;
       alert('已现金发放并计入运营成本 ￥' + U.fmtMoney(amt));
@@ -103,6 +105,7 @@ const MerchantRef = {
         if (m) return alert(m);
         r.prepaidRewardId = '';
       }
+      r.actualReward = 0;
       r.status = '已作废';
     },
     delRec(r) {
@@ -122,7 +125,7 @@ const MerchantRef = {
     </div>
     <table class="grid">
       <thead><tr>
-        <th>序号</th><th>客户名称</th><th>被推荐客户名称</th><th>本次奖励</th><th>创建时间</th>
+        <th>序号</th><th>客户名称</th><th>被推荐客户名称</th><th>本次奖励</th><th>实际奖励</th><th>创建时间</th>
         <th>合作时间</th><th>状态</th><th>备注</th><th>操作</th>
       </tr></thead>
       <tbody>
@@ -131,6 +134,7 @@ const MerchantRef = {
           <td>{{ custName(r.customerId) }}</td>
           <td>{{ custName(r.refCustomerId) }}</td>
           <td>￥{{ U.fmtMoney(r.reward) }}</td>
+          <td>￥{{ U.fmtMoney(r.actualReward || 0) }}</td>
           <td>{{ r.createTime }}</td>
           <td>{{ r.coopTime }}</td>
           <td>{{ r.status }}</td>
@@ -143,7 +147,7 @@ const MerchantRef = {
             <a v-if="canEdit && r.status==='已作废'" @click="delRec(r)">删除</a>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="9" class="empty">暂无数据</td></tr>
+        <tr v-if="!paged.length"><td colspan="10" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
     <x-pager :total="total" v-model:page="page" v-model:size="size"/>

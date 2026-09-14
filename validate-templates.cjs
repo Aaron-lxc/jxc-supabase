@@ -101,7 +101,7 @@ const files = [
   'js/pages/complaint.js', 'js/pages/report.js', 'js/pages/commission.js',
   'js/pages/members.js', 'js/pages/settings.js',
   'js/pages/recipientmgr.js', 'js/pages/report-center.js',
-  'js/pages/activity.js'
+  'js/pages/activity.js', 'js/pages/activitysummary.js'
 ];
 for (const f of files) {
   try { vm.runInContext(read(f), ctx, { filename: f }); }
@@ -134,8 +134,8 @@ if (failures) process.exit(1);
 let asserts = 0, failed = 0;
 function ok(cond, msg) { asserts++; if (!cond) { failed++; console.error('  ✗ ' + msg); } }
 
-/* 页面数量：19 业务模块页 + 账户管理 + 报表接收人 + 活动管理页 = 22 */
-ok(Object.keys(sandbox.Pages || {}).length === 22, 'Pages 应有 22 个页面（19 模块 + members + recipientmgr + 活动管理页）');
+/* 页面数量：19 业务模块页 + 账户管理 + 报表接收人 + 活动管理页 + 活动运营汇总页 = 23 */
+ok(Object.keys(sandbox.Pages || {}).length === 23, 'Pages 应有 23 个页面（19 模块 + members + recipientmgr + 活动管理页 + 活动运营汇总页）');
 ok(!!sandbox.Pages['page-members'], '应存在 page-members 账户管理页');
 ok(!!sandbox.Pages['page-recipientmgr'], '应存在 page-recipientmgr 报表接收人页');
 ok(!!sandbox.Pages['page-activity'], '应存在 page-activity 活动管理页');
@@ -148,6 +148,9 @@ ok(om.find(m => m.key === 'partners') && om.find(m => m.key === 'partners').chil
   'owner 的合伙人管理下应展开 3 个子菜单');
 ok(om.find(m => m.key === 'activity') && !om.find(m => m.key === 'activity').children,
   'owner 的活动管理应为叶子菜单（无子菜单）');
+ok(om.find(m => m.key === 'report') && om.find(m => m.key === 'report').children.length === 1
+  && om.find(m => m.key === 'report').children[0].key === 'activitysummary',
+  'owner 的运营报表下应展开 1 个子菜单：活动运营情况汇总');
 sandbox.Cloud.state.ws = { id: 'w2', role: 'member', permissions: sandbox.P.defaultPermissions() };
 const mm = sandbox.P.menus();
 console.log('  [debug] member menus =', mm.map(m => m.key).join(','), '| isManager=', sandbox.P.isManager());
@@ -156,6 +159,8 @@ ok(!mm.some(m => m.key === 'finance' || m.key === 'commission' || m.key === 'set
   'member 默认不应看到 财务/佣金/设置');
 ok(mm.find(m => m.key === 'partners') && mm.find(m => m.key === 'partners').children.some(c => c.key === 'reward'),
   'member 默认在合伙人管理下可看到奖励管理');
+ok(mm.find(m => m.key === 'report') && mm.find(m => m.key === 'report').children.some(c => c.key === 'activitysummary'),
+  'member 默认在运营报表下可看到活动运营情况汇总');
 ok(sandbox.P.canEdit('goods') && !sandbox.P.canEdit('finance'), '默认权限：商品可编辑、财务不可编辑');
 ok(sandbox.P.isManager() === false, 'member 不是管理员');
 
