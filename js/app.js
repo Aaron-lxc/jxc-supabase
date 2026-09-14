@@ -322,7 +322,10 @@
       toggleMenu(key) { this.openedMenus[key] = !this.openedMenus[key]; },
       isChildActive(m) { return m.children && m.children.some(c => c.key === this.cur); },
       goParent(m) {
-        if (m.children && m.children.length && !this.openedMenus[m.key]) this.openedMenus[m.key] = true;
+        if (m.children && m.children.length) {
+          this.toggleMenu(m.key);
+          return;
+        }
         this.go(m.key);
       },
       initMobile() {
