@@ -199,6 +199,11 @@ const PersonRef = {
       return Object.keys(set).map(v => ({ value: v, label: v }));
     },
     recommenderAll() { return [{ value: '', label: '全部推荐人' }].concat(this.recommenderOpts); },
+    phoneOpts() {
+      const set = {};
+      (window.S.db.personRefs || []).forEach(r => { if (r.phone) set[r.phone] = 1; });
+      return Object.keys(set).map(v => ({ value: v, label: v }));
+    },
     statusOpts() { return [{ value: '', label: '全部状态' }, { value: '未发放', label: '未发放' }, { value: '已发放', label: '已发放' }]; },
     coopHint() { return this.form.refCustomerId ? window.S.coopTime(this.form.refCustomerId) : ''; },
     rows() {
@@ -294,7 +299,7 @@ const PersonRef = {
         <div class="form-item"><label>推荐人<b class="req">*</b></label>
           <x-combobox v-model="form.recommender" :options="recommenderOpts" editable placeholder="可手填新推荐人"/>
         </div>
-        <div class="form-item"><label>联系电话/微信</label><input v-model="form.phone"></div>
+        <div class="form-item"><label>联系电话/微信</label><x-combobox v-model="form.phone" :options="phoneOpts" editable placeholder="可手填"/></div>
         <div class="form-item"><label>被推荐客户名称<b class="req">*</b></label><x-combobox v-model="form.refCustomerId" :options="custPick" placeholder="请选择"/></div>
         <div class="form-item"><label>本次奖励（元）</label><input type="number" min="0" step="0.01" v-model.number="form.reward"></div>
         <div class="form-item"><label>合作时间</label>
@@ -336,7 +341,6 @@ const PersonPromo = {
     canEdit() { return window.P.canEdit('activity'); },
     custAll() { return actCustAll(); },
     custPick() { return actCustPick(); },
-    goodsPick() { return actGoodsPick(); },
     whPick() { return actWhPick(); },
     promoterOpts() {
       const set = {};
@@ -344,11 +348,33 @@ const PersonPromo = {
       return Object.keys(set).map(v => ({ value: v, label: v }));
     },
     promoterAll() { return [{ value: '', label: '全部推广人' }].concat(this.promoterOpts); },
+    phoneOpts() {
+      const set = {};
+      (window.S.db.personPromos || []).forEach(r => { if (r.phone) set[r.phone] = 1; });
+      return Object.keys(set).map(v => ({ value: v, label: v }));
+    },
     batchOpts() {
-      const rec = window.S.stockRec(this.form.whId, this.form.goodsId, false);
-      if (!rec || !rec.lots || !rec.lots.length) return [{ value: '', label: '请先选仓库与商品' }];
-      return [{ value: '', label: '请选择批次' }].concat(rec.lots.filter(l => Number(l.qty) > 0)
-        .map(l => ({ value: l.batchNo, label: l.batchNo + '（余' + U.round2(l.qty) + '）' })));
+      if (!this.form.whId) return [{ value: '', label: '请先选择仓库' }];
+      const S = window.S, set = {}, arr = [];
+      (S.db.stocks || []).filter(s => s.whId === this.form.whId && Number(s.qty) > 0).forEach(s => {
+        (s.lots || []).forEach(l => {
+          if (Number(l.qty) > 0 && !set[l.batchNo]) { set[l.batchNo] = true; arr.push(l.batchNo); }
+        });
+      });
+      if (!arr.length) return [{ value: '', label: '该仓库无库存批次' }];
+      return [{ value: '', label: '请选择批次' }].concat(arr.map(b => ({ value: b, label: b })));
+    },
+    goodsPick() {
+      if (!this.form.whId || !this.form.batchNo) return [{ value: '', label: '请先选择仓库和批次' }];
+      const S = window.S;
+      const goodsIds = new Set();
+      (S.db.stocks || []).filter(s => s.whId === this.form.whId && Number(s.qty) > 0).forEach(s => {
+        if ((s.lots || []).some(l => l.batchNo === this.form.batchNo && Number(l.qty) > 0)) goodsIds.add(s.goodsId);
+      });
+      if (!goodsIds.size) return [{ value: '', label: '该仓库批次下无可用商品' }];
+      return [{ value: '', label: '请选择' }].concat((S.enabled('goods') || [])
+        .filter(g => goodsIds.has(g.id))
+        .map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name })));
     },
     statusOpts() { return [{ value: '', label: '全部状态' }, { value: '未发放', label: '未发放' }, { value: '已发放', label: '已发放' }]; },
     rows() {
@@ -441,11 +467,11 @@ const PersonPromo = {
         <div class="form-item"><label>推广人<b class="req">*</b></label>
           <x-combobox v-model="form.promoter" :options="promoterOpts" editable placeholder="可手填新推广人"/>
         </div>
-        <div class="form-item"><label>联系电话/微信</label><input v-model="form.phone"></div>
+        <div class="form-item"><label>联系电话/微信</label><x-combobox v-model="form.phone" :options="phoneOpts" editable placeholder="可手填"/></div>
         <div class="form-item"><label>被推荐客户名称<b class="req">*</b></label><x-combobox v-model="form.refCustomerId" :options="custPick" placeholder="请选择"/></div>
-        <div class="form-item"><label>本次奖励商品<b class="req">*</b></label><x-combobox v-model="form.goodsId" :options="goodsPick" placeholder="请选择"/></div>
         <div class="form-item"><label>仓库名称<b class="req">*</b></label><x-combobox v-model="form.whId" :options="whPick" placeholder="请选择"/></div>
         <div class="form-item"><label>批次<b class="req">*</b></label><x-combobox v-model="form.batchNo" :options="batchOpts" placeholder="请选择"/></div>
+        <div class="form-item"><label>本次奖励商品<b class="req">*</b></label><x-combobox v-model="form.goodsId" :options="goodsPick" placeholder="请选择"/></div>
         <div class="form-item"><label>奖励数量<b class="req">*</b></label><input type="number" min="0" step="1" v-model.number="form.qty"></div>
         <div class="form-item full"><label>备注</label><textarea rows="2" v-model="form.remark"></textarea></div>
       </div>
