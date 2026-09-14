@@ -55,7 +55,13 @@ const MerchantRef = {
       ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.size, this.page * this.size); },
-    total() { return this.rows.length; }
+    total() { return this.rows.length; },
+    mTotals() {
+      return {
+        reward: U.round2(this.rows.reduce((a, r) => a + (Number(r.reward) || 0), 0)),
+        actual: U.round2(this.rows.reduce((a, r) => a + (Number(r.actualReward) || 0), 0))
+      };
+    }
   },
   methods: {
     custName(id) { const c = window.S.byId('customers', id); return c ? c.name : ''; },
@@ -148,6 +154,12 @@ const MerchantRef = {
           </td>
         </tr>
         <tr v-if="!paged.length"><td colspan="10" class="empty">暂无数据</td></tr>
+        <tr v-if="paged.length" style="background:#eff6ff;font-weight:700">
+          <td colspan="3">合计</td>
+          <td>￥{{ U.fmtMoney(mTotals.reward) }}</td>
+          <td>￥{{ U.fmtMoney(mTotals.actual) }}</td>
+          <td colspan="5"></td>
+        </tr>
       </tbody>
     </table>
     <x-pager :total="total" v-model:page="page" v-model:size="size"/>
@@ -221,7 +233,12 @@ const PersonRef = {
       ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.size, this.page * this.size); },
-    total() { return this.rows.length; }
+    total() { return this.rows.length; },
+    prTotals() {
+      return {
+        reward: U.round2(this.rows.reduce((a, r) => a + (Number(r.reward) || 0), 0))
+      };
+    }
   },
   methods: {
     custName(id) { const c = window.S.byId('customers', id); return c ? c.name : ''; },
@@ -294,6 +311,11 @@ const PersonRef = {
           </td>
         </tr>
         <tr v-if="!paged.length"><td colspan="10" class="empty">暂无数据</td></tr>
+        <tr v-if="paged.length" style="background:#eff6ff;font-weight:700">
+          <td colspan="4">合计</td>
+          <td>￥{{ U.fmtMoney(prTotals.reward) }}</td>
+          <td colspan="5"></td>
+        </tr>
       </tbody>
     </table>
     <x-pager :total="total" v-model:page="page" v-model:size="size"/>
@@ -391,7 +413,12 @@ const PersonPromo = {
       ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.size, this.page * this.size); },
-    total() { return this.rows.length; }
+    total() { return this.rows.length; },
+    ppTotals() {
+      return {
+        qty: U.round2(this.rows.reduce((a, r) => a + (Number(r.qty) || 0), 0))
+      };
+    }
   },
   methods: {
     custName(id) { const c = window.S.byId('customers', id); return c ? c.name : ''; },
@@ -462,6 +489,11 @@ const PersonPromo = {
           </td>
         </tr>
         <tr v-if="!paged.length"><td colspan="12" class="empty">暂无数据</td></tr>
+        <tr v-if="paged.length" style="background:#eff6ff;font-weight:700">
+          <td colspan="7">合计</td>
+          <td>{{ ppTotals.qty }}</td>
+          <td colspan="4"></td>
+        </tr>
       </tbody>
     </table>
     <x-pager :total="total" v-model:page="page" v-model:size="size"/>
