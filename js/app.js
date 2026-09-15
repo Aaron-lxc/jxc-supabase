@@ -146,7 +146,11 @@
     methods: {
       /* ===== 通用错误处理 ===== */
       fail(e, where) {
-        const msg = (e && (e.message || e.error_description || e.msg)) || String(e);
+        const raw = (e && (e.message || e.error_description || e.msg)) || String(e);
+        /* 网络级异常统一转中文（兜底：healthCheck 漏掉的异常路径） */
+        const msg = (/Failed to fetch|NetworkError|Network request failed/i.test(raw)
+          ? '网络连接失败，手机无法连接到服务器。请检查网络或是否需要开启 VPN/代理。原始信息：' + raw
+          : raw);
         this.fatal = (where ? where + '：' : '') + msg;
         this.step = 'error';
         this.busy = false;

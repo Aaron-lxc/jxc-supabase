@@ -22,7 +22,7 @@ window.Cloud = {
     return this.sb;
   },
 
-  /* 连接自检：区分「地址错」「密钥错」「表没建」 */
+  /* 连接自检：区分「地址错」「密钥错」「表没建」「网络不通」 */
   async healthCheck() {
     if (!this.sb) return '尚未连接';
     try {
@@ -35,7 +35,12 @@ window.Cloud = {
       }
       return msg;
     } catch (e) {
-      return '无法连接到 Supabase，请检查 Project URL 与网络：' + (e.message || e);
+      /* 统一将所有网络级异常转为友好中文提示（覆盖 TypeError/NetworkError/DNS失败 等） */
+      const detail = String(e && e.message ? e.message : e);
+      if (/Failed to fetch|NetworkError|Network request failed|Failed to resolve/i.test(detail)) {
+        return '网络连接失败（手机无法连接到 Supabase 服务器）。\n\n请检查：\n① 手机网络是否正常（试试打开其他网页）\n② 是否需要开启 VPN/代理\n③ Project URL 是否正确：' + (CFG.read() ? CFG.read().url : '');
+      }
+      return '无法连接到 Supabase，请检查 Project URL 与网络：' + detail;
     }
   },
 
