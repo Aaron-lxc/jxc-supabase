@@ -123,7 +123,7 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
 .modal-head { padding: 13px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 700; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
 .btn-x { border: none; background: none; font-size: 20px; cursor: pointer; color: #94a3b8; line-height: 1; }
 .btn-x:hover { color: #334155; }
-.modal-body { padding: 16px 18px; overflow-y: auto; flex: 1; }
+.modal-body { padding: 16px 18px; overflow-y: auto; flex: 1; min-height: 0; }
 .modal-foot { padding: 12px 18px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 8px; }
 
 /* 表单 */
@@ -182,7 +182,9 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
   table.grid { font-size: 12px; }
   .table-wrap { -webkit-overflow-scrolling: touch; overflow-x: visible; }
   .modal-box { width: auto !important; max-width: 100%; max-height: 92vh; margin: 0 8px; }
-  .modal-foot { flex-wrap: wrap; }
+  .modal-foot { flex-wrap: wrap; padding-bottom: calc(12px + env(safe-area-inset-bottom)); gap: 10px; }
+  /* 手机端底部弹层/全屏弹层的 foot 始终固定可见（配合 .modal-body{min-height:0} 滚动） */
+  .modal-box.sheet .modal-foot, .modal-box.fs .modal-foot { position: sticky; bottom: 0; background: #fff; }
   .gate { padding: 16px; }
   .gate-card { width: auto; margin: 0 14px; }
   .ws-item { flex-direction: column; align-items: stretch; gap: 8px; }
