@@ -164,7 +164,27 @@ function reset() {
   const r = S.applyPrepaidDeduct('C1', 200); // 仅 150 可用
   ok(r.ok === false, 'B14 余额不足返回 ok:false');
   const after = S.dealerPrepaidBalance('C1');
-  ok(before === 150 && after === 0, 'B15 风险:余额不足时仍扣光可用余额(150→0)，调用方需自行回滚否则预存货款被误扣');
+  ok(before === 150 && after === 150, 'B15 原子性:余额不足时不改动任何 usedAmount(150→150)，调用方回滚可正确还原');
+})();
+
+/* =================== B4. 预存货款原子性（模拟 confirmSettle 改单回滚闭环，验证 R1 修复） =================== */
+(function () {
+  const db = reset();
+  db.custTypes.push({ id: 1, name: '经销商' });
+  db.customers.push({ id: 'C1', name: '经销商A', typeId: 1, taxRate: 0 });
+  db.dealerRewards.push({ id: 'R3', dealerId: 'C1', year: 2026, settleType: '预存货款', rewardAmount: 100, usedAmount: 0 });
+  db.dealerRewards.push({ id: 'R4', dealerId: 'C1', year: 2026, settleType: '预存货款', rewardAmount: 50, usedAmount: 0 });
+  const oldDeduct = 30;
+  S.applyPrepaidDeduct('C1', oldDeduct); // 旧单已抵扣 30
+  eq(S.dealerPrepaidBalance('C1'), 120, 'B18 旧单抵扣30后余额=120');
+  // 模拟 confirmSettle 改单：先回补旧值（余额恢复 150），再尝试扣新值 200（超额）
+  S.releasePrepaidDeduct('C1', oldDeduct);            // 余额恢复 150
+  const res = S.applyPrepaidDeduct('C1', 200);        // 超额 → 原子失败，不改动
+  ok(res.ok === false, 'B19 改单扣 200 超额返回 ok:false');
+  eq(S.dealerPrepaidBalance('C1'), 150, 'B20 失败后余额仍为 150（未被部分占用）');
+  // 调用方回滚还原旧值（confirmSettle 第 829 行）
+  S.applyPrepaidDeduct('C1', oldDeduct);
+  eq(S.dealerPrepaidBalance('C1'), 120, 'B21 还原旧值后余额=120，预存货款未被误扣(R1已修复)');
 })();
 
 /* =================== B3. 预存货款反向 FIFO 回补（独立隔离） =================== */

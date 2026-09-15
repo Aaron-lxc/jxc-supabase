@@ -672,7 +672,9 @@ window.S = {
     return U.round2((this.db.dealerRewards || []).filter(r => r.dealerId === customerId && r.year === year)
       .reduce((a, r) => a + (Number(r.rewardAmount) || 0), 0));
   },
-  /* FIFO 消费预存货款：从最早记录开始扣 usedAmount */
+  /* FIFO 消费预存货款：从最早记录开始扣 usedAmount
+     原子性：先核算总可用余额，不足则直接返回失败且不改动任何 usedAmount，
+     避免调用方回滚时因余额已被部分占用而「还原旧值」失败导致预存货款被误扣（R1） */
   applyPrepaidDeduct(customerId, amount) {
     let remain = Number(amount) || 0;
     if (remain <= 0) return { ok: true };
@@ -680,6 +682,8 @@ window.S = {
       .filter(r => r.dealerId === customerId && r.settleType === '预存货款' &&
         (Number(r.rewardAmount) - Number(r.usedAmount || 0) > 0))
       .sort((a, b) => (a.year - b.year) || ((a.createdAt || '') < (b.createdAt || '') ? -1 : 1));
+    const totalAvail = U.round2(list.reduce((a, r) => a + (Number(r.rewardAmount) - Number(r.usedAmount || 0)), 0));
+    if (totalAvail < remain - 0.005) return { ok: false, msg: '预存货款余额不足' };
     for (const r of list) {
       if (remain <= 0) break;
       const avail = Number(r.rewardAmount) - Number(r.usedAmount || 0);
@@ -687,7 +691,6 @@ window.S = {
       r.usedAmount = U.round2((Number(r.usedAmount || 0) + take));
       remain = U.round2(remain - take);
     }
-    if (remain > 0.005) return { ok: false, msg: '预存货款余额不足' };
     return { ok: true };
   },
   /* 回补预存货款（撤销抵扣时） */
