@@ -90,6 +90,7 @@
         wsName: '',
         /* 主界面 */
         cur: 'dashboard',
+        tabs: [],              // 已打开页签：[{key,label,ico}]，多页签导航
         navOpen: false,
         loadingPage: false,     // 页面懒加载时的加载态
         unread: false,
@@ -136,6 +137,9 @@
       /* 用函数式 $watch，字符串路径无法访问全局对象 */
       this.$watch(() => Cloud.state.ws, () => this.ensureCur(), { deep: true });
       this.initMobile();
+      // 初始页签：仪表盘（标题/图标从权限菜单取，保证一致）
+      const d = this.findMenuMeta('dashboard');
+      this.tabs = [{ key: 'dashboard', label: d.label, ico: d.ico }];
       this.boot();
     },
 
@@ -196,7 +200,10 @@
         // 报表接收人：RLS 禁止其读取 records，纯接收人(非管理者)跳过业务数据加载，直接进报表中心
         await Cloud.loadRecipient(Cloud.state.ws.id).catch(() => {});
         if (Cloud.state.recipient && !P.isManager()) {
-          this.cur = 'reportcenter';
+          const fm = 'reportcenter';
+          const m = this.findMenuMeta(fm);
+          this.tabs = [{ key: fm, label: m.label, ico: m.ico }];
+          this.cur = fm;
           await this.checkUnread().catch(() => {});
           this.loadingPage = true;
           this.step = 'app';
@@ -213,7 +220,10 @@
             S.db.meta.lastLevelEval = ym;
           }
         } catch (e) { /* 评定失败不影响正常使用 */ }
-        this.cur = P.firstMenu();
+        const fm = P.firstMenu();
+        const m = this.findMenuMeta(fm);
+        this.tabs = [{ key: fm, label: m.label, ico: m.ico }];
+        this.cur = fm;
         this.loadingPage = true;
         this.step = 'app';
         this.ensurePage();
@@ -302,7 +312,46 @@
         if (!P.canView(key) && key !== 'members' && key !== 'recipientmgr') key = P.firstMenu();
         if (key === 'reportcenter') this.unread = false;
         this.navOpen = false;
-        return this.ensurePage(key);
+        return this.openTab(key);
+      },
+      /* 从全部模块（含隐藏/子菜单/账户管理/报表接收人）中查找菜单标题与图标，供页签显示 */
+      findMenuMeta(key) {
+        const all = [];
+        const walk = (list) => (list || []).forEach(m => { all.push(m); if (m.children) walk(m.children); });
+        walk(P.MODULES);
+        all.push(P.MEMBER_MENU, P.RECIPIENT_MENU);
+        const m = all.find(x => x && x.key === key);
+        return { label: (m && m.label) || key, ico: (m && m.ico) || '📄' };
+      },
+      /* 多页签：已打开则切换，未打开则新增并懒加载 */
+      openTab(key) {
+        if (!key) return Promise.resolve();
+        if (this.tabs.some(t => t.key === key)) {
+          this.cur = key;
+          return Promise.resolve();
+        }
+        const meta = this.findMenuMeta(key);
+        this.loadingPage = true;
+        return loadPage(key).then(() => {
+          this.tabs.push({ key, label: meta.label, ico: meta.ico });
+          this.cur = key;
+          this.loadingPage = false;
+        }).catch(e => {
+          this.loadingPage = false;
+          this.fatal = '页面加载失败：' + ((e && e.message) || e);
+          this.step = 'error';
+        });
+      },
+      /* 关闭页签：至少保留一个；关闭当前激活页签时自动切到左侧相邻页签 */
+      closeTab(key) {
+        if (this.tabs.length <= 1) return;
+        const idx = this.tabs.findIndex(t => t.key === key);
+        if (idx < 0) return;
+        this.tabs.splice(idx, 1);
+        if (this.cur === key) {
+          const next = this.tabs[Math.max(0, idx - 1)];
+          this.cur = next.key;
+        }
       },
       /* 懒加载目标页面脚本并注册组件，再切换 cur；加载中显示加载态 */
       ensurePage(key) {
@@ -351,6 +400,11 @@
         if (this.step !== 'app') return;
         const ok = this.menu.some(m => m.key === this.cur);
         if (!ok) this.cur = P.firstMenu();
+        // 当前激活页签若不在页签列表（如被清掉/权限变更），补回，避免空白
+        if (!this.tabs.some(t => t.key === this.cur)) {
+          const m = this.findMenuMeta(this.cur);
+          this.tabs.push({ key: this.cur, label: m.label, ico: m.ico });
+        }
       },
       async checkUnread() {
         try {
@@ -381,6 +435,7 @@
         if (!U.confirm('切换账套将重新加载数据，确定继续吗？')) return;
         /* 关键：先把当前页面组件卸掉，避免 teardown 后仪表盘等页面的 computed 仍访问 S.db 报错 */
         this.cur = '';
+        this.tabs = [];          // 清空页签，避免旧账套页面残留
         this.loadingPage = true;
         await this.$nextTick();
         try { S.teardown(); } catch (e) { /* ignore */ }
@@ -556,8 +611,19 @@
               <button class="btn btn-sm" @click="logout">退出</button>
             </div>
           </div>
+          <!-- 多页签导航条：点击菜单在此新增/切换页签，× 关闭 -->
+          <div class="tab-strip" v-if="tabs.length">
+            <div class="tab-item" v-for="t in tabs" :key="t.key" :class="{active: t.key === cur}"
+                 @click="cur = t.key">
+              <span class="tab-ico">{{t.ico}}</span>
+              <span class="tab-title">{{t.label}}</span>
+              <span v-if="tabs.length > 1" class="tab-close" @click.stop="closeTab(t.key)" title="关闭">×</span>
+            </div>
+          </div>
           <div v-if="loadingPage" class="page-loading"><div class="spinner"></div><span>页面加载中…</span></div>
-          <component v-else :is="'page-'+cur" :key="cur"></component>
+          <keep-alive :max="15">
+            <component v-if="!loadingPage" :is="'page-'+cur" :key="cur"></component>
+          </keep-alive>
         </main>
         <div class="tabbar" v-if="isMobile">
           <div class="tb" v-for="m in tabItems" :key="m.key" :class="{active:cur===m.key}" @click="go(m.key)">
