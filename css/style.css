@@ -86,7 +86,8 @@ input:focus, select:focus, textarea:focus { border-color: #1d4ed8; box-shadow: 0
 table.grid { width: 100%; border-collapse: collapse; white-space: nowrap; }
 table.grid th, table.grid td { border-bottom: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; font-size: 12.5px; }
 table.grid th { background: #f8fafc; color: #475569; font-weight: 600; position: sticky; top: 0; }
-table.grid tbody tr:hover { background: #f8fafc; }
+table.grid tbody tr:hover { background: #dbeafe; }
+table.grid tbody tr.selected { background: #bfdbfe; }
 table.grid td.num, table.grid th.num { text-align: right; }
 /* 佣金报表两张表：沿用全站 .grid 自然自动布局即可保证表头与值列对齐；
    原先的 table-layout:fixed + 百分比列宽会让超长金额文字溢出单元格、视觉错位，已移除 */
