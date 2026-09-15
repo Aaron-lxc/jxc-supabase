@@ -48,10 +48,11 @@ Pages['page-report'] = {
       const lossCost = U.round2(S.db.losses.filter(l => U.inRange(l.time, this.d1, this.d2)).reduce((a, l) => a + Number(l.amount || 0), 0));
       const overflowGain = U.round2(S.db.overflows.filter(o => U.inRange(o.time, this.d1, this.d2)).reduce((a, o) => a + Number(o.amount || 0), 0));
       const opCost = U.round2(S.db.expenses.filter(x => x.status === '已计算' && U.inRange(x.createTime, this.d1, this.d2)).reduce((a, x) => a + Number(x.amount), 0)) + lossCost;
+      const otherIncome = U.round2(S.db.incomes.filter(x => x.status === '已确认' && U.inRange(x.createTime, this.d1, this.d2)).reduce((a, x) => a + Number(x.amount), 0));
       const resComm = S.totalResourceCommission(this.d1, this.d2);
       const regComm = S.totalRegionCommission(this.d1, this.d2);
-      const netProfit = U.round2(profit - opCost - resComm - regComm + overflowGain);
-      return { orderCount: sales.length, gross, returned, net, cost, taxCost, deliveryCost, profit, purQty, purAmt, opCost, resComm, regComm, netProfit, lossCost, overflowGain };
+      const netProfit = U.round2(profit - opCost - resComm - regComm + overflowGain + otherIncome);
+      return { orderCount: sales.length, gross, returned, net, cost, taxCost, deliveryCost, profit, purQty, purAmt, opCost, resComm, regComm, netProfit, lossCost, overflowGain, otherIncome };
     },
     /* 佣金支付与质押总账（全期口径，含资源 + 区域合伙人） */
     payRows() {
@@ -141,6 +142,7 @@ Pages['page-report'] = {
     },
     lossCostAll() { return U.round2(S.db.losses.reduce((a, l) => a + Number(l.amount || 0), 0)); },
     overflowGainAll() { return U.round2(S.db.overflows.reduce((a, o) => a + Number(o.amount || 0), 0)); },
+    otherIncomeAll() { return U.round2(S.db.incomes.filter(x => x.status === '已确认').reduce((a, x) => a + Number(x.amount), 0)); },
     arRows() {
       return S.db.customers
         .map(c => ({ name: c.name, arrears: S.custArrears(c.id), overdue: S.custOverdueArrears(c.id) }))
@@ -304,7 +306,7 @@ Pages['page-report'] = {
       <div class="stat-card c3"><div class="t">采购 / 运营支出</div><div class="v money">￥{{fmtMoney(overview.purAmt)}}</div>
         <div class="sub">采购 {{fmtNum(overview.purQty)}} 件 ｜ 运营支出（已计算）￥{{fmtMoney(overview.opCost)}}</div></div>
       <div class="stat-card c4"><div class="t">佣金 / 净利润</div><div class="v money" :class="overview.netProfit>=0?'green-t':'red'">￥{{fmtMoney(overview.netProfit)}}</div>
-        <div class="sub">资源佣金 ￥{{fmtMoney(overview.resComm)}} ｜ 区域佣金 ￥{{fmtMoney(overview.regComm)}}<br>净利润 = 毛利 - 运营支出 - 佣金</div></div>
+        <div class="sub">资源佣金 ￥{{fmtMoney(overview.resComm)}} ｜ 区域佣金 ￥{{fmtMoney(overview.regComm)}}<br>净利润 = 毛利 - 运营支出 - 佣金 + 其他收入</div></div>
     </div>
 
     <!-- 资源合伙人佣金 -->
@@ -495,6 +497,7 @@ Pages['page-report'] = {
           <tbody>
             <tr><td data-label="项目">报损损失</td><td class="num money red" data-label="金额">-￥{{fmtMoney(lossCostAll)}}</td><td data-label="说明">库存盘亏，计入运营成本</td></tr>
             <tr><td data-label="项目">报溢收益</td><td class="num money green-t" data-label="金额">+￥{{fmtMoney(overflowGainAll)}}</td><td data-label="说明">库存盘盈，已并入净利润</td></tr>
+            <tr><td data-label="项目">其他收入</td><td class="num money green-t" data-label="金额">+￥{{fmtMoney(otherIncomeAll)}}</td><td data-label="说明">已确认的其他收入（非商品销售），已并入净利润</td></tr>
             <tr style="background:#eff6ff;font-weight:700"><td data-label="项目">净盘盈</td><td class="num money" data-label="金额">{{fmtMoney(U.round2(overflowGainAll - lossCostAll))}}</td><td data-label="说明">报溢 − 报损</td></tr>
           </tbody>
         </table>

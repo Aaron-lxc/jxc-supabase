@@ -415,6 +415,7 @@
         });
         const totalSales = U.round2((db.sales || []).filter(s => s.status === '已完成').reduce((a, s) => a + this.saleNet(s), 0));
         const opCost = U.round2((db.expenses || []).filter(x => x.status === '已计算').reduce((a, x) => a + Number(x.amount), 0));
+        const otherIncome = U.round2((db.incomes || []).filter(x => x.status === '已确认').reduce((a, x) => a + Number(x.amount), 0));
         const resComm = this.totalResourceCommission(null, null);
         const regComm = this.totalRegionCommission(null, null);
         const taxCost = this.totalTaxCost(null, null);
@@ -427,8 +428,8 @@
         return {
           custTotal: custs.length,
           invQty, invCost: U.round2(invCost), invValue: U.round2(invValue), invProfit: U.round2(invValue - invCost),
-          totalSales, totalCost: U.round2(opCost + resComm + regComm + taxCost + deliveryCost),
-          opCost, resComm, regComm, taxCost, deliveryCost,
+          totalSales,           totalCost: U.round2(opCost + resComm + regComm + taxCost + deliveryCost),
+          opCost, resComm, regComm, taxCost, deliveryCost, otherIncome,
           totalReceipts: U.round2((db.sales || []).filter(s => s.payStatus === '已支付').reduce((a, s) => a + (Number(s.actualPaid) || this.salePayable(s)), 0)),
           receiptByMethod,
           totalCapital: this.totalCapitalInjected(),

@@ -71,6 +71,7 @@ Pages['page-dashboard'] = {
       const lossCost = U.round2(db.losses.reduce((a, l) => a + Number(l.amount || 0), 0));
       const overflowGain = U.round2(db.overflows.reduce((a, o) => a + Number(o.amount || 0), 0));
       const opCost = U.round2(db.expenses.filter(x => x.status === '已计算').reduce((a, x) => a + Number(x.amount), 0)) + lossCost;
+      const otherIncome = U.round2(db.incomes.filter(x => x.status === '已确认').reduce((a, x) => a + Number(x.amount), 0));
       const resComm = S.totalResourceCommission(null, null);
       const regComm = S.totalRegionCommission(null, null);
       const taxCost = S.totalTaxCost(null, null);
@@ -91,7 +92,7 @@ Pages['page-dashboard'] = {
         expiring: { qty: expQty, cost: U.round2(expCost), value: U.round2(expValue) },
         rentSum,
         totalSales, totalCost: U.round2(opCost + resComm + regComm + taxCost + deliveryCost + transferLogistics - overflowGain), opCost, resComm, regComm, taxCost, deliveryCost, transferLogistics,
-        totalExpense: opCost, totalArrears,
+        totalExpense: opCost, totalArrears, otherIncome,
         cmpTotal: db.complaints.length, cmpByType,
         lossCost, overflowGain,
         totalPurchase: U.round2(db.purchases.reduce((a, p) => a + Number(p.amount), 0)),
@@ -498,6 +499,8 @@ Pages['page-dashboard'] = {
         <div class="sub">已计算日常运营支出合计</div></div>
       <div class="stat-card c2 clickable" @click="go('capital')"><div class="t">注资总额</div><div class="v money">￥{{fmtMoney(stats.totalCapital)}}</div>
         <div class="sub">股东累计注入资金</div></div>
+      <div class="stat-card c2 clickable" @click="go('finance')"><div class="t">其他收入</div><div class="v money green-t">￥{{fmtMoney(stats.otherIncome)}}</div>
+        <div class="sub">已确认的其他收入合计（非商品销售收入）</div></div>
       <div class="stat-card c4 clickable" @click="go('complaint')"><div class="t">累计投诉</div><div class="v">{{stats.cmpTotal}}</div><div class="sub">{{subText(stats.cmpByType,' 件')}}</div></div>
       <div class="stat-card c4 clickable" @click="go('inventory')"><div class="t">库存预警</div><div class="v">{{stockAlerts.length}} <span style="font-size:12px;color:#64748b">项</span></div><div class="sub">低于最低库存的商品数</div></div>
       <div class="stat-card c4 clickable" @click="go('inventory')"><div class="t">累计已临期</div><div class="v">{{stats.expiring.qty}} <span style="font-size:12px;color:#64748b">件</span></div><div class="sub">成本 ￥{{fmtMoney(stats.expiring.cost)}} ｜ 货值 ￥{{fmtMoney(stats.expiring.value)}}</div></div>
