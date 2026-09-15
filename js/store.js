@@ -23,6 +23,7 @@ window.S = {
       sales: [], returns: [],
       transfers: [], productions: [],
       expenseCats: [], expenses: [],
+      incomeCats: [], incomes: [],
       complaintTypes: [], complaints: [],
       rewardTypes: [], rewards: [],
       dealerRewards: [],
@@ -258,6 +259,7 @@ window.S = {
       goods: () => db.purchases.some(p => p.goodsId === id) || db.sales.some(s => (s.items || []).some(i => i.goodsId === id)) || db.stocks.some(s => s.goodsId === id && s.qty > 0),
       customers: () => db.sales.some(s => s.customerId === id) || db.complaints.some(c => c.customerId === id),
       expenseCats: () => db.expenses.some(x => x.catId === id),
+      incomeCats: () => db.incomes.some(x => x.catId === id),
       complaintTypes: () => db.complaints.some(x => x.typeId === id)
     };
     return refs[coll] ? refs[coll]() : false;

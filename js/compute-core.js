@@ -54,6 +54,7 @@
       warehouses: [], purchases: [], stocks: [], stockChecks: [],
       sales: [], returns: [], productions: [],
       expenseCats: [], expenses: [],
+      incomeCats: [], incomes: [],
       complaintTypes: [], complaints: [],
       rewardTypes: [], rewards: [], dealerRewards: [],
       merchantRefs: [], personRefs: [], personPromos: [],
