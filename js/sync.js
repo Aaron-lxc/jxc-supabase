@@ -15,7 +15,7 @@ window.Sync = {
     'goodsTypes', 'units', 'suppliers', 'goods',
     'custLevels', 'custTypes', 'regions', 'customers',
     'resourcePartners', 'regionPartners',
-    'warehouses', 'purchases', 'stocks', 'stockChecks',
+    'warehouses', 'purchases', 'stocks', 'stockChecks', 'losses', 'overflows',
     'sales', 'returns', 'transfers', 'productions', 'expenseCats', 'expenses', 'incomeCats', 'incomes',
     'complaintTypes', 'complaints',
     'rewardTypes', 'rewards', 'dealerRewards',
