@@ -118,7 +118,7 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
 .pager .pg-select { padding: 3px 6px; border: 1px solid #cbd5e1; border-radius: 5px; background: #fff; color: #334155; font-size: 12px; }
 
 /* 弹窗 */
-.modal-mask { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal-mask { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: flex; align-items: center; justify-content: center; z-index: 300; } /* 300>tabbar(180)/sidebar(200)/drawer(250)，确保弹窗 foot 不被手机端底部 Tab 栏遮挡；仍低于 cb-panel(3000) 下拉 */
 .modal-box { background: #fff; border-radius: 10px; max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
 .modal-head { padding: 13px 18px; border-bottom: 1px solid #e2e8f0; font-weight: 700; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
 .btn-x { border: none; background: none; font-size: 20px; cursor: pointer; color: #94a3b8; line-height: 1; }
