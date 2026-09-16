@@ -4,7 +4,7 @@ window.Pages = window.Pages || {};
 const CustomerList = {
   data() {
     return {
-      q: { name: '', levelId: '', typeId: '', status: '', d1: '', d2: '' },
+      q: { name: '', regionId: '', levelId: '', typeId: '', status: '', d1: '', d2: '' },
       page: 1, pageSize: 10, showForm: false, editing: null, form: {}, detail: null, selIds: [],
       showImport: false, importFile: null, importRows: [], importErrors: [], importOverwrite: false
     };
@@ -14,6 +14,7 @@ const CustomerList = {
     rows() {
       return S.db.customers.filter(c =>
         U.kw(c.name, this.q.name) &&
+        (!this.q.regionId || c.regionId === this.q.regionId) &&
         (!this.q.levelId || c.levelId === this.q.levelId) &&
         (!this.q.typeId || c.typeId === this.q.typeId) &&
         (!this.q.status || c.status === this.q.status) &&
@@ -22,6 +23,7 @@ const CustomerList = {
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
     levelOptsAll() { return [{ value: '', label: '全部级别' }].concat(S.db.custLevels.map(t => ({ value: t.id, label: t.name }))); },
+    regionOptsAll() { return [{ value: '', label: '全部区域' }].concat(S.db.regions.map(t => ({ value: t.id, label: t.name }))); },
     typeOptsAll() { return [{ value: '', label: '全部类型' }].concat(S.db.custTypes.map(t => ({ value: t.id, label: t.name }))); },
     statusOptsAll() { return [{ value: '', label: '全部状态' }, { value: '已启用', label: '已启用' }, { value: '未启用', label: '未启用' }]; },
     regionOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('regions').map(t => ({ value: t.id, label: t.name }))); },
@@ -267,6 +269,7 @@ const CustomerList = {
   <div>
     <div class="toolbar">
       <input type="text" v-model="q.name" placeholder="客户名称模糊查询">
+      <x-combobox v-model="q.regionId" :options="regionOptsAll" placeholder="全部区域"/>
       <x-combobox v-model="q.levelId" :options="levelOptsAll" placeholder="全部级别"/>
       <x-combobox v-model="q.typeId" :options="typeOptsAll" placeholder="全部类型"/>
       <x-combobox v-model="q.status" :options="statusOptsAll" placeholder="全部状态"/>
