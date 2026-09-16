@@ -405,7 +405,7 @@ Pages['page-opening'] = {
           <div class="form-item full">
             <label>历史单据</label>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <label class="btn" style="position:relative;cursor:pointer">上传图片<input type="file" accept="image/*" multiple ref="arFile" style="position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0" @change="onDocImageSelect"></label>
+              <input type="file" accept="image/*" multiple class="btn" style="width:auto" @change="onDocImageSelect">
               <span v-if="!$root.isMobile" class="muted">或在此页面按 Ctrl+V 粘贴截图（支持多张）</span>
               <span v-if="uploadingImage" class="muted">上传中…</span>
               <div v-if="formAr.docImages && formAr.docImages.length" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
