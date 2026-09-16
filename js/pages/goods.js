@@ -17,7 +17,7 @@ const GoodsList = {
         (!this.q.typeId || g.typeId === this.q.typeId) &&
         (!this.q.status || g.status === this.q.status) &&
         U.inRange(g.createTime, this.q.d1, this.q.d2)
-      ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
+      ).slice().sort((a, b) => (U.rankEnabled(a.status) - U.rankEnabled(b.status)) || (b.createTime || '').localeCompare(a.createTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
     typeOptsAll() { return [{ value: '', label: '全部类型' }].concat(S.db.goodsTypes.map(t => ({ value: t.id, label: t.name }))); },
@@ -174,7 +174,7 @@ const SupplierList = {
         (!this.q.payCycle || s.payCycle === this.q.payCycle) &&
         (!this.q.payMethod || s.payMethod === this.q.payMethod) &&
         (!this.q.status || s.status === this.q.status)
-      ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
+      ).slice().sort((a, b) => (U.rankEnabled(a.status) - U.rankEnabled(b.status)) || (b.createTime || '').localeCompare(a.createTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
     cycleOptsAll() { return [{ value: '', label: '全部支付周期' }].concat(PAY_CYCLES.map(x => ({ value: x, label: x }))); },

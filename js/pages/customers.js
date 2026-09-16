@@ -19,7 +19,7 @@ const CustomerList = {
         (!this.q.typeId || c.typeId === this.q.typeId) &&
         (!this.q.status || c.status === this.q.status) &&
         U.inRange(c.createTime, this.q.d1, this.q.d2)
-      ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
+      ).slice().sort((a, b) => (U.rankEnabled(a.status) - U.rankEnabled(b.status)) || (b.createTime || '').localeCompare(a.createTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
     levelOptsAll() { return [{ value: '', label: '全部级别' }].concat(S.db.custLevels.map(t => ({ value: t.id, label: t.name }))); },

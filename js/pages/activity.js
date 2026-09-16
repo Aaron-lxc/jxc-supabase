@@ -52,7 +52,7 @@ const MerchantRef = {
         (!q.status || r.status === q.status) &&
         U.inRange(r.createTime, q.d1, q.d2) &&
         U.inRange(r.coopTime, q.d1b, q.d2b)
-      ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
+      ).slice().sort((a, b) => (U.rankTodo(a.status) - U.rankTodo(b.status)) || (b.createTime || '').localeCompare(a.createTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.size, this.page * this.size); },
     total() { return this.rows.length; },
@@ -230,7 +230,7 @@ const PersonRef = {
         (!q.status || r.status === q.status) &&
         U.inRange(r.createTime, q.d1, q.d2) &&
         U.inRange(r.coopTime, q.d1b, q.d2b)
-      ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
+      ).slice().sort((a, b) => (U.rankTodo(a.status) - U.rankTodo(b.status)) || (b.createTime || '').localeCompare(a.createTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.size, this.page * this.size); },
     total() { return this.rows.length; },
@@ -410,7 +410,7 @@ const PersonPromo = {
         (!q.refCustomerId || r.refCustomerId === q.refCustomerId) &&
         (!q.status || r.status === q.status) &&
         U.inRange(r.createTime, q.d1, q.d2)
-      ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
+      ).slice().sort((a, b) => (U.rankTodo(a.status) - U.rankTodo(b.status)) || (b.createTime || '').localeCompare(a.createTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.size, this.page * this.size); },
     total() { return this.rows.length; },

@@ -22,7 +22,7 @@ const ComplaintList = {
         U.kw(this.resNames(x), this.q.rp) &&
         (!this.q.status || x.status === this.q.status) &&
         U.inRange(x.time, this.q.d1, this.q.d2)
-      ).slice().sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+      ).slice().sort((a, b) => (U.rankTodo(a.status) - U.rankTodo(b.status)) || (b.time || '').localeCompare(a.time || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
     formCust() { return this.form.customerId ? S.byId('customers', this.form.customerId) : null; }
@@ -186,7 +186,7 @@ const RewardList = {
         U.kw(this.resNames(x), this.q.rp) &&
         (!this.q.status || x.status === this.q.status) &&
         U.inRange(x.time, this.q.d1, this.q.d2)
-      ).slice().sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+      ).slice().sort((a, b) => (U.rankTodo(a.status) - U.rankTodo(b.status)) || (b.time || '').localeCompare(a.time || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
     formCust() { return this.form.customerId ? S.byId('customers', this.form.customerId) : null; }

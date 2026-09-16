@@ -41,7 +41,7 @@ Pages['page-recipientmgr'] = {
         if (this.fStatus !== 'all' && (!r || r.status !== this.fStatus)) return false;
         if ((cf || ct) && (!r || !this.inCreatedRange(r.created_at))) return false;
         return true;
-      });
+      }).slice().sort((a, b) => U.rankEnabled((this.recipientOf(a) || {}).status || '已启用') - U.rankEnabled((this.recipientOf(b) || {}).status || '已启用'));
     }
   },
   methods: {

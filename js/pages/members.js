@@ -52,7 +52,7 @@ Pages['page-members'] = {
         if (f.loginStart && (!m.last_sign_in_at || this.dateOnly(m.last_sign_in_at) < f.loginStart)) return false;
         if (f.loginEnd && (!m.last_sign_in_at || this.dateOnly(m.last_sign_in_at) > f.loginEnd)) return false;
         return true;
-      });
+      }).slice().sort((a, b) => (U.rankEnabled(a.status) - U.rankEnabled(b.status)) || (b.created_at || '').localeCompare(a.created_at || ''));
     },
 
     /* 邀请筛选结果（无登录时间，按邮箱/角色/创建时间） */

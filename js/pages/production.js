@@ -35,7 +35,7 @@ Pages['page-production'] = {
         (!this.prodQ.typeId || p.typeId === this.prodQ.typeId) &&
         (!this.prodQ.whId || p.whId === this.prodQ.whId) &&
         U.inRange(p.time, this.prodQ.t1, this.prodQ.t2)
-      ).slice().sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+      ).slice().sort((a, b) => (U.rankTodo(a.status) - U.rankTodo(b.status)) || (b.time || '').localeCompare(a.time || ''));
     },
     prodPaged() { return this.prodRows.slice((this.prodPage - 1) * this.prodSize, this.prodPage * this.prodSize); },
     prodQtySum() { return U.round2(this.prodRows.reduce((a, p) => a + Number(p.qty || 0), 0)); },

@@ -15,8 +15,8 @@ function partnerListFactory(isRegion) {
       S() { return window.S; },
       rows() {
         return S.db[coll].filter(p =>
-          U.kw(p.name + (p.phone || ''), this.kw) && (!this.st || p.status === this.st)
-        ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
+        U.kw(p.name + (p.phone || ''), this.kw) && (!this.st || p.status === this.st)
+      ).slice().sort((a, b) => (U.rankEnabled(a.status) - U.rankEnabled(b.status)) || (b.createTime || '').localeCompare(a.createTime || ''));
       },
       paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
       statusOpts() { return [{ value: '', label: '全部状态' }, { value: '已启用', label: '已启用' }, { value: '未启用', label: '未启用' }]; },

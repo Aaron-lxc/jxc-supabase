@@ -43,7 +43,7 @@ Pages['page-inventory'] = {
         (!this.transferQ.fromWhId || t.fromWhId === this.transferQ.fromWhId) &&
         (!this.transferQ.toWhId || t.toWhId === this.transferQ.toWhId) &&
         U.inRange(t.time, this.transferQ.t1, this.transferQ.t2)
-      ).slice().sort((a, b) => (b.time || '').localeCompare(a.time || ''));
+      ).slice().sort((a, b) => (U.rankTodo(a.status) - U.rankTodo(b.status)) || (b.time || '').localeCompare(a.time || ''));
     },
     transferPaged() { return this.transferRows.slice((this.transferPage - 1) * this.transferSize, this.transferPage * this.transferSize); },
     transferAmountSum() { return U.round2(this.transferRows.reduce((a, t) => a + Number(t.amount || 0), 0)); },

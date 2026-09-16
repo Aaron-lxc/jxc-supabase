@@ -57,7 +57,7 @@ const SaleList = {
         (!this.q.incRes || (s.incResourceCommission || '是') === this.q.incRes) &&
         (!this.q.incReg || (s.incRegionCommission || '是') === this.q.incReg) &&
         U.inRange(s.createTime, this.q.d1, this.q.d2)
-      ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
+      ).slice().sort((a, b) => (U.rankTodo(a.status) - U.rankTodo(b.status)) || (b.createTime || '').localeCompare(a.createTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
     /* 表单可选商品：该仓库有库存记录的商品 */

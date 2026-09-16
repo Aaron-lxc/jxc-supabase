@@ -6,7 +6,7 @@ const ResourceRates = {
   computed: {
     S() { return window.S; },
     levelOpts() { return [{ value: 1, label: '一级' }, { value: 2, label: '二级' }, { value: 3, label: '三级' }]; },
-    rows() { return S.db.resourceRates.slice().sort((a, b) => a.level - b.level); }
+    rows() { return S.db.resourceRates.slice().sort((a, b) => (U.rankEnabled(a.status) - U.rankEnabled(b.status)) || (a.level - b.level)); }
   },
   methods: {
     lvName(L) { return ['一级', '二级', '三级'][L - 1]; },
@@ -77,7 +77,7 @@ const RegionRates = {
   computed: {
     S() { return window.S; },
     formPartnerOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('regionPartners').map(p => ({ value: p.id, label: p.name }))); },
-    rows() { return S.db.regionRates.slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || '')); }
+    rows() { return S.db.regionRates.slice().sort((a, b) => (U.rankEnabled(a.status) - U.rankEnabled(b.status)) || (b.createTime || '').localeCompare(a.createTime || '')); }
   },
   methods: {
     openNew() { this.editing = null; this.form = { partnerId: '', rate: null }; this.showForm = true; },

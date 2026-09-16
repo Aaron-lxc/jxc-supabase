@@ -18,7 +18,7 @@ const ExpenseList = {
         U.kw(x.desc, this.q.desc) &&
         U.inRange(x.createTime, this.q.d1, this.q.d2) &&
         (!this.q.payMethod || x.payMethod === this.q.payMethod)
-      ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
+      ).slice().sort((a, b) => (U.rankTodo(a.status) - U.rankTodo(b.status)) || (b.createTime || '').localeCompare(a.createTime || ''));
     },
     catOpts() { return [{ value: '', label: '全部类目' }].concat(S.db.expenseCats.map(c => ({ value: c.id, label: c.name }))); },
     catOptsEnabled() { return [{ value: '', label: '请选择' }].concat(S.enabled('expenseCats').map(c => ({ value: c.id, label: c.name }))); },
@@ -141,7 +141,7 @@ const IncomeList = {
         U.kw(x.desc, this.q.desc) &&
         U.inRange(x.createTime, this.q.d1, this.q.d2) &&
         (!this.q.payMethod || x.payMethod === this.q.payMethod)
-      ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
+      ).slice().sort((a, b) => (U.rankTodo(a.status) - U.rankTodo(b.status)) || (b.createTime || '').localeCompare(a.createTime || ''));
     },
     catOpts() { return [{ value: '', label: '全部类目' }].concat(S.db.incomeCats.map(c => ({ value: c.id, label: c.name }))); },
     catOptsEnabled() { return [{ value: '', label: '请选择' }].concat(S.enabled('incomeCats').map(c => ({ value: c.id, label: c.name }))); },

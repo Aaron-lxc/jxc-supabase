@@ -11,7 +11,7 @@ Pages['page-warehouse'] = {
     rows() {
       return S.db.warehouses.filter(w =>
         U.kw(w.name, this.kw) && (!this.st || w.status === this.st)
-      ).slice().sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''));
+      ).slice().sort((a, b) => (U.rankEnabled(a.status) - U.rankEnabled(b.status)) || (b.createTime || '').localeCompare(a.createTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); }
   },
