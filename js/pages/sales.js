@@ -125,6 +125,20 @@ const SaleList = {
       this.form = { customerId: s.customerId, whId: s.whId, taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', deliveryFee: s.deliveryFee || 0, incResourceCommission: s.incResourceCommission || '是', incRegionCommission: s.incRegionCommission || '是', items: s.items.map(it => ({ ...it })) };
       this.showForm = true;
     },
+    /* 复制销售单：打开「新增」弹窗并预填原单内容（客户/仓库/税点/减免/佣金计入/配送费/商品明细），
+       保存时走正常新增流程、生成新单号，原单不受影响；客户备注按新选客户自动匹配显示 */
+    copySale(s) {
+      this.editing = null;
+      this.form = {
+        customerId: s.customerId, whId: s.whId,
+        taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否',
+        deliveryFee: s.deliveryFee || 0,
+        incResourceCommission: s.incResourceCommission || '是',
+        incRegionCommission: s.incRegionCommission || '是',
+        items: s.items.map(it => ({ ...it }))
+      };
+      this.showForm = true;
+    },
     /* 选定客户后自动带出该客户的税点/减免（可在单据上临时覆盖） */
     onCustChange(v) {
       const c = v ? S.byId('customers', v) : null;
@@ -411,7 +425,7 @@ const SaleList = {
     <table class="grid">
       <thead><tr>
         <th>序号</th><th>销售单号</th><th>客户名称</th><th>仓库名称</th><th>商品</th>
-        <th class="num">数量</th><th class="num">金额</th><th class="num">税点费用</th><th class="num">累计欠款</th><th class="num">配送费</th><th>客户备注</th><th>状态</th><th>创建时间</th><th>操作</th>
+        <th class="num">数量</th><th class="num">金额</th><th class="num">税点费用</th><th class="num">累计欠款</th><th class="num">配送费</th><th>计入资源佣金</th><th>计入区域佣金</th><th>客户备注</th><th>状态</th><th>创建时间</th><th>操作</th>
       </tr></thead>
       <tbody>
         <tr v-for="(s,i) in paged" :key="s.id">
@@ -430,6 +444,7 @@ const SaleList = {
           <td class="ops" data-label="操作">
             <span class="link" @click="openPreview(s)">预览</span>
             <span class="link" @click="print(s)">打印</span>
+            <span class="link" @click="copySale(s)">复制</span>
             <template v-if="s.status==='未完成'">
               <span class="link" @click="openEdit(s)">修改</span>
               <span class="link danger" @click="del(s)">删除</span>
@@ -463,8 +478,8 @@ const SaleList = {
           <x-combobox v-model="form.incRegionCommission" :options="exemptOpts" placeholder="是" style="width:120px"/></div>
         <div class="form-item"><label>配送费</label>
           <input type="number" min="0" step="0.01" style="width:110px" v-model.number="form.deliveryFee" placeholder="0"></div>
-        <div class="form-item full" v-if="formCust && formCust.remark"><label>客户备注（自动同步）</label>
-          <div class="muted">{{formCust.remark}}</div></div>
+        <div class="form-item full"><label>客户备注（自动同步）</label>
+          <div class="muted">{{formCust ? (formCust.remark || '（该客户暂无备注）') : '（未选择客户）'}}</div></div>
       </div>
       <div class="section-title" style="margin-top:12px">商品明细 <span class="muted">（仅显示所选仓库有库存的商品）</span></div>
       <div class="item-rows table-wrap">
