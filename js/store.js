@@ -31,6 +31,7 @@ window.S = {
       regionAssessArchive: [],
       resourceRates: [], regionRates: [],
       commissionPayments: [],
+      commissionLocks: [],
       openingStocks: [], openingAr: [], openingAp: [], openingFunds: [],
       capitalInjections: [],
       settings: {
@@ -1256,38 +1257,111 @@ window.S = {
     return r ? Number(r.rate) : 0;
   },
 
+  /* 客户自定义佣金比例（按级别拆分，可选覆盖）：填了优先于全局，否则回退全局 */
+  effResourceRate(c, level) {
+    const r = c && c['r' + level + 'Rate'];
+    return (r != null && r !== '') ? Number(r) : this.activeResourceRate(level);
+  },
+  effRegionRate(c, pid) {
+    const r = c && c.regionRate;
+    return (r != null && r !== '') ? Number(r) : this.activeRegionRate(pid);
+  },
+  /* 该单该合伙人佣金是否已锁定（已支付）：返回锁定金额或 null */
+  commissionLockedAmount(saleId, pid, type) {
+    const hit = (this.db.commissionLocks || []).find(l => l.saleId === saleId && l.partnerId === pid && l.type === type);
+    return hit ? Number(hit.amount) : null;
+  },
+  /* 某单某合伙人某级别资源佣金（含锁定 / 自定义比例） */
+  saleCommissionForLevel(sale, pid, L) {
+    const c = this.byId('customers', sale.customerId);
+    if (!c || sale.status !== '已完成') return 0;
+    if ((sale.incResourceCommission || '是') === '否') return 0;
+    if (c['r' + L] !== pid) return 0;
+    const locked = this.commissionLockedAmount(sale.id, pid, '资源');
+    if (locked != null) return locked;
+    const net = this.saleNet(sale);
+    return U.round2(net * this.effResourceRate(c, L) / 100);
+  },
+  /* 支付时按单级实时佣金降序「整单」锁定，直到用尽 amount；写入 commissionLocks 与 payRec.locked。
+     仅整单锁定（不部分锁定）；已全额锁定的单跳过，避免重复锁定与按比例分摊失真。 */
+  lockCommissionForPay(db, pid, type, amount, payRec) {
+    db.commissionLocks = db.commissionLocks || [];
+    let remain = U.round2(Number(amount) || 0);
+    if (remain <= 0) return;
+    const lines = [];
+    (db.sales || []).filter(s => s.status === '已完成').forEach(s => {
+      const c = (db.customers || []).find(x => x.id === s.customerId);
+      if (!c) return;
+      if (type === '区域') {
+        if ((s.incRegionCommission || '是') === '否') return;
+        if (c.regionPartnerId !== pid) return;
+        const amt = this.saleCommissionFor(s, pid, '区域');
+        if (amt > 0) lines.push({ saleId: s.id, amt });
+      } else {
+        if ((s.incResourceCommission || '是') === '否') return;
+        let sum = 0;
+        [1, 2, 3].forEach(L => { if (c['r' + L] === pid) sum = U.round2(sum + this.saleCommissionForLevel(s, pid, L)); });
+        if (sum > 0) lines.push({ saleId: s.id, amt: sum });
+      }
+    });
+    lines.sort((a, b) => b.amt - a.amt);
+    lines.forEach(l => {
+      if (remain <= 0) return;
+      const exist = db.commissionLocks.find(x => x.saleId === l.saleId && x.partnerId === pid && x.type === type);
+      const already = exist ? Number(exist.amount) : 0;
+      if (already >= U.round2(l.amt)) return;                 // 已全额锁定
+      const need = U.round2(U.round2(l.amt) - already);
+      if (need > remain) return;                              // 余额不足：本单暂不锁定（留待后续支付）
+      if (exist) exist.amount = U.round2(exist.amount + need);
+      else db.commissionLocks.push({ saleId: l.saleId, partnerId: pid, type, amount: need });
+      if (payRec) { payRec.locked = payRec.locked || []; if (!payRec.locked.includes(l.saleId)) payRec.locked.push(l.saleId); }
+      remain = U.round2(remain - need);
+    });
+  },
+  /* 存量数据一次性迁移：把历史佣金支付按金额降序锁定到对应单（幂等，标记 _migratedCommissionLock） */
+  migrateCommissionLock(db) {
+    if (db._migratedCommissionLock) return;
+    db.commissionLocks = db.commissionLocks || [];
+    (db.commissionPayments || []).forEach(p => {
+      if (p.locked) return;
+      this.lockCommissionForPay(db, p.partnerId, p.type, Number(p.amount) || 0, p);
+    });
+    db._migratedCommissionLock = true;
+  },
+
   completedSalesIn(d1, d2) {
     return this.db.sales.filter(s => s.status === '已完成' && U.inRange(s.finishTime || s.createTime, d1, d2));
   },
 
-  /* 资源合伙人佣金明细：[{partnerId, level, sales, rate, commission, custCount}] */
+  /* 资源合伙人佣金明细：[{partnerId, level, sales, rate, commission, custCount}]
+     rate 改为等效混合比例 = commission/sales*100（支持客户自定义比例 + 已支付单锁定） */
   resourceCommission(d1, d2) {
     const map = {};
     this.completedSalesIn(d1, d2).forEach(s => {
       if ((s.incResourceCommission || '是') === '否') return;
       const c = this.byId('customers', s.customerId);
       if (!c) return;
-      const net = this.saleNet(s);
       [1, 2, 3].forEach(L => {
         const pid = c['r' + L];
         if (!pid) return;
         const key = pid + '-' + L;
-        if (!map[key]) map[key] = { partnerId: pid, level: L, sales: 0, custIds: new Set() };
-        map[key].sales += net;
+        if (!map[key]) map[key] = { partnerId: pid, level: L, sales: 0, commission: 0, custIds: new Set() };
+        map[key].sales += this.saleNet(s);
+        map[key].commission += this.saleCommissionForLevel(s, pid, L);
         map[key].custIds.add(c.id);
       });
     });
-    return Object.values(map).map(x => {
-      const rate = this.activeResourceRate(x.level);
-      return {
-        partnerId: x.partnerId, level: x.level, custCount: x.custIds.size,
-        sales: U.round2(x.sales), rate,
-        commission: U.round2(x.sales * rate / 100)
-      };
-    }).sort((a, b) => a.partnerId - b.partnerId || a.level - b.level);
+    return Object.values(map).map(x => ({
+      partnerId: x.partnerId, level: x.level, custCount: x.custIds.size,
+      sales: U.round2(x.sales),
+      rate: x.sales > 0 ? U.round2(x.commission / x.sales * 100) : 0,
+      commission: U.round2(x.commission)
+    })).sort((a, b) => a.partnerId - b.partnerId || a.level - b.level);
   },
 
   /* 区域合伙人佣金：[{partnerId, sales, rate, commission, custCount}] */
+  /* 区域合伙人佣金：[{partnerId, sales, rate, commission, custCount}]
+     rate 改为等效混合比例 = commission/sales*100（支持客户自定义比例 + 已支付单锁定） */
   regionCommission(d1, d2) {
     const map = {};
     this.completedSalesIn(d1, d2).forEach(s => {
@@ -1295,18 +1369,17 @@ window.S = {
       const c = this.byId('customers', s.customerId);
       if (!c || !c.regionPartnerId) return;
       const pid = c.regionPartnerId;
-      if (!map[pid]) map[pid] = { partnerId: pid, sales: 0, custIds: new Set() };
+      if (!map[pid]) map[pid] = { partnerId: pid, sales: 0, commission: 0, custIds: new Set() };
       map[pid].sales += this.saleNet(s);
+      map[pid].commission += this.saleCommissionFor(s, pid, '区域');
       map[pid].custIds.add(c.id);
     });
-    return Object.values(map).map(x => {
-      const rate = this.activeRegionRate(x.partnerId);
-      return {
-        partnerId: x.partnerId, custCount: x.custIds.size,
-        sales: U.round2(x.sales), rate,
-        commission: U.round2(x.sales * rate / 100)
-      };
-    }).sort((a, b) => b.commission - a.commission);
+    return Object.values(map).map(x => ({
+      partnerId: x.partnerId, custCount: x.custIds.size,
+      sales: U.round2(x.sales),
+      rate: x.sales > 0 ? U.round2(x.commission / x.sales * 100) : 0,
+      commission: U.round2(x.commission)
+    })).sort((a, b) => b.commission - a.commission);
   },
 
   totalResourceCommission(d1, d2) {
@@ -1346,19 +1419,21 @@ window.S = {
      以及所有「未支付货款的已完成销售单」，对应佣金全部暂扣（质押），
      待该单支付完成且不再是最后一单后自动释放。 */
 
-  /* 某张销售单归属某合伙人的佣金金额 */
+  /* 某张销售单归属某合伙人的佣金金额（含锁定 / 自定义比例） */
   saleCommissionFor(sale, partnerId, type) {
     const c = this.byId('customers', sale.customerId);
     if (!c || sale.status !== '已完成') return 0;
     if ((type === '区域' ? (sale.incRegionCommission || '是') : (sale.incResourceCommission || '是')) === '否') return 0;
+    const locked = this.commissionLockedAmount(sale.id, partnerId, type);
+    if (locked != null) return locked;
     const net = this.saleNet(sale);
     if (type === '区域') {
       if (c.regionPartnerId !== partnerId) return 0;
-      return U.round2(net * this.activeRegionRate(partnerId) / 100);
+      return U.round2(net * this.effRegionRate(c, partnerId) / 100);
     }
     let sum = 0;
     [1, 2, 3].forEach(L => {
-      if (c['r' + L] === partnerId) sum += net * this.activeResourceRate(L) / 100;
+      if (c['r' + L] === partnerId) sum += net * this.effResourceRate(c, L) / 100;
     });
     return U.round2(sum);
   },
@@ -1431,7 +1506,20 @@ window.S = {
       operator: Cloud.state.user ? Cloud.state.user.name : ''
     };
     this.db.commissionPayments.push(rec);
+    this.lockCommissionForPay(this.db, rec.partnerId, rec.type, Number(rec.amount), rec);
     return rec;
+  },
+  /* 撤销佣金支付：删除记录并解除其锁定的单级佣金（已支付→变回未支付，可重算） */
+  delCommissionPay(rec) {
+    this.db.commissionPayments = this.db.commissionPayments.filter(x => x.id !== rec.id);
+    const locks = this.db.commissionLocks || [];
+    if (rec.locked && rec.locked.length) {
+      const set = new Set(rec.locked);
+      this.db.commissionLocks = locks.filter(l => !(l.partnerId === rec.partnerId && l.type === rec.type && set.has(l.saleId)));
+    } else if (this.db._migratedCommissionLock) {
+      // 迁移产生的支付无单级列表，删除其 partner+type 的全部锁定
+      this.db.commissionLocks = locks.filter(l => !(l.partnerId === rec.partnerId && l.type === rec.type));
+    }
   },
 
   /* 资源合伙人各级人数（按客户引用去重） */

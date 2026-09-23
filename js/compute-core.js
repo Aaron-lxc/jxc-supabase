@@ -59,7 +59,7 @@
       rewardTypes: [], rewards: [], dealerRewards: [],
       merchantRefs: [], personRefs: [], personPromos: [],
       regionAssessArchive: [],
-      resourceRates: [], regionRates: [], commissionPayments: [],
+      resourceRates: [], regionRates: [], commissionPayments: [], commissionLocks: [],
       openingStocks: [], openingAr: [], openingAp: [], openingFunds: [], capitalInjections: [],
       settings: {
         company: '我的公司', fixedCosts: [], backupKeep: 20, backupDays: 0,
@@ -125,6 +125,98 @@
     }
     delete db.settings.opened;
     delete db.settings.openTime;
+  }
+
+  /* ---------------- 佣金：自定义比例覆盖（与 store.js 口径一致） ---------------- */
+  function activeResRate(db, level) {
+    const r = (db.resourceRates || []).find(x => x.level === level && x.status === '已启用');
+    return r ? Number(r.rate) : 0;
+  }
+  function activeRegRate(db, pid) {
+    const r = (db.regionRates || []).find(x => x.partnerId === pid && x.status === '已启用');
+    return r ? Number(r.rate) : 0;
+  }
+  function effResRate(db, c, level) {
+    const r = c && c['r' + level + 'Rate'];
+    return (r != null && r !== '') ? Number(r) : activeResRate(db, level);
+  }
+  function effRegRate(db, c, pid) {
+    const r = c && c.regionRate;
+    return (r != null && r !== '') ? Number(r) : activeRegRate(db, pid);
+  }
+  function commissionLockedAmount(db, saleId, pid, type) {
+    const hit = (db.commissionLocks || []).find(l => l.saleId === saleId && l.partnerId === pid && l.type === type);
+    return hit ? Number(hit.amount) : null;
+  }
+  function saleNetAmt(db, sale) {
+    return U.round2((sale.total || 0) - (db.returns || []).filter(r => r.saleId === sale.id).reduce((a, r) => a + (r.total || 0), 0));
+  }
+  function saleCommissionForLevel(db, sale, pid, L) {
+    const c = (db.customers || []).find(x => x.id === sale.customerId);
+    if (!c || sale.status !== '已完成') return 0;
+    if ((sale.incResourceCommission || '是') === '否') return 0;
+    if (c['r' + L] !== pid) return 0;
+    const locked = commissionLockedAmount(db, sale.id, pid, '资源');
+    if (locked != null) return locked;
+    return U.round2(saleNetAmt(db, sale) * effResRate(db, c, L) / 100);
+  }
+  function saleCommissionFor(db, sale, pid, type) {
+    const c = (db.customers || []).find(x => x.id === sale.customerId);
+    if (!c || sale.status !== '已完成') return 0;
+    if ((type === '区域' ? (sale.incRegionCommission || '是') : (sale.incResourceCommission || '是')) === '否') return 0;
+    const locked = commissionLockedAmount(db, sale.id, pid, type);
+    if (locked != null) return locked;
+    const net = saleNetAmt(db, sale);
+    if (type === '区域') {
+      if (c.regionPartnerId !== pid) return 0;
+      return U.round2(net * effRegRate(db, c, pid) / 100);
+    }
+    let sum = 0;
+    [1, 2, 3].forEach(L => { if (c['r' + L] === pid) sum += net * effResRate(db, c, L) / 100; });
+    return U.round2(sum);
+  }
+  function lockCommissionForPay(db, pid, type, amount, payRec) {
+    db.commissionLocks = db.commissionLocks || [];
+    let remain = U.round2(Number(amount) || 0);
+    if (remain <= 0) return;
+    const lines = [];
+    (db.sales || []).filter(s => s.status === '已完成').forEach(s => {
+      const c = (db.customers || []).find(x => x.id === s.customerId);
+      if (!c) return;
+      if (type === '区域') {
+        if ((s.incRegionCommission || '是') === '否') return;
+        if (c.regionPartnerId !== pid) return;
+        const amt = saleCommissionFor(db, s, pid, '区域');
+        if (amt > 0) lines.push({ saleId: s.id, amt });
+      } else {
+        if ((s.incResourceCommission || '是') === '否') return;
+        let sum = 0;
+        [1, 2, 3].forEach(L => { if (c['r' + L] === pid) sum = U.round2(sum + saleCommissionForLevel(db, s, pid, L)); });
+        if (sum > 0) lines.push({ saleId: s.id, amt: sum });
+      }
+    });
+    lines.sort((a, b) => b.amt - a.amt);
+    lines.forEach(l => {
+      if (remain <= 0) return;
+      const exist = db.commissionLocks.find(x => x.saleId === l.saleId && x.partnerId === pid && x.type === type);
+      const already = exist ? Number(exist.amount) : 0;
+      if (already >= U.round2(l.amt)) return;
+      const need = U.round2(U.round2(l.amt) - already);
+      if (need > remain) return;
+      if (exist) exist.amount = U.round2(exist.amount + need);
+      else db.commissionLocks.push({ saleId: l.saleId, partnerId: pid, type, amount: need });
+      if (payRec) { payRec.locked = payRec.locked || []; if (!payRec.locked.includes(l.saleId)) payRec.locked.push(l.saleId); }
+      remain = U.round2(remain - need);
+    });
+  }
+  function migrateCommissionLock(db) {
+    if (db._migratedCommissionLock) return;
+    db.commissionLocks = db.commissionLocks || [];
+    (db.commissionPayments || []).forEach(p => {
+      if (p.locked) return;
+      lockCommissionForPay(db, p.partnerId, p.type, Number(p.amount) || 0, p);
+    });
+    db._migratedCommissionLock = true;
   }
 
   /* ---------------- 计算引擎 ---------------- */
@@ -195,19 +287,22 @@
           if ((s.incResourceCommission || '是') === '否') return;
           const c = this.byId('customers', s.customerId);
           if (!c) return;
-          const net = this.saleNet(s);
           [1, 2, 3].forEach(L => {
             const pid = c['r' + L];
             if (!pid) return;
             const key = pid + '-' + L;
-            if (!map[key]) map[key] = { partnerId: pid, level: L, sales: 0, custIds: new Set() };
-            map[key].sales += net; map[key].custIds.add(c.id);
+            if (!map[key]) map[key] = { partnerId: pid, level: L, sales: 0, commission: 0, custIds: new Set() };
+            map[key].sales += this.saleNet(s);
+            map[key].commission += saleCommissionForLevel(db, s, pid, L);
+            map[key].custIds.add(c.id);
           });
         });
-        return Object.values(map).map(x => {
-          const rate = this.activeResourceRate(x.level);
-          return { partnerId: x.partnerId, level: x.level, custCount: x.custIds.size, sales: U.round2(x.sales), rate, commission: U.round2(x.sales * rate / 100) };
-        }).sort((a, b) => a.partnerId - b.partnerId || a.level - b.level);
+        return Object.values(map).map(x => ({
+          partnerId: x.partnerId, level: x.level, custCount: x.custIds.size,
+          sales: U.round2(x.sales),
+          rate: x.sales > 0 ? U.round2(x.commission / x.sales * 100) : 0,
+          commission: U.round2(x.commission)
+        })).sort((a, b) => a.partnerId - b.partnerId || a.level - b.level);
       },
       /* 佣金 - 区域 */
       regionCommission(d1, d2) {
@@ -217,13 +312,17 @@
           const c = this.byId('customers', s.customerId);
           if (!c || !c.regionPartnerId) return;
           const pid = c.regionPartnerId;
-          if (!map[pid]) map[pid] = { partnerId: pid, sales: 0, custIds: new Set() };
-          map[pid].sales += this.saleNet(s); map[pid].custIds.add(c.id);
+          if (!map[pid]) map[pid] = { partnerId: pid, sales: 0, commission: 0, custIds: new Set() };
+          map[pid].sales += this.saleNet(s);
+          map[pid].commission += saleCommissionFor(db, s, pid, '区域');
+          map[pid].custIds.add(c.id);
         });
-        return Object.values(map).map(x => {
-          const rate = this.activeRegionRate(x.partnerId);
-          return { partnerId: x.partnerId, custCount: x.custIds.size, sales: U.round2(x.sales), rate, commission: U.round2(x.sales * rate / 100) };
-        }).sort((a, b) => b.commission - a.commission);
+        return Object.values(map).map(x => ({
+          partnerId: x.partnerId, custCount: x.custIds.size,
+          sales: U.round2(x.sales),
+          rate: x.sales > 0 ? U.round2(x.commission / x.sales * 100) : 0,
+          commission: U.round2(x.commission)
+        })).sort((a, b) => b.commission - a.commission);
       },
       totalResourceCommission(d1, d2) { return U.round2(this.resourceCommission(d1, d2).reduce((a, x) => a + x.commission, 0)); },
       totalRegionCommission(d1, d2) { return U.round2(this.regionCommission(d1, d2).reduce((a, x) => a + x.commission, 0)); },
@@ -253,17 +352,7 @@
 
       /* 佣金 - 单张单归属佣金 */
       saleCommissionFor(sale, partnerId, type) {
-        const c = this.byId('customers', sale.customerId);
-        if (!c || sale.status !== '已完成') return 0;
-        if ((type === '区域' ? (sale.incRegionCommission || '是') : (sale.incResourceCommission || '是')) === '否') return 0;
-        const net = this.saleNet(sale);
-        if (type === '区域') {
-          if (c.regionPartnerId !== partnerId) return 0;
-          return U.round2(net * this.activeRegionRate(partnerId) / 100);
-        }
-        let sum = 0;
-        [1, 2, 3].forEach(L => { if (c['r' + L] === partnerId) sum += net * this.activeResourceRate(L) / 100; });
-        return U.round2(sum);
+        return saleCommissionFor(db, sale, partnerId, type);
       },
       partnerCustomerIds(partnerId, type) {
         return (db.customers || []).filter(c => type === '区域'
@@ -440,7 +529,7 @@
     return S;
   }
 
-  const API = { U, emptyDB, buildDB, makeCompute, migrateTaxManual, ensureSettings };
+  const API = { U, emptyDB, buildDB, makeCompute, migrateTaxManual, migrateCommissionLock, ensureSettings };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   else global.ComputeCore = API;
 })(typeof window !== 'undefined' ? window : globalThis);

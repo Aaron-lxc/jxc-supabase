@@ -91,6 +91,10 @@ const CustomerList = {
         bankCard: f.bankCard || '', corpAccount: f.corpAccount || '', invoiceInfo: f.invoiceInfo || '',
         taxRate: Number(f.taxRate) || 0, taxExempt: f.taxExempt || '否',
         r1: f.r1 || null, r2: f.r2 || null, r3: f.r3 || null,
+        r1Rate: (f.r1Rate != null && f.r1Rate !== '') ? Number(f.r1Rate) : null,
+        r2Rate: (f.r2Rate != null && f.r2Rate !== '') ? Number(f.r2Rate) : null,
+        r3Rate: (f.r3Rate != null && f.r3Rate !== '') ? Number(f.r3Rate) : null,
+        regionRate: (f.regionRate != null && f.regionRate !== '') ? Number(f.regionRate) : null,
         regionPartnerId: f.regionPartnerId || null, remark: f.remark
       };
       if (this.editing) {
@@ -344,12 +348,20 @@ const CustomerList = {
           <textarea rows="2" v-model="form.invoiceInfo" placeholder="抬头 / 税号 / 地址电话 / 开户行及账号"></textarea></div>
         <div class="form-item"><label>一级资源</label>
           <x-combobox v-model="form.r1" :options="rpOpts" placeholder="无"/></div>
+        <div class="form-item"><label>一级资源比例(%)<br><span style="font-size:12px;color:#94a3b8">留空=用全局</span></label>
+          <input type="number" min="0" max="100" step="0.1" v-model.number="form.r1Rate"></div>
         <div class="form-item"><label>二级资源</label>
           <x-combobox v-model="form.r2" :options="rpOpts" placeholder="无"/></div>
+        <div class="form-item"><label>二级资源比例(%)<br><span style="font-size:12px;color:#94a3b8">留空=用全局</span></label>
+          <input type="number" min="0" max="100" step="0.1" v-model.number="form.r2Rate"></div>
         <div class="form-item"><label>三级资源</label>
           <x-combobox v-model="form.r3" :options="rpOpts" placeholder="无"/></div>
+        <div class="form-item"><label>三级资源比例(%)<br><span style="font-size:12px;color:#94a3b8">留空=用全局</span></label>
+          <input type="number" min="0" max="100" step="0.1" v-model.number="form.r3Rate"></div>
         <div class="form-item"><label>区域合伙人</label>
           <x-combobox v-model="form.regionPartnerId" :options="gpOpts" placeholder="无"/></div>
+        <div class="form-item"><label>区域佣金比例(%)<br><span style="font-size:12px;color:#94a3b8">留空=用全局</span></label>
+          <input type="number" min="0" max="100" step="0.1" v-model.number="form.regionRate"></div>
         <div class="form-item full"><label>客户地址</label><input type="text" v-model="form.address"></div>
         <div class="form-item full"><label>备注</label><textarea rows="2" v-model="form.remark"></textarea></div>
       </div>

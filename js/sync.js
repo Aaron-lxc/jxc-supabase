@@ -21,7 +21,7 @@ window.Sync = {
     'rewardTypes', 'rewards', 'dealerRewards',
     'merchantRefs', 'personRefs', 'personPromos',
     'regionAssessArchive',
-    'resourceRates', 'regionRates', 'commissionPayments',
+    'resourceRates', 'regionRates', 'commissionPayments', 'commissionLocks',
     'openingStocks', 'openingAr', 'openingAp', 'openingFunds', 'capitalInjections'
   ],
   /* 单对象集合（固定一行，rid = '_'） */

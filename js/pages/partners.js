@@ -120,7 +120,7 @@ function partnerListFactory(isRegion) {
       },
       delPay(rec) {
         if (!U.confirm('撤销该笔佣金支付记录（￥' + U.fmtMoney(rec.amount) + '）吗？')) return;
-        S.db.commissionPayments = S.db.commissionPayments.filter(x => x.id !== rec.id);
+        S.delCommissionPay(rec);
       },
       exportPledge() {
         U.exportExcel((this.detail.name || '') + '-质押佣金明细.xlsx', this.detailPledge.map((r, i) => ({

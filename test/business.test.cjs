@@ -327,6 +327,66 @@ function reset() {
   ok(S.stockQty('W1', 'G1') === 50, 'B5-12 两次失败用例未改动库存（仍为 50）');
 })();
 
+/* ---------- B6 客户自定义佣金比例 + 已支付单锁定 ---------- */
+(function B6_customCommissionAndLock() {
+  reset();
+  const db = S.db;
+  // 库存（供 finishSale 扣减）
+  const rec = S.stockRec('W1', 'G1', true);
+  S.addLotQty(rec, { batchNo: 'B0', productionDate: '2026-01-01', cost: 10 }, 300);
+  // 全局比例：资源一级 10%，区域(合伙人 P2) 5%
+  db.resourceRates.push({ id: 1, level: 1, rate: 10, status: '已启用' });
+  db.regionRates.push({ id: 1, partnerId: 'P2', rate: 5, status: '已启用' });
+  // 客户：C1 用全局；C2 一级资源自定义 20%；C3 区域合伙人 P2
+  db.customers.push(
+    { id: 'C1', name: '客户1', taxRate: 0, taxExempt: '否', r1: 'P1', r2: null, r3: null, regionPartnerId: null, status: '已启用' },
+    { id: 'C2', name: '客户2', taxRate: 0, taxExempt: '否', r1: 'P1', r2: null, r3: null, regionPartnerId: null, r1Rate: 20, status: '已启用' },
+    { id: 'C3', name: '客户3', taxRate: 0, taxExempt: '否', regionPartnerId: 'P2', status: '已启用' }
+  );
+  function mkSale(id, custId) {
+    const s = { id, no: 'SO-' + id, customerId: custId, whId: 'W1', items: [{ goodsId: 'G1', qty: 10, price: 10, amount: 100, lotKey: '', alloc: [] }], total: 100, status: '未完成', payStatus: '', payTime: '', createTime: 'T0', finishTime: '' };
+    db.sales.push(s);
+    return s;
+  }
+  const s1 = mkSale('S1', 'C1'), s2 = mkSale('S2', 'C2'), s3 = mkSale('S3', 'C3');
+  ok(S.finishSale(s1) === null, 'B6-1 完成S1');
+  ok(S.finishSale(s2) === null, 'B6-2 完成S2');
+  ok(S.finishSale(s3) === null, 'B6-3 完成S3');
+  let rc = S.resourceCommission(null, null).find(x => x.partnerId === 'P1' && x.level === 1);
+  eq(rc.commission, 30, 'B6-4 P1一级佣金=10(C1全局)+20(C2自定义)=30');
+  eq(rc.rate, 15, 'B6-5 等效混合比例=15%');
+  let rg = S.regionCommission(null, null).find(x => x.partnerId === 'P2');
+  eq(rg.commission, 5, 'B6-6 P2区域佣金=5(全局5%×100)');
+  // 改 C2 自定义比例 → 未支付单应重算
+  S.byId('customers', 'C2').r1Rate = 5;
+  rc = S.resourceCommission(null, null).find(x => x.partnerId === 'P1' && x.level === 1);
+  eq(rc.commission, 15, 'B6-7 C2改5%后 P1佣金=10+5=15（未支付单随比例重算）');
+  // 支付 P1 金额 10 → 锁定 S1（整单10），S2 因余额不足暂不锁定
+  const pay = S.addCommissionPay({ partnerId: 'P1', type: '资源', amount: 10, remark: 'test' });
+  ok((pay.locked || []).includes('S1'), 'B6-8 支付10锁定S1');
+  ok(!(pay.locked || []).includes('S2'), 'B6-9 S2未锁定（余额不足）');
+  // 改全局一级比例到 50% → 已锁定 S1 不变，未锁定 S2 随新比例重算
+  S.db.resourceRates[0].rate = 50;
+  eq(S.saleCommissionFor(s1, 'P1', '资源'), 10, 'B6-10 已锁定S1佣金仍为10（不随比例变）');
+  eq(S.saleCommissionFor(s2, 'P1', '资源'), 5, 'B6-11 未锁定S2随自定义比例=5%×100=5');
+  rc = S.resourceCommission(null, null).find(x => x.partnerId === 'P1' && x.level === 1);
+  eq(rc.commission, 15, 'B6-12 P1合计=锁定10+未锁定5=15');
+  // compute-core 口径一致
+  const CC = require(path.join(ROOT, 'js/compute-core.js'));
+  const cc = CC.makeCompute(S.db);
+  const ccr = cc.resourceCommission(null, null).find(x => x.partnerId === 'P1' && x.level === 1);
+  eq(ccr.commission, rc.commission, 'B6-16 compute-core 与 store 口径一致(P1佣金=15)');
+  eq(cc.saleCommissionFor(s3, 'P2', '区域'), 5, 'B6-17 compute-core 区域锁定一致(S3=5)');
+  // 撤销支付 → 解锁，S1 恢复 live（按新比例50%=50）
+  S.delCommissionPay(pay);
+  eq(S.saleCommissionFor(s1, 'P1', '资源'), 50, 'B6-13 撤销支付后S1按新比例=50');
+  // 区域同理
+  const pay2 = S.addCommissionPay({ partnerId: 'P2', type: '区域', amount: 5, remark: 't' });
+  eq(S.saleCommissionFor(s3, 'P2', '区域'), 5, 'B6-14 支付前S3区域=5');
+  S.db.regionRates[0].rate = 20;
+  eq(S.saleCommissionFor(s3, 'P2', '区域'), 5, 'B6-15 改全局区域比例后已锁定S3仍=5');
+})();
+
 /* ---------- 汇总 ---------- */
 console.log(`\n业务单元测试：通过 ${pass}，失败 ${fail}`);
 if (fail) { console.log('\n失败项：\n' + fails.join('\n')); process.exit(1); }
