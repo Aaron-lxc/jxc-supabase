@@ -103,10 +103,10 @@ function reset() {
   S.addLotQty(rec2, { batchNo: 'X2', productionDate: '2026-01-01', cost: 10 }, 10);
   const a2 = S.consumeLotSelected(rec2, S.byId('goods', 'G4'), 4, 'NOPE');
   eq(a2[0].batchNo, 'X2', 'A8 指定不存在批次时回退 FEFO 最老 X2');
-  // 临期判定（expiry 距今天<=7 天）
-  const ei = S.lotExpiryInfo(g, { productionDate: '2026-08-23', qty: 1 });
+  // 临期判定（expiry 距今天<=expireWarn 天；用相对日期避免随时间腐烂）
+  const ei = S.lotExpiryInfo(g, { productionDate: U.addDays(U.today(), -23), qty: 1 }); // 到期=今天+7
   ok(ei.expiring === true && ei.days === 7, 'A9 到期日距今天7天 → 临期=true');
-  const ei2 = S.lotExpiryInfo(g, { productionDate: '2026-09-10', qty: 1 });
+  const ei2 = S.lotExpiryInfo(g, { productionDate: U.addDays(U.today(), -5), qty: 1 }); // 到期=今天+25
   ok(ei2.expiring === false, 'A10 距到期25天 → 不临期');
   // opened 批次优先
   const rec3 = S.stockRec('W1', 'G3', true);
@@ -299,6 +299,32 @@ function reset() {
   eq(S.stockRec('W1', 'G4', false).qty, 13, 'G4 报溢后库存 10+3=13');
   S.deleteOverflow(db.overflows[0].id);
   eq(S.stockRec('W1', 'G4', false).qty, 10, 'G5 删除报溢后库存回滚=10');
+})();
+
+/* ---------- B5 修改已完成销售单（业务闭环 / 有退货也允许改） ---------- */
+(function B5_reviseFinishedSale() {
+  reset();
+  const db = S.db;
+  const rec = S.stockRec('W1', 'G1', true);
+  S.addLotQty(rec, { batchNo: 'B1', productionDate: '2026-01-01', qty: 100, cost: 10 }, 100);
+  db.customers.push({ id: 'C1', name: '客户1', taxRate: 0, taxExempt: '否', remark: '老客户' });
+  const sale = { id: 'S1', no: 'SO-1', customerId: 'C1', whId: 'W1', items: [{ goodsId: 'G1', qty: 30, price: 15, amount: 450, lotKey: 'B1', alloc: [] }], total: 450, status: '未完成', payStatus: '', payTime: '', createTime: 'T0', finishTime: '' };
+  db.sales.push(sale);
+  ok(S.finishSale(sale) === null, 'B5-1 finishSale 成功');
+  eq(S.stockQty('W1', 'G1'), 70, 'B5-2 完成后库存 70');
+  ok(S.addReturn(sale, [{ itemIdx: 0, qty: 10 }]) === null, 'B5-3 退货成功');
+  eq(S.stockQty('W1', 'G1'), 80, 'B5-4 退货后库存 80');
+  const f1 = { customerId: 'C1', whId: 'W1', total: 750, taxRate: 0, taxExempt: '否', taxManual: false, deliveryFee: 0, incResourceCommission: '是', incRegionCommission: '是', items: [{ goodsId: 'G1', qty: 50, price: 15, _oidx: 0, lotKey: 'B1' }] };
+  ok(S.reviseFinishedSale(sale, f1) === null, 'B5-5 修改成功');
+  eq(S.stockQty('W1', 'G1'), 50, 'B5-6 修改后库存 50 (=100-50，已退10已计入)');
+  eq(sale.status, '已完成', 'B5-7 状态仍为已完成');
+  eq(sale.items[0].qty, 50, 'B5-8 数量更新为 50');
+  eq(sale.items[0].alloc.reduce((a, b) => a + b.qty, 0), 50, 'B5-9 新 alloc 合计 50');
+  const f2 = { customerId: 'C1', whId: 'W1', total: 0, taxRate: 0, taxExempt: '否', taxManual: false, deliveryFee: 0, incResourceCommission: '是', incRegionCommission: '是', items: [] };
+  ok(/不能删除/.test(S.reviseFinishedSale(sale, f2) || ''), 'B5-10 删除已退货行被拒');
+  const f3 = { customerId: 'C1', whId: 'W1', total: 0, taxRate: 0, taxExempt: '否', taxManual: false, deliveryFee: 0, incResourceCommission: '是', incRegionCommission: '是', items: [{ goodsId: 'G1', qty: 5, price: 15, _oidx: 0, lotKey: 'B1' }] };
+  ok(/不能小于已退货/.test(S.reviseFinishedSale(sale, f3) || ''), 'B5-11 数量<已退货被拒');
+  ok(S.stockQty('W1', 'G1') === 50, 'B5-12 两次失败用例未改动库存（仍为 50）');
 })();
 
 /* ---------- 汇总 ---------- */

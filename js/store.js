@@ -1104,6 +1104,82 @@ window.S = {
     return null;
   },
 
+  /* 修改已完成的销售单：业务闭环（还旧扣新）。有退货的单也允许改，但需满足：
+     ① 已退货明细行不能删除（保留原 itemIdx 对应行）；② 修改后数量≥已退货数量；③ 已退货商品不能更换。
+     校验通过后才动库存：先把本单「剩余占用」(原 alloc 按(原数量-已退)/原数量比例缩放)还回原仓库批次，
+     再按新明细扣减新仓库批次；任一步库存不足则整体回滚并报警，不残留脏数据。 */
+  reviseFinishedSale(sale, form) {
+    const retQty = {};
+    (this.db.returns || []).filter(r => r.saleId === sale.id).forEach(r => {
+      (r.items || []).forEach(l => { retQty[l.itemIdx] = U.round2((retQty[l.itemIdx] || 0) + Number(l.qty || 0)); });
+    });
+    const items = form.items || [];
+    for (const it of items) {
+      const oidx = (it._oidx != null && it._oidx >= 0) ? it._oidx : -1;
+      if (oidx < 0) continue;
+      const ret = retQty[oidx] || 0;
+      if (ret > 0) {
+        if (Number(it.qty) < ret) return `第${oidx + 1}行已退货 ${ret}，修改后数量不能小于已退货数量`;
+        const o = sale.items[oidx];
+        if (o && o.goodsId !== it.goodsId) return `第${oidx + 1}行已退货，不能更换商品`;
+      }
+    }
+    let missingReturned = false;
+    Object.keys(retQty).forEach(k => {
+      const idx = Number(k);
+      if (!items.some(it => (it._oidx == null ? -1 : it._oidx) === idx)) missingReturned = true;
+    });
+    if (missingReturned) return '已退货的商品不能删除，请保留对应明细行';
+
+    const oldWh = sale.whId;
+    const restoreList = [];
+    sale.items.forEach((o, i) => {
+      const oq = Number(o.qty || 0);
+      if (oq <= 0) return;
+      const ret = retQty[i] || 0;
+      const factor = (oq - ret) / oq;
+      if (factor <= 0) return;
+      const alloc = (o.alloc && o.alloc.length) ? o.alloc : [{ batchNo: null, qty: oq, productionDate: null }];
+      const scaled = alloc.map(a => ({ batchNo: a.batchNo || null, productionDate: a.productionDate || null, qty: U.round2((Number(a.qty || 0)) * factor) }));
+      const rec = this.stockRec(oldWh, o.goodsId, true);
+      this.returnLotByAlloc(rec, this.byId('goods', o.goodsId) || {}, scaled);
+      restoreList.push({ whId: oldWh, goodsId: o.goodsId, scaled });
+    });
+
+    sale.whId = form.whId;
+    const newAlloc = [];
+    for (const it of items) {
+      const g = this.byId('goods', it.goodsId) || {};
+      const rec = this.stockRec(form.whId, it.goodsId, true);
+      const avail = this.stockQty(form.whId, it.goodsId);
+      if (avail < Number(it.qty)) {
+        newAlloc.forEach(n => { const r2 = this.stockRec(form.whId, n.goodsId, true); this.returnLotByAlloc(r2, this.byId('goods', n.goodsId) || {}, n.alloc); });
+        restoreList.forEach(x => { const r3 = this.stockRec(x.whId, x.goodsId, true); this.returnLotByAlloc(r3, this.byId('goods', x.goodsId) || {}, x.scaled); });
+        return `「${this.name('goods', it.goodsId)}」库存不足（现有 ${avail}），修改失败已还原`;
+      }
+      const alloc = this.consumeLotSelected(rec, g, it.qty, it.lotKey);
+      newAlloc.push({ goodsId: it.goodsId, alloc });
+    }
+
+    sale.items = items.map((it, idx) => ({
+      goodsId: it.goodsId, sku: it.sku || '', unitId: it.unitId || '', priceType: it.priceType || '零售价',
+      price: Number(it.price), qty: Number(it.qty), amount: U.round2(Number(it.qty) * Number(it.price)),
+      lotKey: it.lotKey || '',
+      alloc: (newAlloc[idx] || {}).alloc || []
+    }));
+    sale.customerId = form.customerId;
+    sale.total = form.total;
+    sale.custRemark = (this.byId('customers', form.customerId) || {}).remark || '';
+    sale.taxRate = form.taxRate; sale.taxExempt = form.taxExempt; sale.taxManual = form.taxManual;
+    sale.deliveryFee = form.deliveryFee;
+    sale.incResourceCommission = form.incResourceCommission;
+    sale.incRegionCommission = form.incRegionCommission;
+    sale.arrearsSnap = this.custArrears(form.customerId);
+    sale.revisedAt = U.now();
+    sale.revisedBy = Cloud.state.user ? Cloud.state.user.name : '';
+    return null;
+  },
+
   addReturn(sale, items) { /* items: [{itemIdx, qty}] */
     const lines = [];
     let total = 0;

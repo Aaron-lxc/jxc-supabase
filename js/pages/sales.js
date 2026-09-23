@@ -120,9 +120,13 @@ const SaleList = {
       this.showForm = true;
     },
     openEdit(s) {
-      if (s.status === '已完成') return alert('已完成的销售单不能修改，如需调整请先退货');
+      const items = s.items.map((it, i) => ({
+        ...it,
+        _oidx: i,
+        lotKey: (it.alloc && it.alloc.length && (it.alloc[0].batchNo || '')) || it.lotKey || ''
+      }));
       this.editing = s;
-      this.form = { customerId: s.customerId, whId: s.whId, taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', deliveryFee: s.deliveryFee || 0, incResourceCommission: s.incResourceCommission || '是', incRegionCommission: s.incRegionCommission || '是', items: s.items.map(it => ({ ...it })) };
+      this.form = { customerId: s.customerId, whId: s.whId, taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', deliveryFee: s.deliveryFee || 0, incResourceCommission: s.incResourceCommission || '是', incRegionCommission: s.incRegionCommission || '是', items };
       this.showForm = true;
     },
     /* 复制销售单：打开「新增」弹窗并预填原单内容（客户/仓库/税点/减免/佣金计入/配送费/商品明细），
@@ -144,7 +148,7 @@ const SaleList = {
       const c = v ? S.byId('customers', v) : null;
       if (c) { this.form.taxRate = c.taxRate || 0; this.form.taxExempt = c.taxExempt || '否'; }
     },
-    blankItem() { return { goodsId: '', sku: '', qty: null, unitId: '', priceType: '零售价', price: null, amount: 0, lotKey: '' }; },
+    blankItem() { return { goodsId: '', sku: '', qty: null, unitId: '', priceType: '零售价', price: null, amount: 0, lotKey: '', _oidx: -1 }; },
     addItem() { this.form.items.push(this.blankItem()); },
     rmItem(i) { this.form.items.splice(i, 1); if (!this.form.items.length) this.addItem(); },
     onGoodsChange(it) {
@@ -160,7 +164,18 @@ const SaleList = {
       const g = it.goodsId ? S.byId('goods', it.goodsId) : null;
       if (g) it.price = g[PRICE_FIELD[it.priceType]];
     },
-    stockOf(it) { return this.form.whId && it.goodsId ? S.stockQty(this.form.whId, it.goodsId) : ''; },
+    stockOf(it) {
+      if (!this.form.whId || !it.goodsId) return '';
+      let q = S.stockQty(this.form.whId, it.goodsId);
+      if (this.editing && this.editing.status === '已完成' && it._oidx != null && it._oidx >= 0) {
+        const o = this.editing.items[it._oidx];
+        if (o) {
+          const ret = S.saleReturnedQty(this.editing.id, it._oidx);
+          q = U.round2(Number(q) + (Number(o.qty || 0) - ret));
+        }
+      }
+      return q;
+    },
     /* 批次下拉选项：该仓库+商品下的所有批次（按 FEFO 到期升序），支持模糊查（x-combobox 按 label 过滤） */
     lotOptions(it) {
       if (!this.form || !this.form.whId || !it.goodsId) return [{ value: '', label: '（请先选仓库与商品）' }];
@@ -194,6 +209,13 @@ const SaleList = {
       const cRate = cust ? Number(cust.taxRate || 0) : 0;
       const cExempt = cust ? (cust.taxExempt || '否') : '否';
       const taxManual = (taxRate !== cRate || taxExempt !== cExempt);
+      if (this.editing && this.editing.status === '已完成') {
+        const form = { customerId: f.customerId, whId: f.whId, items, total, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0), incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是' };
+        const err = S.reviseFinishedSale(this.editing, form);
+        if (err) return alert(err);
+        this.showForm = false;
+        return;
+      }
       if (this.editing) {
         Object.assign(this.editing, {
           customerId: f.customerId, whId: f.whId, items, total, custRemark: cust ? cust.remark : '',
@@ -445,8 +467,8 @@ const SaleList = {
             <span class="link" @click="openPreview(s)">预览</span>
             <span class="link" @click="print(s)">打印</span>
             <span class="link" @click="copySale(s)">复制</span>
+            <span class="link" @click="openEdit(s)">修改</span>
             <template v-if="s.status==='未完成'">
-              <span class="link" @click="openEdit(s)">修改</span>
               <span class="link danger" @click="del(s)">删除</span>
               <span class="link green" @click="finish(s)">完成</span>
             </template>
