@@ -199,7 +199,7 @@ AppComponents['x-combobox'] = {
     editable: Boolean               /* true: 可输入任意文本，同时支持下拉选择 */
   },
   emits: ['update:modelValue'],
-  data() { return { open: false, kw: '', pos: { top: 0, left: 0, width: 0 } }; },
+  data() { return { open: false, kw: '', pos: { top: 0, left: 0, width: 0, maxW: 0 } }; },
   computed: {
     norm() {
       return (this.options || []).map(o =>
@@ -230,7 +230,31 @@ AppComponents['x-combobox'] = {
       const vw = window.innerWidth || document.documentElement.clientWidth;
       const maxW = Math.max(width, vw - 16);
       if (left + width > vw - 8) left = Math.max(8, vw - width - 8);
-      this.pos = { top: Math.round(r.bottom) + 2, left, width, maxW };
+      const p = { top: Math.round(r.bottom) + 2, left, width, maxW };
+      /* 位置没变不写入，避免每帧无谓触发重渲染 */
+      if (p.top !== this.pos.top || p.left !== this.pos.left || p.width !== this.pos.width || p.maxW !== this.pos.maxW) this.pos = p;
+    },
+    /* 打开期间逐帧追踪输入框位置：页面加载抖动、上方内容高度变化、
+       切换菜单后布局重排等都不会触发 scroll/resize 事件，唯有持续追踪
+       才能保证面板永不漂移（坐标只在打开瞬间采集一次是漂移根因） */
+    startTracking() {
+      this.stopTracking();
+      const loop = () => {
+        this._raf = null;
+        if (!this.open) return;
+        if (!this.isInputInViewport()) { this.open = false; this.cleanup(); return; }
+        this.updatePos();
+        this._raf = requestAnimationFrame(loop);
+      };
+      this._raf = requestAnimationFrame(loop);
+    },
+    stopTracking() {
+      if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
+    },
+    track() {
+      this.updatePos();
+      this.bindListeners();
+      this.startTracking();
     },
     isInputInViewport() {
       const el = this.$el && this.$el.querySelector ? this.$el.querySelector('.cb-input') : null;
@@ -258,6 +282,7 @@ AppComponents['x-combobox'] = {
       return res;
     },
     cleanup() {
+      this.stopTracking();
       if (this._scrollEls) {
         this._scrollEls.forEach(e => e.removeEventListener('scroll', this.onScroll, true));
         this._scrollEls = [];
@@ -276,18 +301,18 @@ AppComponents['x-combobox'] = {
     onFocus() {
       if (this.disabled) return;
       this.open = true; this.kw = '';
-      this.$nextTick(() => { this.updatePos(); this.bindListeners(); });
+      this.$nextTick(() => this.track());
     },
     onInput(e) {
       const v = e.target.value;
       this.kw = v; this.open = true;
       if (this.editable) this.$emit('update:modelValue', v);
-      this.$nextTick(() => { this.updatePos(); this.bindListeners(); });
+      this.$nextTick(() => this.track());
     },
     toggle() {
       if (this.disabled) return;
       this.open = !this.open; this.kw = '';
-      if (this.open) this.$nextTick(() => { this.updatePos(); this.bindListeners(); }); else this.cleanup();
+      if (this.open) this.$nextTick(() => this.track()); else this.cleanup();
     },
     pick(o) { this.$emit('update:modelValue', o.value); this.open = false; this.kw = ''; this.cleanup(); },
     onBlur() {
@@ -297,6 +322,10 @@ AppComponents['x-combobox'] = {
       }, 120);
     }
   },
+  /* keep-alive 页面缓存下，下拉开着时切换菜单会触发 deactivated：
+     必须收起面板并停止追踪，否则面板滞留显示在别的菜单上（漂移残留） */
+  deactivated() { if (this.open) { this.open = false; this.kw = ''; } this.cleanup(); },
+  beforeUnmount() { this.open = false; this.cleanup(); },
   template: `
   <div class="x-combobox" :class="{open:open, disabled}">
     <div class="cb-control">
