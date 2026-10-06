@@ -615,7 +615,7 @@ const SaleList = {
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
         <button class="btn" @click="downloadTpl">下载导入模板</button>
-        <label class="btn"><input type="file" accept=".xlsx,.xls,.csv" style="display:none" @change="onImportFile">选择文件…</label>
+        <label class="btn"><input type="file" accept=".xlsx,.xls,.csv" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" @change="onImportFile">选择文件…</label>
         <span v-if="importFile" style="color:#475569">{{importFile}}</span>
       </div>
       <div v-if="importOrders.length || importErrors.length">

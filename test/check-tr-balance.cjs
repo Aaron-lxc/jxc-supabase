@@ -1,8 +1,10 @@
 /* 静态检查：所有页面/组件模板内 <tr>/<tbody>/<thead> 标签配平（防止单元格落到 v-for 行外）。
    模板提取用扫描器正确处理嵌套反引号（${} 插值内可有子模板）。 */
 const fs = require('fs');
-const files = new Set(['js/components.js']);
-fs.readdirSync('js/pages').forEach(f => { if (f.endsWith('.js')) files.add('js/pages/' + f); });
+const path = require('path');
+const root = path.join(__dirname, '..');
+const files = new Set([path.join(root, 'js', 'components.js')]);
+fs.readdirSync(path.join(root, 'js', 'pages')).forEach(f => { if (f.endsWith('.js')) files.add(path.join(root, 'js', 'pages', f)); });
 
 /* 从 src[pos] 的反引号开始，返回匹配闭反引号的位置（处理 ${...} 嵌套） */
 function matchBacktick(src, start) {

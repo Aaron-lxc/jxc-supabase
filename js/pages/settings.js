@@ -55,6 +55,7 @@ Pages['page-settings'] = {
     async onFile(e) {
       const f = e.target.files && e.target.files[0];
       if (!f) return;
+      e.target.value = '';
       if (!U.confirm(`即将用「${f.name}」覆盖本账套的全部数据，且会同步到云端（其他成员也会看到）。\n建议先点「备份数据」保存一份。确定继续吗？`)) return;
       try {
         const raw = await f.text();
