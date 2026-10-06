@@ -31,7 +31,7 @@ const COLL_NAMES = ['goodsTypes', 'units', 'suppliers', 'goods', 'custLevels', '
   'stocks', 'stockChecks', 'losses', 'overflows', 'sales', 'returns', 'transfers',
   'productions', 'expenseCats', 'expenses', 'incomeCats', 'incomes', 'complaintTypes',
   'complaints', 'rewardTypes', 'rewards', 'dealerRewards', 'merchantRefs', 'personRefs',
-  'personPromos', 'regionAssessArchive', 'resourceRates', 'regionRates', 'commissionPayments',
+  'personPromos', 'recommenderBindings', 'regionAssessArchive', 'resourceRates', 'regionRates', 'commissionPayments',
   'openingStocks', 'openingAr', 'openingAp', 'openingFunds', 'capitalInjections'];
 global.Sync = {
   COLLS: COLL_NAMES,
@@ -431,6 +431,58 @@ function reset() {
   const cc = CC.makeCompute(S.db);
   cc.evalDealerLevels(null);
   eq(cc.byId('customers', 'C1').dealerLevelId, S.byId('customers', 'C1').dealerLevelId, 'D2-6 compute-core 与 store 口径一致');
+})();
+
+/* ---------- R1. 推荐人绑定合伙人，已发奖励自动从佣金扣减（可支付可为负） ---------- */
+(function R1_recommenderBindDeduct() {
+  reset();
+  const db = S.db;
+  // 资源合伙人 P1 应得佣金 100（一级 10% × 销售净额 1000）
+  const rec = S.stockRec('W1', 'G1', true);
+  S.addLotQty(rec, { batchNo: 'BR1', productionDate: '2026-01-01', cost: 10 }, 100);
+  db.resourceRates.push({ id: 1, level: 1, rate: 10, status: '已启用' });
+  db.customers.push({ id: 'C1', name: '客户1', taxRate: 0, taxExempt: '否', r1: 'P1', r2: null, r3: null, regionPartnerId: null, status: '已启用' });
+  const s1 = { id: 'S1', no: 'SO-1', customerId: 'C1', whId: 'W1', items: [{ goodsId: 'G1', qty: 10, price: 100, amount: 1000, lotKey: '', alloc: [] }], total: 1000, status: '未完成', payStatus: '', payTime: '', createTime: 'T0', finishTime: '' };
+  db.sales.push(s1);
+  ok(S.finishSale(s1) === null, 'R1-1 完成销售S1');
+  eq(S.resourceCommission(null, null).find(x => x.partnerId === 'P1' && x.level === 1).commission, 100, 'R1-2 P1应得佣金=100');
+
+  // 推荐人张三：已发放奖励 150（实付150）
+  db.personRefs.push({ id: 'PR1', recommender: '张三', phone: '', refCustomerId: 'C1', reward: 150, paidAmount: 150, status: '已发放', createTime: '2026-09-01' });
+  const rb = S.bindRecommender('P1', '资源', '张三');
+  ok(rb.ok, 'R1-3 绑定推荐人张三→P1 成功');
+  eq(S.refDeduct('P1', '资源'), 150, 'R1-4 已发放150 → 扣款150');
+
+  // 未发放不扣
+  db.personRefs.push({ id: 'PR2', recommender: '张三', phone: '', refCustomerId: 'C1', reward: 200, paidAmount: 0, status: '未发放', createTime: '2026-09-02' });
+  eq(S.refDeduct('P1', '资源'), 150, 'R1-5 未发放200不计入扣款（仍150）');
+
+  // 账户：应得 - 已付 - 质押 - 扣款 = 可支付（扣款后可为负，不封顶）
+  const acc = S.partnerCommissionAccount('P1', '资源');
+  eq(acc.earned, 100, 'R1-6 应得=100（佣金）');
+  eq(acc.refDeduct, 150, 'R1-7 推荐扣款=150');
+  eq(acc.payable, U.round2(acc.earned - acc.paid - acc.pledge - acc.refDeduct), 'R1-8 可支付=应得-已付-质押-扣款（公式闭环）');
+  ok(acc.payable < 0, 'R1-8b 可支付为负（扣款超过应得，照实显示不封顶）');
+
+  // 明细
+  const det = S.refDeductDetail('P1', '资源');
+  eq(det.length, 1, 'R1-9 扣款明细1个推荐人');
+  eq(det[0].items.length, 1, 'R1-10 明细1笔已发放');
+
+  // 解绑后不再扣（已扣部分不追溯返还）
+  S.unbindRecommender(det[0].bindId);
+  eq(S.refDeduct('P1', '资源'), 0, 'R1-11 解绑后扣款归零');
+
+  // compute-core 镜像一致
+  const CC = require(path.join(ROOT, 'js/compute-core.js'));
+  let cc = CC.makeCompute(S.db);
+  eq(cc.refDeduct('P1', '资源'), 0, 'R1-12 compute-core 解绑后一致=0');
+  S.bindRecommender('P1', '资源', '张三');
+  cc = CC.makeCompute(S.db);
+  eq(cc.refDeduct('P1', '资源'), 150, 'R1-13 compute-core 重新绑定后=150');
+  const cacc = cc.partnerCommissionAccount('P1', '资源');
+  eq(cacc.payable, U.round2(cacc.earned - cacc.paid - cacc.pledge - cacc.refDeduct), 'R1-14 compute-core 可支付公式与 store 一致');
+  ok(cacc.payable < 0, 'R1-14b compute-core 可支付同样为负（一致）');
 })();
 
 /* ---------- 汇总 ---------- */

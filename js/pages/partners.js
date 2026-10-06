@@ -8,7 +8,7 @@ function partnerListFactory(isRegion) {
     data() {
       return {
         kw: '', st: '', page: 1, pageSize: 10, showForm: false, editing: null, form: {}, detail: null,
-        payForm: null
+        payForm: null, showBind: false, bindForm: { name: '' }
       };
     },
     computed: {
@@ -24,7 +24,14 @@ function partnerListFactory(isRegion) {
       ptype() { return isRegion ? '区域' : '资源'; },
       detailAcc() { return this.detail ? S.partnerCommissionAccount(this.detail.id, this.ptype) : null; },
       detailPledge() { return this.detail ? S.pledgeList(this.detail.id, this.ptype) : []; },
-      detailPays() { return this.detail ? S.commissionPayList(this.detail.id, this.ptype) : []; }
+      detailPays() { return this.detail ? S.commissionPayList(this.detail.id, this.ptype) : []; },
+      detailRefDeduct() { return this.detailAcc ? this.detailAcc.refDeduct : 0; },
+      detailRefDetail() { return this.detail ? S.refDeductDetail(this.detail.id, this.ptype) : []; },
+      bindableRecommenders() {
+        const bound = new Set((S.db.recommenderBindings || []).map(b => b.recommender));
+        return [...new Set((S.db.personRefs || []).map(r => r.recommender).filter(n => n && !bound.has(n)))]
+          .map(n => ({ value: n, label: n }));
+      }
     },
     methods: {
       fmtMoney: U.fmtMoney,
@@ -47,6 +54,7 @@ function partnerListFactory(isRegion) {
         f.push({ label: '累计佣金', value: '￥' + U.fmtMoney(this.acc(p).earned) });
         f.push({ label: '已支付', value: '￥' + U.fmtMoney(this.acc(p).paid) });
         f.push({ label: '质押中', value: '￥' + U.fmtMoney(this.acc(p).pledge) });
+        f.push({ label: '推荐扣款', value: '￥' + U.fmtMoney(this.acc(p).refDeduct) });
         f.push({ label: '可支付', value: '￥' + U.fmtMoney(this.acc(p).payable) });
         f.push({ label: '备注', value: p.remark || '-' });
         f.push({ label: '创建时间', value: p.createTime });
@@ -103,6 +111,17 @@ function partnerListFactory(isRegion) {
       toggle(p) { p.status = p.status === '已启用' ? '未启用' : '已启用'; },
       /* ---- 佣金账户 / 支付 ---- */
       acc(p) { return S.partnerCommissionAccount(p.id, isRegion ? '区域' : '资源'); },
+      refDeductOf(p) { return this.acc(p).refDeduct; },
+      openBind() { this.bindForm = { name: '' }; this.showBind = true; },
+      saveBind() {
+        const res = S.bindRecommender(this.detail.id, this.ptype, this.bindForm.name);
+        if (!res.ok) return alert(res.msg);
+        this.showBind = false;
+      },
+      unbind(it) {
+        if (!U.confirm('解除推荐人「' + it.recommender + '」与「' + this.detail.name + '」的绑定吗？\n（已扣减的推荐奖励不追溯返还，仅停止后续扣款）')) return;
+        S.unbindRecommender(it.bindId);
+      },
       openPay() {
         const a = this.detailAcc;
         this.payForm = { amount: a ? a.payable : 0, remark: '' };
@@ -142,7 +161,7 @@ function partnerListFactory(isRegion) {
         <thead><tr>
           <th>序号</th><th>姓名</th><th>电话</th>
           ${isRegion ? '<th>负责区域</th><th class="num">佣金比例</th><th class="num">名下客户数</th>' : '<th>担任一级</th><th>担任二级</th><th>担任三级</th>'}
-          <th class="num">累计佣金</th><th class="num">已支付</th><th class="num">质押中</th><th class="num">可支付</th>
+          <th class="num">累计佣金</th><th class="num">已支付</th><th class="num">质押中</th><th class="num">推荐扣款</th><th class="num">可支付</th>
           <th>备注</th><th>创建时间</th><th>状态</th><th>操作</th>
         </tr></thead>
         <tbody>
@@ -156,6 +175,7 @@ function partnerListFactory(isRegion) {
             <td class="num money" data-label="累计佣金">{{fmtMoney(acc(p).earned)}}</td>
             <td class="num money green-t" data-label="已支付">{{fmtMoney(acc(p).paid)}}</td>
             <td class="num money" :class="{orange:acc(p).pledge>0}" data-label="质押中">{{fmtMoney(acc(p).pledge)}}</td>
+            <td class="num money" :class="{orange:acc(p).refDeduct>0}" data-label="推荐扣款"><b>{{fmtMoney(acc(p).refDeduct)}}</b></td>
             <td class="num money" data-label="可支付"><b>{{fmtMoney(acc(p).payable)}}</b></td>
             <td data-label="备注">{{p.remark||'-'}}</td>
             <td data-label="创建时间">{{p.createTime}}</td>
@@ -167,7 +187,7 @@ function partnerListFactory(isRegion) {
               <span class="link" :class="p.status==='已启用'?'warn':'green'" @click="toggle(p)">{{p.status==='已启用'?'停用':'启用'}}</span>
             </td>
           </tr>
-          <tr v-if="!paged.length"><td colspan="14" class="empty">暂无数据</td></tr>
+          <tr v-if="!paged.length"><td colspan="15" class="empty">暂无数据</td></tr>
         </tbody>
       </table>
       </div>
@@ -195,6 +215,7 @@ function partnerListFactory(isRegion) {
           <div class="acc-item"><div class="t">累计应得佣金</div><div class="v money">￥{{fmtMoney(detailAcc.earned)}}</div></div>
           <div class="acc-item green"><div class="t">累计已支付</div><div class="v money">￥{{fmtMoney(detailAcc.paid)}}</div></div>
           <div class="acc-item orange"><div class="t">质押中（暂扣）</div><div class="v money">￥{{fmtMoney(detailAcc.pledge)}}</div></div>
+          <div class="acc-item orange"><div class="t">推荐奖励扣款</div><div class="v money">￥{{fmtMoney(detailRefDeduct)}}</div></div>
           <div class="acc-item blue"><div class="t">当前可支付</div><div class="v money">￥{{fmtMoney(detailAcc.payable)}}</div></div>
         </div>
         <div class="form-hint">质押规则：名下每个客户的「最后一次销售单」佣金 + 所有「未支付货款销售单」佣金全额暂扣，用于防止退货 / 跑单造成佣金超额支付；货款结清且不再是最后一单后自动释放。</div>
@@ -237,6 +258,26 @@ function partnerListFactory(isRegion) {
         </table>
         </div>
 
+        <div class="section-title" style="margin-top:14px">推荐奖励扣款（绑定推荐人后，其已发放奖励自动从本合伙人佣金中扣除）
+          <span class="muted">合计 ￥{{fmtMoney(detailRefDeduct)}}</span>
+          <button class="btn btn-sm btn-primary" style="margin-left:8px" @click="openBind">+ 绑定推荐人</button>
+        </div>
+        <table class="grid">
+          <thead><tr><th>推荐人</th><th>关联客户</th><th class="num">已发放奖励</th><th>发放时间</th><th>操作</th></tr></thead>
+          <tbody>
+            <template v-for="g in detailRefDetail">
+              <tr v-for="(it,i) in g.items" :key="g.bindId+'-'+i">
+                <td>{{it.recommender}}<span v-if="i===0" class="tag tag-blue" style="margin-left:4px">已绑定</span></td>
+                <td>{{it.custName||'-'}}</td>
+                <td class="num money orange"><b>￥{{fmtMoney(it.paidAmount)}}</b></td>
+                <td>{{it.time}}</td>
+                <td class="ops"><span v-if="i===0" class="link danger" @click="unbind(g)">解绑</span></td>
+              </tr>
+            </template>
+            <tr v-if="!detailRefDeduct"><td colspan="5" class="empty">未绑定推荐人或暂无已发放奖励</td></tr>
+          </tbody>
+        </table>
+
         <div class="section-title" style="margin-top:14px">佣金支付记录
           <span class="muted">累计已支付 ￥{{fmtMoney(detailAcc.paid)}}</span>
           <button class="btn btn-sm btn-primary" style="margin-left:8px" @click="openPay">+ 支付佣金</button>
@@ -269,6 +310,21 @@ function partnerListFactory(isRegion) {
         <template #foot>
           <button class="btn" @click="payForm=null">取消</button>
           <button class="btn btn-primary" @click="savePay">确认支付</button>
+        </template>
+      </x-modal>
+
+      <!-- 绑定推荐人 -->
+      <x-modal v-if="showBind" title="绑定推荐人" :width="560" @close="showBind=false">
+        <div class="form-grid">
+          <div class="form-item full"><label>合伙人</label><div class="ro-field">{{detail.name}}（${label}）</div></div>
+          <div class="form-item full"><label>推荐人姓名<b class="req">*</b></label>
+            <x-combobox v-model="bindForm.name" :options="bindableRecommenders" editable placeholder="选择或输入推荐人姓名（须与个人推荐中的推荐人一致）"/>
+          </div>
+        </div>
+        <div class="form-hint">绑定后，该推荐人「已发放」的奖励（实付金额）将自动从本合伙人佣金中扣减；一个推荐人姓名只能绑定一个合伙人。解绑后仅停止后续扣款，已扣减部分不追溯返还。</div>
+        <template #foot>
+          <button class="btn" @click="showBind=false">取消</button>
+          <button class="btn btn-primary" @click="saveBind">确认绑定</button>
         </template>
       </x-modal>
     </div>`

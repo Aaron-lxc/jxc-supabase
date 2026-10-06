@@ -215,6 +215,17 @@ const PersonRef = {
       return Object.keys(set).map(v => ({ value: v, label: v }));
     },
     recommenderAll() { return [{ value: '', label: '全部推荐人' }].concat(this.recommenderOpts); },
+    boundPartnerOf(name) {
+      const b = (S.db.recommenderBindings || []).find(x => x.recommender === name);
+      if (!b) return null;
+      const p = b.partnerType === '区域' ? S.byId('regionPartners', b.partnerId) : S.byId('resourcePartners', b.partnerId);
+      return { type: b.partnerType, name: p ? p.name : '' };
+    },
+    issueBoundPartner() {
+      const r = window.S.byId('personRefs', this.issueForm.id);
+      if (!r) return null;
+      return this.boundPartnerOf(r.recommender);
+    },
     phoneOpts() {
       const set = {};
       (window.S.db.personRefs || []).forEach(r => { if (r.phone) set[r.phone] = 1; });
@@ -271,7 +282,8 @@ const PersonRef = {
       r.paidAmount = amt;
       r.status = '已发放';
       this.showIssue = false;
-      alert('已发放并计入运营成本 ￥' + U.fmtMoney(amt));
+      const bp = this.boundPartnerOf(r.recommender);
+      alert('已发放并计入运营成本 ￥' + U.fmtMoney(amt) + (bp ? '（将计入合伙人「' + bp.type + '·' + bp.name + '」的佣金扣款）' : ''));
     },
     delRec(r) {
       if (r.status !== '未发放') return alert('仅「未发放」记录可删除');
@@ -296,7 +308,7 @@ const PersonRef = {
       <tbody>
         <tr v-for="(r,i) in paged" :key="r.id">
           <td>{{ (page-1)*size + i + 1 }}</td>
-          <td>{{ r.recommender }}</td>
+          <td>{{ r.recommender }}<span v-if="boundPartnerOf(r.recommender)" class="tag tag-blue" style="margin-left:4px">扣自{{boundPartnerOf(r.recommender).type}}·{{boundPartnerOf(r.recommender).name}}</span></td>
           <td>{{ r.phone }}</td>
           <td>{{ custName(r.refCustomerId) }}</td>
           <td>￥{{ U.fmtMoney(r.reward) }}</td>
@@ -344,6 +356,7 @@ const PersonRef = {
       <div class="form-grid">
         <div class="form-item"><label>发放金额（元）<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="issueForm.amount"></div>
       </div>
+      <div v-if="issueBoundPartner" class="form-hint" style="color:#b45309">该推荐人已绑定合伙人「{{issueBoundPartner.type}}·{{issueBoundPartner.name}}」，本次实付金额将自动计入该合伙人佣金扣款。</div>
       <template #foot>
         <button class="btn" @click="showIssue=false">取消</button>
         <button class="btn btn-primary" @click="doIssue">确认发放</button>

@@ -57,7 +57,7 @@
       incomeCats: [], incomes: [],
       complaintTypes: [], complaints: [],
       rewardTypes: [], rewards: [], dealerRewards: [],
-      merchantRefs: [], personRefs: [], personPromos: [],
+      merchantRefs: [], personRefs: [], personPromos: [], recommenderBindings: [],
       regionAssessArchive: [],
       resourceRates: [], regionRates: [], commissionPayments: [], commissionLocks: [],
       openingStocks: [], openingAr: [], openingAp: [], openingFunds: [], capitalInjections: [],
@@ -389,14 +389,26 @@
       commissionPaid(partnerId, type) {
         return U.round2((db.commissionPayments || []).filter(p => p.partnerId === partnerId && p.type === type).reduce((a, p) => a + Number(p.amount), 0));
       },
+      /* 推荐奖励扣款：绑定合伙人后，推荐人已发放的奖励从合伙人佣金中扣除（只扣已发放、按实付金额） */
+      refDeduct(partnerId, type) {
+        const binds = (db.recommenderBindings || []).filter(b => b.partnerType === type && b.partnerId === partnerId);
+        if (!binds.length) return 0;
+        const names = new Set(binds.map(b => b.recommender));
+        const total = (db.personRefs || [])
+          .filter(r => r.status === '已发放' && names.has(r.recommender))
+          .reduce((a, r) => a + (Number(r.paidAmount) || 0), 0);
+        return U.round2(total);
+      },
+      /* 合伙人佣金总账：应得 / 已付 / 质押 / 推荐扣款 / 可支付 */
       partnerCommissionAccount(partnerId, type) {
         const earned = type === '区域'
           ? (() => { const r = this.regionCommission(null, null).find(x => x.partnerId === partnerId); return r ? r.commission : 0; })()
           : U.round2(this.resourceCommission(null, null).filter(x => x.partnerId === partnerId).reduce((a, x) => a + x.commission, 0));
         const paid = this.commissionPaid(partnerId, type);
         const pledge = this.pledgeAmount(partnerId, type);
-        const payable = U.round2(Math.max(0, earned - paid - pledge));
-        return { earned: U.round2(earned), paid, pledge, payable, unpaid: U.round2(earned - paid) };
+        const refDeduct = this.refDeduct(partnerId, type);
+        const payable = U.round2(earned - paid - pledge - refDeduct); // 可支付可为负（用户确认口径）
+        return { earned: U.round2(earned), paid, pledge, refDeduct, payable, unpaid: U.round2(earned - paid) };
       },
 
       /* 经销商 / 年度采购奖励（与 store.js 口径一致） */

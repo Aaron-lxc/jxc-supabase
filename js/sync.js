@@ -19,7 +19,7 @@ window.Sync = {
     'sales', 'returns', 'transfers', 'productions', 'expenseCats', 'expenses', 'incomeCats', 'incomes',
     'complaintTypes', 'complaints',
     'rewardTypes', 'rewards', 'dealerRewards',
-    'merchantRefs', 'personRefs', 'personPromos',
+    'merchantRefs', 'personRefs', 'personPromos', 'recommenderBindings',
     'regionAssessArchive',
     'resourceRates', 'regionRates', 'commissionPayments', 'commissionLocks',
     'openingStocks', 'openingAr', 'openingAp', 'openingFunds', 'capitalInjections'

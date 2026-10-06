@@ -27,7 +27,7 @@ window.S = {
       complaintTypes: [], complaints: [],
       rewardTypes: [], rewards: [],
       dealerRewards: [],
-      merchantRefs: [], personRefs: [], personPromos: [],
+      merchantRefs: [], personRefs: [], personPromos: [], recommenderBindings: [],
       regionAssessArchive: [],
       resourceRates: [], regionRates: [],
       commissionPayments: [],
@@ -1527,15 +1527,58 @@ window.S = {
     return U.round2(this.pledgeList(partnerId, type).reduce((a, x) => a + x.commission, 0));
   },
 
-  /* 合伙人佣金总账：应得 / 已付 / 质押 / 可支付 */
+  /* 推荐奖励扣款：绑定合伙人后，推荐人已发放的奖励从合伙人佣金中扣除（只扣已发放、按实付金额） */
+  refDeduct(partnerId, type) {
+    const binds = (this.db.recommenderBindings || []).filter(b => b.partnerType === type && b.partnerId === partnerId);
+    if (!binds.length) return 0;
+    const names = new Set(binds.map(b => b.recommender));
+    const total = (this.db.personRefs || [])
+      .filter(r => r.status === '已发放' && names.has(r.recommender))
+      .reduce((a, r) => a + (Number(r.paidAmount) || 0), 0);
+    return U.round2(total);
+  },
+  /* 推荐扣款明细（按绑定推荐人分组，每项带入 bindId 供解绑） */
+  refDeductDetail(partnerId, type) {
+    const binds = (this.db.recommenderBindings || []).filter(b => b.partnerType === type && b.partnerId === partnerId);
+    const S = this;
+    return binds.map(b => {
+      const items = (S.db.personRefs || [])
+        .filter(r => r.status === '已发放' && r.recommender === b.recommender)
+        .map(r => ({
+          recommender: r.recommender, bindId: b.id,
+          custName: S.name('customers', r.refCustomerId),
+          paidAmount: U.round2(Number(r.paidAmount) || 0),
+          time: r.createTime || ''
+        }));
+      return { recommender: b.recommender, bindId: b.id, items };
+    });
+  },
+  /* 绑定/解绑推荐人：一个推荐人姓名只允许绑定一个合伙人 */
+  bindRecommender(partnerId, type, recommender) {
+    recommender = (recommender || '').trim();
+    if (!recommender) return { ok: false, msg: '请填写推荐人姓名' };
+    const dup = (this.db.recommenderBindings || []).find(b => b.recommender === recommender);
+    if (dup && !(dup.partnerId === partnerId && dup.partnerType === type)) {
+      const p = dup.partnerType === '区域' ? this.byId('regionPartners', dup.partnerId) : this.byId('resourcePartners', dup.partnerId);
+      return { ok: false, msg: '推荐人「' + recommender + '」已绑定合伙人「' + (p ? p.name : '') + '」，不能重复绑定' };
+    }
+    if (!dup) this.db.recommenderBindings.push({ id: this.genId(), recommender, partnerType: type, partnerId, createTime: U.now() });
+    return { ok: true };
+  },
+  unbindRecommender(bindId) {
+    this.db.recommenderBindings = (this.db.recommenderBindings || []).filter(b => b.id !== bindId);
+  },
+
+  /* 合伙人佣金总账：应得 / 已付 / 质押 / 推荐扣款 / 可支付 */
   partnerCommissionAccount(partnerId, type) {
     const earned = type === '区域'
       ? (() => { const r = this.regionCommission(null, null).find(x => x.partnerId === partnerId); return r ? r.commission : 0; })()
       : U.round2(this.resourceCommission(null, null).filter(x => x.partnerId === partnerId).reduce((a, x) => a + x.commission, 0));
     const paid = this.commissionPaid(partnerId, type);
     const pledge = this.pledgeAmount(partnerId, type);
-    const payable = U.round2(Math.max(0, earned - paid - pledge));
-    return { earned: U.round2(earned), paid, pledge, payable, unpaid: U.round2(earned - paid) };
+    const refDeduct = this.refDeduct(partnerId, type);
+    const payable = U.round2(earned - paid - pledge - refDeduct); // 可支付可为负（用户确认口径）
+    return { earned: U.round2(earned), paid, pledge, refDeduct, payable, unpaid: U.round2(earned - paid) };
   },
 
   /* 佣金支付（记录清单 + 累计已付/待付） */
