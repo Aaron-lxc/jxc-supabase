@@ -20,7 +20,7 @@ const TPL_LABELS = {
 const SaleList = {
   data() {
     return {
-      q: { cust: '', whId: '', goods: '', supplierId: '', status: '', incRes: '', incReg: '', d1: '', d2: '' },
+      q: { no: '', cust: '', whId: '', goods: '', supplierId: '', status: '', incRes: '', incReg: '', d1: '', d2: '' },
       page: 1, pageSize: 10, showForm: false, editing: null, form: null, detail: null,
       showTpl: false, tplDraft: null, preview: null, tplLabels: TPL_LABELS,
       showImport: false, importFile: null, importOrders: [], importErrors: []
@@ -49,6 +49,7 @@ const SaleList = {
     formArrears() { return this.form && this.form.customerId ? S.custArrears(this.form.customerId) : 0; },
     rows() {
       return S.db.sales.filter(s =>
+        U.kw(s.no, this.q.no) &&
         U.kw(S.name('customers', s.customerId), this.q.cust) &&
         (!this.q.whId || s.whId === this.q.whId) &&
         (!this.q.goods || (s.items || []).some(it => U.kw(S.name('goods', it.goodsId), this.q.goods))) &&
@@ -430,6 +431,7 @@ const SaleList = {
   template: `
   <div>
     <div class="toolbar">
+      <input type="text" v-model="q.no" placeholder="销售单号" style="width:150px">
       <input type="text" v-model="q.cust" placeholder="客户名称模糊查询" style="width:130px">
       <x-combobox v-model="q.whId" :options="whOptsAll" placeholder="全部仓库"/>
       <input type="text" v-model="q.goods" placeholder="商品名称" style="width:110px">
@@ -779,13 +781,14 @@ const ReturnList = {
 /* ---------------- 结算管理 ---------------- */
 const SettleList = {
   data() {
-    return { q: { cust: '', pay: '', overdue: false }, page: 1, pageSize: 10, showSettle: false, cur: null, settleForm: { method: '', actualPaid: null, deliveryFee: 0, prepaidDeduct: 0 } };
+    return { q: { no: '', cust: '', pay: '', overdue: false }, page: 1, pageSize: 10, showSettle: false, cur: null, settleForm: { method: '', actualPaid: null, deliveryFee: 0, prepaidDeduct: 0 } };
   },
   computed: {
     S() { return window.S; },
     rows() {
       return S.db.sales.filter(s => s.status === '已完成')
         .filter(s =>
+          U.kw(s.no, this.q.no) &&
           U.kw(S.name('customers', s.customerId), this.q.cust) &&
           (!this.q.pay || s.payStatus === this.q.pay) &&
           (!this.q.overdue || S.saleOverdueDays(s) > 0)
@@ -897,6 +900,7 @@ const SettleList = {
   template: `
   <div>
     <div class="toolbar">
+      <input type="text" v-model="q.no" placeholder="销售单号" style="width:150px">
       <input type="text" v-model="q.cust" placeholder="客户名称模糊查询">
       <x-combobox v-model="q.pay" :options="payOpts" placeholder="全部支付状态"/>
       <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" v-model="q.overdue">仅看超期</label>
