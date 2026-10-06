@@ -76,8 +76,6 @@ const DealerList = {
           <td data-label="区域">{{r.region||'-'}}</td>
           <td data-label="经销商级别">{{S.name('dealerLevels',(S.byId('customers',r.id)||{}).dealerLevelId)}}</td>
           <td class="num money" data-label="全年采购额">{{fmtMoney(r.annualAmount)}}</td>
-        </tr>
-        <tr v-if="!paged.length"><td colspan="10" class="empty">暂无客户类型为「经销商」的客户（请先在「客户类型」中添加）</td></tr>
           <td data-label="命中阶梯">{{tierText(r.tier)}}</td>
           <td class="num money green" data-label="应得奖励">{{fmtMoney(r.rewardAmount)}}</td>
           <td class="num money" :class="{red:r.prepaidBalance>0}" data-label="预存货款余额">{{fmtMoney(r.prepaidBalance)}}</td>
@@ -86,7 +84,7 @@ const DealerList = {
             <span class="link" @click="detail=r">查看</span>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="9" class="empty">暂无客户类型为「经销商」的客户（请先在「客户类型」中添加）</td></tr>
+        <tr v-if="!paged.length"><td colspan="10" class="empty">暂无客户类型为「经销商」的客户（请先在「客户类型」中添加）</td></tr>
       </tbody>
     </table>
     </div>
