@@ -30,9 +30,11 @@ const CustomerList = {
     regionOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('regions').map(t => ({ value: t.id, label: t.name }))); },
     allChecked() { return this.rows.length > 0 && this.selIds.length === this.rows.length; },
     typeOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('custTypes').map(t => ({ value: t.id, label: t.name }))); },
-    levelOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('custLevels').map(t => ({ value: t.id, label: t.name }))); },
+    levelOpts() { return [{ value: '', label: '按月自动评定' }].concat(S.enabled('custLevels').map(t => ({ value: t.id, label: t.name }))); },
     dealerLevelOptsAll() { return [{ value: '', label: '全部经销商级别' }].concat(S.db.dealerLevels.map(t => ({ value: t.id, label: t.name }))); },
     dealerLevelOpts() { return [{ value: '', label: '按年自动评定（保级）' }].concat(S.enabled('dealerLevels').map(t => ({ value: t.id, label: t.name }))); },
+    /* 表单按客户类型互斥显示：经销商→经销商级别，其他→客户级别 */
+    isDealerType() { return S.dealerTypeIds().includes(Number(this.form.typeId)); },
     rpOpts() { return [{ value: null, label: '无' }].concat(S.enabled('resourcePartners').map(p => ({ value: p.id, label: p.name }))); },
     gpOpts() { return [{ value: null, label: '无' }].concat(S.enabled('regionPartners').map(p => ({ value: p.id, label: p.name }))); },
     payMethodOpts() { return (window.PAY_METHODS || ['对公', '微信', '收款码', '银行卡']).map(x => ({ value: x, label: x })); },
@@ -42,12 +44,15 @@ const CustomerList = {
   methods: {
     fmtMoney: U.fmtMoney,
     rowFields(c) {
+      const isDealer = S.dealerTypeIds().includes(Number(c.typeId));
       return [
         { label: '客户编号', value: c.code },
         { label: '客户名称', value: c.name },
         { label: '区域', value: S.name('regions', c.regionId) },
         { label: '类型', value: S.name('custTypes', c.typeId) },
-        { label: '级别', value: S.name('custLevels', c.levelId) },
+        isDealer
+          ? { label: '经销商级别', value: S.name('dealerLevels', c.dealerLevelId) || '按年自动评定' }
+          : { label: '级别', value: S.name('custLevels', c.levelId) || '按月自动评定' },
         { label: '支付方式', value: c.payMethod },
         { label: '支付周期', value: c.payCycle + (c.payDay ? '/' + c.payDay + '号' : '') },
         { label: '税点', value: (c.taxRate || 0) + '%' },
@@ -84,7 +89,6 @@ const CustomerList = {
       if (!f.name.trim()) return alert('请输入客户名称');
       if (!f.regionId) return alert('请选择区域');
       if (!f.typeId) return alert('请选择客户类型');
-      if (!f.levelId) return alert('请选择客户级别');
       if (f.payCycle !== '现结' && (!f.payDay || f.payDay < 1 || f.payDay > 31)) return alert('请填写支付时间（1-31 号）');
       const data = {
         name: f.name.trim(), regionId: f.regionId, typeId: f.typeId, levelId: f.levelId,
@@ -101,9 +105,12 @@ const CustomerList = {
         regionRate: (f.regionRate != null && f.regionRate !== '') ? Number(f.regionRate) : null,
         regionPartnerId: f.regionPartnerId || null, remark: f.remark
       };
-      /* 非经销商客户不参与经销商级别评定，清空相关字段避免脏数据 */
+      /* 按客户类型互斥清理，避免脏数据：
+         非经销商→清经销商级别字段；经销商→清客户级别（月度评定会按规则回填非经销商/全部客户的客户级别） */
       if (!S.dealerTypeIds().includes(Number(data.typeId))) {
         data.dealerLevelId = null; data.dealerLevelBase = null; data.dealerLevelYear = null;
+      } else {
+        data.levelId = null;
       }
       if (this.editing) {
         /* 税点变更需联动未完成销售单，务必在 Object.assign 之前取旧值 */
@@ -336,9 +343,9 @@ const CustomerList = {
           <x-combobox v-model="form.regionId" :options="regionOpts" placeholder="请选择"/></div>
         <div class="form-item"><label>客户类型<b class="req">*</b></label>
           <x-combobox v-model="form.typeId" :options="typeOpts" placeholder="请选择"/></div>
-        <div class="form-item"><label>客户级别<b class="req">*</b></label>
-          <x-combobox v-model="form.levelId" :options="levelOpts" placeholder="请选择"/></div>
-        <div class="form-item"><label>经销商级别<br><span style="font-size:12px;color:#94a3b8">留空=按年自动评定（保级）</span></label>
+        <div class="form-item" v-if="!isDealerType"><label>客户级别<br><span style="font-size:12px;color:#94a3b8">留空=按月自动评定</span></label>
+          <x-combobox v-model="form.levelId" :options="levelOpts" placeholder="按月自动评定"/></div>
+        <div class="form-item" v-else><label>经销商级别<br><span style="font-size:12px;color:#94a3b8">留空=按年自动评定（保级）</span></label>
           <x-combobox v-model="form.dealerLevelId" :options="dealerLevelOpts" placeholder="按年自动评定（保级）"/></div>
         <div class="form-item"><label>资源联系人/电话或微信</label><input type="text" v-model="form.contactRes"></div>
         <div class="form-item"><label>报货联系人/电话或微信</label><input type="text" v-model="form.contactOrder"></div>
