@@ -23,7 +23,7 @@ const CustomerList = {
       ).slice().sort((a, b) => (U.rankEnabled(a.status) - U.rankEnabled(b.status)) || (b.createTime || '').localeCompare(a.createTime || ''));
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
-    levelOptsAll() { return [{ value: '', label: '全部级别' }].concat(S.db.custLevels.map(t => ({ value: t.id, label: t.name }))); },
+    levelOptsAll() { return [{ value: '', label: '全部客户级别' }].concat(S.db.custLevels.map(t => ({ value: t.id, label: t.name }))); },
     regionOptsAll() { return [{ value: '', label: '全部区域' }].concat(S.db.regions.map(t => ({ value: t.id, label: t.name }))); },
     typeOptsAll() { return [{ value: '', label: '全部类型' }].concat(S.db.custTypes.map(t => ({ value: t.id, label: t.name }))); },
     statusOptsAll() { return [{ value: '', label: '全部状态' }, { value: '已启用', label: '已启用' }, { value: '未启用', label: '未启用' }]; },
@@ -282,7 +282,7 @@ const CustomerList = {
     <div class="toolbar">
       <input type="text" v-model="q.name" placeholder="客户名称模糊查询">
       <x-combobox v-model="q.regionId" :options="regionOptsAll" placeholder="全部区域"/>
-      <x-combobox v-model="q.levelId" :options="levelOptsAll" placeholder="全部级别"/>
+      <x-combobox v-model="q.levelId" :options="levelOptsAll" placeholder="全部客户级别"/>
       <x-combobox v-model="q.typeId" :options="typeOptsAll" placeholder="全部类型"/>
       <x-combobox v-model="q.dealerLevelId" :options="dealerLevelOptsAll" placeholder="全部经销商级别"/>
       <x-combobox v-model="q.status" :options="statusOptsAll" placeholder="全部状态"/>

@@ -99,6 +99,9 @@ AppComponents['dict-page'] = {
   computed: {
     S() { return window.S; },
     isCustLevels() { return this.coll === 'custLevels' || this.coll === 'dealerLevels'; },
+    isDealerLevels() { return this.coll === 'dealerLevels'; },
+    /* 客户级别按「平均月采购」评定，经销商级别按「年累计采购」评定 */
+    amountLabel() { return this.isDealerLevels ? '年采购' : '月采购'; },
     isScoreType() { return this.coll === 'complaintTypes' || this.coll === 'rewardTypes'; },
     scoreField() { return this.coll === 'rewardTypes' ? 'rewardScore' : 'penaltyScore'; },
     scoreLabel() { return this.coll === 'rewardTypes' ? '奖励分数' : '奖惩分数'; },
@@ -143,12 +146,12 @@ AppComponents['dict-page'] = {
     </div>
     <div class="table-wrap">
     <table class="grid">
-      <thead><tr><th>序号</th><th>{{label}}</th><th v-if="isCustLevels">金额范围</th><th v-if="isScoreType">{{scoreLabel}}</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
+      <thead><tr><th>序号</th><th>{{label}}</th><th v-if="isCustLevels">{{isDealerLevels?'年采购金额范围':'月采购金额范围'}}</th><th v-if="isScoreType">{{scoreLabel}}</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
       <tbody>
         <tr v-for="(r,i) in paged" :key="r.id">
           <td data-label="序号">{{(page-1)*pageSize+i+1}}</td>
           <td :data-label="label">{{r.name}}</td>
-          <td v-if="isCustLevels" data-label="金额范围">{{(r.minAmount||0) + ' ~ ' + (r.maxAmount==null?'∞':r.maxAmount)}}</td>
+          <td v-if="isCustLevels" :data-label="isDealerLevels?'年采购金额范围':'月采购金额范围'">{{(r.minAmount||0) + ' ~ ' + (r.maxAmount==null?'∞':r.maxAmount)}}</td>
           <td v-if="isScoreType" class="num" :data-label="scoreLabel">{{r[scoreField]||0}}</td>
           <td data-label="创建时间">{{r.createTime}}</td>
           <td data-label="状态"><x-status :v="r.status"/></td>
@@ -169,9 +172,9 @@ AppComponents['dict-page'] = {
         <input type="text" v-model="formName" @keyup.enter="save">
       </div>
       <template v-if="isCustLevels">
-        <div class="form-item"><label>月采购下限(元)</label>
+        <div class="form-item"><label>{{amountLabel}}下限(元)</label>
           <input type="number" min="0" step="0.01" v-model.number="formMin" placeholder="0"></div>
-        <div class="form-item"><label>月采购上限(元，留空=不限)</label>
+        <div class="form-item"><label>{{amountLabel}}上限(元，留空=不限)</label>
           <input type="number" min="0" step="0.01" v-model.number="formMax" placeholder="留空=不限"></div>
       </template>
       <template v-if="isScoreType">
