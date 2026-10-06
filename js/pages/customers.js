@@ -4,7 +4,7 @@ window.Pages = window.Pages || {};
 const CustomerList = {
   data() {
     return {
-      q: { name: '', regionId: '', levelId: '', typeId: '', status: '', d1: '', d2: '' },
+      q: { name: '', regionId: '', levelId: '', dealerLevelId: '', typeId: '', status: '', d1: '', d2: '' },
       page: 1, pageSize: 10, showForm: false, editing: null, form: {}, detail: null, selIds: [],
       showImport: false, importFile: null, importRows: [], importErrors: [], importOverwrite: false
     };
@@ -16,6 +16,7 @@ const CustomerList = {
         U.kw(c.name, this.q.name) &&
         (!this.q.regionId || c.regionId === this.q.regionId) &&
         (!this.q.levelId || c.levelId === this.q.levelId) &&
+        (!this.q.dealerLevelId || c.dealerLevelId === this.q.dealerLevelId) &&
         (!this.q.typeId || c.typeId === this.q.typeId) &&
         (!this.q.status || c.status === this.q.status) &&
         U.inRange(c.createTime, this.q.d1, this.q.d2)
@@ -30,6 +31,8 @@ const CustomerList = {
     allChecked() { return this.rows.length > 0 && this.selIds.length === this.rows.length; },
     typeOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('custTypes').map(t => ({ value: t.id, label: t.name }))); },
     levelOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('custLevels').map(t => ({ value: t.id, label: t.name }))); },
+    dealerLevelOptsAll() { return [{ value: '', label: '全部经销商级别' }].concat(S.db.dealerLevels.map(t => ({ value: t.id, label: t.name }))); },
+    dealerLevelOpts() { return [{ value: '', label: '按年自动评定（保级）' }].concat(S.enabled('dealerLevels').map(t => ({ value: t.id, label: t.name }))); },
     rpOpts() { return [{ value: null, label: '无' }].concat(S.enabled('resourcePartners').map(p => ({ value: p.id, label: p.name }))); },
     gpOpts() { return [{ value: null, label: '无' }].concat(S.enabled('regionPartners').map(p => ({ value: p.id, label: p.name }))); },
     payMethodOpts() { return (window.PAY_METHODS || ['对公', '微信', '收款码', '银行卡']).map(x => ({ value: x, label: x })); },
@@ -67,7 +70,7 @@ const CustomerList = {
     },
     blank() {
       return {
-        name: '', regionId: '', typeId: '', levelId: '',
+        name: '', regionId: '', typeId: '', levelId: '', dealerLevelId: null,
         contactRes: '', contactOrder: '', contactPay: '', contactOther: '', address: '',
         payMethod: '对公', payCycle: '现结', payDay: null,
         bankCard: '', corpAccount: '', invoiceInfo: '', taxRate: 0, taxExempt: '否',
@@ -85,6 +88,7 @@ const CustomerList = {
       if (f.payCycle !== '现结' && (!f.payDay || f.payDay < 1 || f.payDay > 31)) return alert('请填写支付时间（1-31 号）');
       const data = {
         name: f.name.trim(), regionId: f.regionId, typeId: f.typeId, levelId: f.levelId,
+        dealerLevelId: (f.dealerLevelId != null && f.dealerLevelId !== '') ? f.dealerLevelId : null,
         contactRes: f.contactRes, contactOrder: f.contactOrder, contactPay: f.contactPay, contactOther: f.contactOther,
         address: f.address, payMethod: f.payMethod, payCycle: f.payCycle,
         payDay: f.payCycle === '现结' ? null : Number(f.payDay),
@@ -97,6 +101,10 @@ const CustomerList = {
         regionRate: (f.regionRate != null && f.regionRate !== '') ? Number(f.regionRate) : null,
         regionPartnerId: f.regionPartnerId || null, remark: f.remark
       };
+      /* 非经销商客户不参与经销商级别评定，清空相关字段避免脏数据 */
+      if (!S.dealerTypeIds().includes(Number(data.typeId))) {
+        data.dealerLevelId = null; data.dealerLevelBase = null; data.dealerLevelYear = null;
+      }
       if (this.editing) {
         /* 税点变更需联动未完成销售单，务必在 Object.assign 之前取旧值 */
         const custId = this.editing.id;
@@ -133,7 +141,7 @@ const CustomerList = {
     exportData() {
       U.exportExcel('客户档案.xlsx', this.rows.map((c, i) => ({
         '序号': i + 1, '客户编号': c.code, '客户名称': c.name,
-        '区域': S.name('regions', c.regionId), '类型': S.name('custTypes', c.typeId), '级别': S.name('custLevels', c.levelId),
+        '区域': S.name('regions', c.regionId), '类型': S.name('custTypes', c.typeId), '级别': S.name('custLevels', c.levelId), '经销商级别': S.name('dealerLevels', c.dealerLevelId),
         '支付方式': c.payMethod, '支付周期': c.payCycle + (c.payDay ? '/' + c.payDay + '号' : ''),
         '银行卡': c.bankCard || '', '对公账户': c.corpAccount || '', '开票信息': c.invoiceInfo || '',
         '税点(%)': c.taxRate || 0, '是否减免': c.taxExempt || '否', '累计税点成本': this.taxCost(c),
@@ -276,6 +284,7 @@ const CustomerList = {
       <x-combobox v-model="q.regionId" :options="regionOptsAll" placeholder="全部区域"/>
       <x-combobox v-model="q.levelId" :options="levelOptsAll" placeholder="全部级别"/>
       <x-combobox v-model="q.typeId" :options="typeOptsAll" placeholder="全部类型"/>
+      <x-combobox v-model="q.dealerLevelId" :options="dealerLevelOptsAll" placeholder="全部经销商级别"/>
       <x-combobox v-model="q.status" :options="statusOptsAll" placeholder="全部状态"/>
       <label>创建时间</label><input type="date" v-model="q.d1"> - <input type="date" v-model="q.d2">
       <div class="spacer"></div>
@@ -289,7 +298,7 @@ const CustomerList = {
     <table class="grid">
       <thead><tr>
         <th style="width:38px"><input type="checkbox" :checked="allChecked" @change="toggleAll"></th>
-        <th>客户编号</th><th>客户名称</th><th>区域</th><th>类型</th><th>级别</th>
+        <th>客户编号</th><th>客户名称</th><th>区域</th><th>类型</th><th>级别</th><th>经销商级别</th>
         <th>支付方式</th><th>支付周期</th><th class="num">税点</th><th>减免</th><th>一级资源</th><th>二级资源</th><th>三级资源</th><th>区域合伙人</th>
         <th class="num">累计欠款</th><th>创建时间</th><th>状态</th><th>操作</th>
       </tr></thead>
@@ -297,7 +306,7 @@ const CustomerList = {
         <tr v-for="c in paged" :key="c.id">
           <td data-label="选择"><input type="checkbox" :value="c.id" v-model="selIds"></td>
           <td data-label="客户编号">{{c.code}}</td><td data-label="客户名称">{{c.name}}</td>
-          <td data-label="区域">{{S.name('regions',c.regionId)}}</td><td data-label="类型">{{S.name('custTypes',c.typeId)}}</td><td data-label="级别">{{S.name('custLevels',c.levelId)}}</td>
+          <td data-label="区域">{{S.name('regions',c.regionId)}}</td><td data-label="类型">{{S.name('custTypes',c.typeId)}}</td><td data-label="级别">{{S.name('custLevels',c.levelId)}}</td><td data-label="经销商级别">{{S.name('dealerLevels',c.dealerLevelId)}}</td>
           <td data-label="支付方式">{{c.payMethod}}</td>
           <td data-label="支付周期">{{c.payCycle}}<span v-if="c.payDay">/{{c.payDay}}号</span></td>
           <td class="num" data-label="税点">{{c.taxRate||0}}%</td>
@@ -314,7 +323,7 @@ const CustomerList = {
             <span class="link" :class="c.status==='已启用'?'warn':'green'" @click="toggle(c)">{{c.status==='已启用'?'停用':'启用'}}</span>
           </td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="18" class="empty">暂无数据</td></tr>
+        <tr v-if="!paged.length"><td colspan="19" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
     </div>
@@ -329,6 +338,8 @@ const CustomerList = {
           <x-combobox v-model="form.typeId" :options="typeOpts" placeholder="请选择"/></div>
         <div class="form-item"><label>客户级别<b class="req">*</b></label>
           <x-combobox v-model="form.levelId" :options="levelOpts" placeholder="请选择"/></div>
+        <div class="form-item"><label>经销商级别<br><span style="font-size:12px;color:#94a3b8">留空=按年自动评定（保级）</span></label>
+          <x-combobox v-model="form.dealerLevelId" :options="dealerLevelOpts" placeholder="按年自动评定（保级）"/></div>
         <div class="form-item"><label>资源联系人/电话或微信</label><input type="text" v-model="form.contactRes"></div>
         <div class="form-item"><label>报货联系人/电话或微信</label><input type="text" v-model="form.contactOrder"></div>
         <div class="form-item"><label>结算联系人/电话或微信</label><input type="text" v-model="form.contactPay"></div>
@@ -439,11 +450,12 @@ Pages['page-customers'] = {
   <div>
     <div class="page-title">客户管理</div>
     <div class="tabs">
-      <div class="tab" v-for="t in ['客户管理','客户级别','客户类型','区域管理']" :key="t" :class="{active:tab===t}" @click="tab=t">{{t}}</div>
+      <div class="tab" v-for="t in ['客户管理','客户级别','经销商级别','客户类型','区域管理']" :key="t" :class="{active:tab===t}" @click="tab=t">{{t}}</div>
     </div>
     <div class="card">
       <customer-list v-if="tab==='客户管理'"/>
       <dict-page v-else-if="tab==='客户级别'" coll="custLevels" label="客户级别"/>
+      <dict-page v-else-if="tab==='经销商级别'" coll="dealerLevels" label="经销商级别"/>
       <dict-page v-else-if="tab==='客户类型'" coll="custTypes" label="客户类型"/>
       <dict-page v-else coll="regions" label="区域名称"/>
     </div>

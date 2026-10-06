@@ -387,6 +387,52 @@ function reset() {
   eq(S.saleCommissionFor(s3, 'P2', '区域'), 5, 'B6-15 改全局区域比例后已锁定S3仍=5');
 })();
 
+/* =================== D2. 经销商级别自动评定 + 保级 =================== */
+(function () {
+  const db = reset();
+  db.custTypes.push({ id: 1, name: '经销商', status: '已启用' });
+  /* 档位：一级 30000+ / 二级 [15000,30000) / 三级 [5000,15000) / 四级 [1000,5000) / 五级 [0,1000) */
+  const L = {};
+  ['五级', '四级', '三级', '二级', '一级'].forEach((n, i) => {
+    const lv = { id: 'DL' + i, name: n, status: '已启用' };
+    if (i === 4) { lv.minAmount = 30000; lv.maxAmount = null; }
+    else if (i === 3) { lv.minAmount = 15000; lv.maxAmount = 30000; }
+    else if (i === 2) { lv.minAmount = 5000; lv.maxAmount = 15000; }
+    else if (i === 1) { lv.minAmount = 1000; lv.maxAmount = 5000; }
+    else { lv.minAmount = 0; lv.maxAmount = 1000; }
+    db.dealerLevels.push(lv); L[n] = lv.id;
+  });
+  const now = U.today();
+  db.customers.push({ id: 'C1', name: '经销商甲', typeId: 1, status: '已启用', dealerLevelId: null, dealerLevelBase: null, dealerLevelYear: null });
+  db.sales.push({ id: 'S1', customerId: 'C1', status: '已完成', total: 20000, finishTime: now + ' 10:00:00', createTime: now + ' 09:00:00', items: [{ goodsId: 'G1', qty: 1, price: 20000, amount: 20000, alloc: [] }] });
+  let n = S.evalDealerLevels(null);
+  eq(S.byId('customers', 'C1').dealerLevelId, L['二级'], 'D2-1 当年采购20000 → 自动评二级');
+  ok(n >= 1, 'D2-2 评定产生变更');
+
+  /* 保级：手动调高到一级并模拟跨年（dealerLevelYear 置去年），新年度采购骤降 800 应保级为一级 */
+  const c1 = S.byId('customers', 'C1');
+  c1.dealerLevelId = L['一级'];
+  c1.dealerLevelYear = new Date().getFullYear() - 1;
+  const y = new Date().getFullYear();
+  db.sales = db.sales.filter(s => s.id !== 'S1');
+  db.sales.push({ id: 'S2', customerId: 'C1', status: '已完成', total: 800, finishTime: y + '-06-01 10:00:00', createTime: y + '-06-01 09:00:00', items: [{ goodsId: 'G1', qty: 1, price: 800, amount: 800, alloc: [] }] });
+  S.evalDealerLevels(null);
+  eq(S.byId('customers', 'C1').dealerLevelId, L['一级'], 'D2-3 跨年采购骤降仍保级=一级（不掉级）');
+  eq(S.byId('customers', 'C1').dealerLevelBase, L['一级'], 'D2-4 保底=一级');
+
+  /* 晋升：采购 40000 → 命中一级（与保底一致） */
+  db.sales = db.sales.filter(s => s.id !== 'S2');
+  db.sales.push({ id: 'S3', customerId: 'C1', status: '已完成', total: 40000, finishTime: y + '-08-01 10:00:00', createTime: y + '-08-01 09:00:00', items: [{ goodsId: 'G1', qty: 1, price: 40000, amount: 40000, alloc: [] }] });
+  S.evalDealerLevels(null);
+  eq(S.byId('customers', 'C1').dealerLevelId, L['一级'], 'D2-5 采购40000 命中一级（与保底一致）');
+
+  /* compute-core 镜像一致性 */
+  const CC = require(path.join(ROOT, 'js/compute-core.js'));
+  const cc = CC.makeCompute(S.db);
+  cc.evalDealerLevels(null);
+  eq(cc.byId('customers', 'C1').dealerLevelId, S.byId('customers', 'C1').dealerLevelId, 'D2-6 compute-core 与 store 口径一致');
+})();
+
 /* ---------- 汇总 ---------- */
 console.log(`\n业务单元测试：通过 ${pass}，失败 ${fail}`);
 if (fail) { console.log('\n失败项：\n' + fails.join('\n')); process.exit(1); }

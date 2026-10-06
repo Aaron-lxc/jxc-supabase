@@ -8,7 +8,7 @@ window.Pages = window.Pages || {};
 const DealerList = {
   data() {
     return {
-      q: { name: '', year: new Date().getFullYear(), d1: '', d2: '' },
+      q: { name: '', year: new Date().getFullYear(), levelId: '', d1: '', d2: '' },
       page: 1, pageSize: 10, detail: null
     };
   },
@@ -16,14 +16,16 @@ const DealerList = {
     S() { return window.S; },
     rows() {
       const list = S.dealerRewardReport(String(this.q.year)).filter(c =>
-        U.kw(c.name, this.q.name));
+        U.kw(c.name, this.q.name) &&
+        (!this.q.levelId || ((S.byId('customers', c.id) || {}).dealerLevelId || '') === this.q.levelId));
       return list;
     },
     paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
     yearOpts() {
       const y = new Date().getFullYear();
       return [y, y - 1, y - 2, y - 3].map(v => ({ value: String(v), label: String(v) + ' 年' }));
-    }
+    },
+    dealerLevelOptsAll() { return [{ value: '', label: '全部经销商级别' }].concat(S.db.dealerLevels.map(t => ({ value: t.id, label: t.name }))); },
   },
   methods: {
     fmtMoney: U.fmtMoney,
@@ -55,6 +57,7 @@ const DealerList = {
   <div>
     <div class="toolbar">
       <input type="text" v-model="q.name" placeholder="客户名称模糊查询">
+      <x-combobox v-model="q.levelId" :options="dealerLevelOptsAll" placeholder="全部经销商级别"/>
       <x-combobox v-model="q.year" :options="yearOpts" placeholder="选择年度"/>
       <div class="spacer"></div>
       <button class="btn" @click="exportData">导出</button>
@@ -62,7 +65,7 @@ const DealerList = {
     <div class="table-wrap">
     <table class="grid">
       <thead><tr>
-        <th>序号</th><th>客户名称</th><th>区域</th>
+        <th>序号</th><th>客户名称</th><th>区域</th><th>经销商级别</th>
         <th class="num">全年采购额</th><th>命中阶梯（区间/比例）</th>
         <th class="num">应得奖励</th><th class="num">预存货款余额</th><th class="num">本年已计提</th><th>操作</th>
       </tr></thead>
@@ -71,7 +74,10 @@ const DealerList = {
           <td data-label="序号">{{(page-1)*pageSize+i+1}}</td>
           <td data-label="客户名称">{{r.name}}</td>
           <td data-label="区域">{{r.region||'-'}}</td>
+          <td data-label="经销商级别">{{S.name('dealerLevels',(S.byId('customers',r.id)||{}).dealerLevelId)}}</td>
           <td class="num money" data-label="全年采购额">{{fmtMoney(r.annualAmount)}}</td>
+        </tr>
+        <tr v-if="!paged.length"><td colspan="10" class="empty">暂无客户类型为「经销商」的客户（请先在「客户类型」中添加）</td></tr>
           <td data-label="命中阶梯">{{tierText(r.tier)}}</td>
           <td class="num money green" data-label="应得奖励">{{fmtMoney(r.rewardAmount)}}</td>
           <td class="num money" :class="{red:r.prepaidBalance>0}" data-label="预存货款余额">{{fmtMoney(r.prepaidBalance)}}</td>

@@ -13,7 +13,7 @@ window.Sync = {
   /* 数组型集合（每条记录一行） */
   COLLS: [
     'goodsTypes', 'units', 'suppliers', 'goods',
-    'custLevels', 'custTypes', 'regions', 'customers',
+    'custLevels', 'dealerLevels', 'custTypes', 'regions', 'customers',
     'resourcePartners', 'regionPartners',
     'warehouses', 'purchases', 'stocks', 'stockChecks', 'losses', 'overflows',
     'sales', 'returns', 'transfers', 'productions', 'expenseCats', 'expenses', 'incomeCats', 'incomes',

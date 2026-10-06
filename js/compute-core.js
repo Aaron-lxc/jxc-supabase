@@ -49,7 +49,7 @@
     return {
       meta: { id: 1, seq: {} },
       goodsTypes: [], units: [], suppliers: [], goods: [],
-      custLevels: [], custTypes: [], regions: [], customers: [],
+      custLevels: [], dealerLevels: [], custTypes: [], regions: [], customers: [],
       resourcePartners: [], regionPartners: [],
       warehouses: [], purchases: [], stocks: [], stockChecks: [], losses: [], overflows: [],
       sales: [], returns: [], productions: [], transfers: [],
@@ -441,6 +441,41 @@
             settled: this.dealerSettledAmount(c.id, year)
           };
         }).sort((a, b) => b.annualAmount - a.annualAmount);
+      },
+      /* 经销商级别自动评定（带保级，与 store.js 一致） */
+      evalDealerLevels(ids) {
+        const dTypeIds = this.dealerTypeIds();
+        if (!dTypeIds.length) return 0;
+        const levels = (db.dealerLevels || []).filter(l => l.status !== '未启用');
+        if (!levels.length) return 0;
+        const sorted = levels.slice().sort((a, b) => (Number(a.minAmount) || 0) - (Number(b.minAmount) || 0));
+        const year = new Date().getFullYear();
+        let changed = 0;
+        for (const c of (db.customers || [])) {
+          if (dTypeIds.indexOf(Number(c.typeId)) < 0) continue;
+          if (ids && ids.indexOf(c.id) < 0) continue;
+          const amount = this.dealerAnnualPurchase(c.id, String(year));
+          let earned = sorted[sorted.length - 1];
+          for (const lv of sorted) {
+            const min = Number(lv.minAmount) || 0;
+            const max = (lv.maxAmount == null || lv.maxAmount === '') ? Infinity : Number(lv.maxAmount);
+            if (amount >= min && amount < max) { earned = lv; break; }
+          }
+          if (c.dealerLevelYear !== year) {
+            c.dealerLevelBase = c.dealerLevelId || (earned ? earned.id : null);
+            c.dealerLevelYear = year;
+          }
+          const baseLv = c.dealerLevelBase ? sorted.find(l => l.id === c.dealerLevelBase) : null;
+          const hi = (a, b) => {
+            const av = a ? (Number(a.minAmount) || 0) : -1;
+            const bv = b ? (Number(b.minAmount) || 0) : -1;
+            return av >= bv ? a : b;
+          };
+          const final = hi(baseLv, earned);
+          const finalId = final ? final.id : (earned ? earned.id : null);
+          if (c.dealerLevelId !== finalId) { c.dealerLevelId = finalId; changed++; }
+        }
+        return changed;
       },
       dealerPrepaidBalance(customerId) {
         let total = 0, used = 0;

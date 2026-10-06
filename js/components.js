@@ -98,7 +98,7 @@ AppComponents['dict-page'] = {
   },
   computed: {
     S() { return window.S; },
-    isCustLevels() { return this.coll === 'custLevels'; },
+    isCustLevels() { return this.coll === 'custLevels' || this.coll === 'dealerLevels'; },
     isScoreType() { return this.coll === 'complaintTypes' || this.coll === 'rewardTypes'; },
     scoreField() { return this.coll === 'rewardTypes' ? 'rewardScore' : 'penaltyScore'; },
     scoreLabel() { return this.coll === 'rewardTypes' ? '奖励分数' : '奖惩分数'; },

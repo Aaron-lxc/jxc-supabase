@@ -14,7 +14,7 @@ window.S = {
     return {
       meta: { id: 1, seq: {} },
       goodsTypes: [], units: [], suppliers: [], goods: [],
-      custLevels: [], custTypes: [], regions: [], customers: [],
+      custLevels: [], dealerLevels: [], custTypes: [], regions: [], customers: [],
       resourcePartners: [], regionPartners: [],
       warehouses: [],
       purchases: [],
@@ -252,6 +252,7 @@ window.S = {
       units: () => db.goods.some(g => g.unitId === id),
       suppliers: () => db.goods.some(g => g.supplierId === id),
       custLevels: () => db.customers.some(c => c.levelId === id),
+      dealerLevels: () => db.customers.some(c => c.dealerLevelId === id),
       custTypes: () => db.customers.some(c => c.typeId === id),
       regions: () => db.customers.some(c => c.regionId === id) || db.regionPartners.some(p => p.regionId === id),
       resourcePartners: () => db.customers.some(c => c.r1 === id || c.r2 === id || c.r3 === id),
@@ -607,6 +608,48 @@ window.S = {
         if (avg >= min && avg < max) { match = lv; break; }
       }
       if (match && c.levelId !== match.id) { c.levelId = match.id; changed++; }
+    }
+    return changed;
+  },
+
+  /* ------- 经销商级别自动评定（按"当年累计销售净额"落入金额区间，带保级） -------
+     经销商 = 客户类型∈经销商类型。全年采购额 = S.dealerAnnualPurchase(当年，已扣退货)。
+     匹配 dealerLevels 中 minAmount<=amount<maxAmount 的首个级别（maxAmount 留空=∞）。
+     保级：跨年首次评定时，把"上年有效级别"设为今年保底；当年实际命中级别只能向上晋升，不会中途掉级；
+           跨年自然重置保底线为新年度有效级别。
+     ids 可选：传数组=仅评定这些客户；不传/null=评定所有经销商。返回变更数量。 */
+  evalDealerLevels(ids) {
+    const db = this.db;
+    const dTypeIds = this.dealerTypeIds();
+    if (!dTypeIds.length) return 0;
+    const levels = this.enabled('dealerLevels');
+    if (!levels.length) return 0;
+    const sorted = levels.slice().sort((a, b) => (Number(a.minAmount) || 0) - (Number(b.minAmount) || 0));
+    const year = new Date().getFullYear();
+    let changed = 0;
+    for (const c of db.customers) {
+      if (dTypeIds.indexOf(Number(c.typeId)) < 0) continue;
+      if (ids && ids.indexOf(c.id) < 0) continue;
+      const amount = this.dealerAnnualPurchase(c.id, String(year));
+      let earned = sorted[sorted.length - 1];
+      for (const lv of sorted) {
+        const min = Number(lv.minAmount) || 0;
+        const max = (lv.maxAmount == null || lv.maxAmount === '') ? Infinity : Number(lv.maxAmount);
+        if (amount >= min && amount < max) { earned = lv; break; }
+      }
+      if (c.dealerLevelYear !== year) {
+        c.dealerLevelBase = c.dealerLevelId || (earned ? earned.id : null);
+        c.dealerLevelYear = year;
+      }
+      const baseLv = c.dealerLevelBase ? sorted.find(l => l.id === c.dealerLevelBase) : null;
+      const hi = (a, b) => {
+        const av = a ? (Number(a.minAmount) || 0) : -1;
+        const bv = b ? (Number(b.minAmount) || 0) : -1;
+        return av >= bv ? a : b;
+      };
+      const final = hi(baseLv, earned);
+      const finalId = final ? final.id : (earned ? earned.id : null);
+      if (c.dealerLevelId !== finalId) { c.dealerLevelId = finalId; changed++; }
     }
     return changed;
   },
@@ -1102,6 +1145,8 @@ window.S = {
     sale.finishTime = U.now();
     sale.payStatus = sale.payStatus || '未支付';
     sale.finishBy = Cloud.state.user ? Cloud.state.user.name : '';
+    /* 完成销售单会改变经销商当年累计销售额 → 重评其经销商级别（保级/晋升） */
+    this.evalDealerLevels([sale.customerId]);
     return null;
   },
 
@@ -1110,6 +1155,7 @@ window.S = {
      校验通过后才动库存：先把本单「剩余占用」(原 alloc 按(原数量-已退)/原数量比例缩放)还回原仓库批次，
      再按新明细扣减新仓库批次；任一步库存不足则整体回滚并报警，不残留脏数据。 */
   reviseFinishedSale(sale, form) {
+    const prevCustId = sale.customerId;
     const retQty = {};
     (this.db.returns || []).filter(r => r.saleId === sale.id).forEach(r => {
       (r.items || []).forEach(l => { retQty[l.itemIdx] = U.round2((retQty[l.itemIdx] || 0) + Number(l.qty || 0)); });
@@ -1178,6 +1224,8 @@ window.S = {
     sale.arrearsSnap = this.custArrears(form.customerId);
     sale.revisedAt = U.now();
     sale.revisedBy = Cloud.state.user ? Cloud.state.user.name : '';
+    /* 修改已完成单（可能换客户/改金额）会改变经销商当年累计销售额 → 重评新旧客户级别 */
+    this.evalDealerLevels(Array.from(new Set([prevCustId, sale.customerId].filter(Boolean))));
     return null;
   },
 
@@ -1201,6 +1249,8 @@ window.S = {
       operator: Cloud.state.user ? Cloud.state.user.name : ''
     };
     this.db.returns.push(rt);
+    /* 退货会减少经销商当年累计销售额 → 重评其经销商级别 */
+    this.evalDealerLevels([sale.customerId]);
     lines.forEach(l => {
       const it = sale.items[l.itemIdx];
       const rec = this.stockRec(sale.whId, l.goodsId, true);

@@ -221,6 +221,7 @@
           if (ym && (!S.db.meta || S.db.meta.lastLevelEval !== ym)) {
             S.db.meta = S.db.meta || {};
             S.evalCustomerLevels(null);
+            S.evalDealerLevels(null);
             S.db.meta.lastLevelEval = ym;
           }
         } catch (e) { /* 评定失败不影响正常使用 */ }

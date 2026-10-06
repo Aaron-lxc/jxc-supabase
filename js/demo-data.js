@@ -44,6 +44,15 @@ window.Demo = {
       else if (i === 1) { lv.minAmount = 5000; lv.maxAmount = 10000; }
       else { lv.minAmount = 0; lv.maxAmount = 5000; }
     });
+    db.dealerLevels = mk(['五级', '四级', '三级', '二级', '一级'], 86);
+    /* 经销商级别「当年累计采购净额」区间：一级(30000+) / 二级[15000,30000) / 三级[5000,15000) / 四级[1000,5000) / 五级[0,1000) */
+    db.dealerLevels.forEach((lv, i) => {
+      if (i === 4) { lv.minAmount = 30000; lv.maxAmount = null; }
+      else if (i === 3) { lv.minAmount = 15000; lv.maxAmount = 30000; }
+      else if (i === 2) { lv.minAmount = 5000; lv.maxAmount = 15000; }
+      else if (i === 1) { lv.minAmount = 1000; lv.maxAmount = 5000; }
+      else { lv.minAmount = 0; lv.maxAmount = 1000; }
+    });
     db.custTypes = mk(['经销商', '连锁商超', '直营门店'], 86);
     db.regions = mk(['华南区', '华东区', '华北区', '西南区'], 85);
     db.complaintTypes = mk(['产品投诉', '设备投诉', '服务投诉', '物流投诉'], 80);
