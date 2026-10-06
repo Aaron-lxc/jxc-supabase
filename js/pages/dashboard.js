@@ -86,7 +86,20 @@ Pages['page-dashboard'] = {
         goodsTotal: en('goods').length, goodsByType,
         supplierTotal: en('suppliers').length,
         custTotal: custs.length,
-        custByType: grp('typeId', 'custTypes'), custByLevel: grp('levelId', 'custLevels'), custByRegion: grp('regionId', 'regions'),
+        custByType: grp('typeId', 'custTypes'),
+        /* 级别按客户类型区分：经销商按「经销商级别」（前缀「经销商·」），其他客户按「客户级别」 */
+        custByLevel: (() => {
+          const dealerIds = S.dealerTypeIds();
+          const m = {};
+          custs.forEach(c => {
+            const n = dealerIds.includes(Number(c.typeId))
+              ? '经销商·' + (S.name('dealerLevels', c.dealerLevelId) || '未评定')
+              : (S.name('custLevels', c.levelId) || '未设置');
+            m[n] = (m[n] || 0) + 1;
+          });
+          return m;
+        })(),
+        custByRegion: grp('regionId', 'regions'),
         rp, regionPartnerTotal: en('regionPartners').length,
         invQty, invCost: U.round2(invCost), invValue: U.round2(invValue), invProfit: U.round2(invValue - invCost), invByType,
         expiring: { qty: expQty, cost: U.round2(expCost), value: U.round2(expValue) },
