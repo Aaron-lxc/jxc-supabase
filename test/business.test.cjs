@@ -485,6 +485,48 @@ function reset() {
   ok(cacc.payable < 0, 'R1-14b compute-core 可支付同样为负（一致）');
 })();
 
+/* =================== S. 资金余额（按支付方式） =================== */
+(function () {
+  const db = reset();
+  db.settings.openingFlags = Object.assign({}, db.settings.openingFlags, { funds: true });
+  // 期初资金
+  db.openingFunds.push({ method: '微信', amount: 1000 }, { method: '对公', amount: 5000 });
+  // 注资
+  db.capitalInjections.push({ method: '微信', amount: 500 }, { method: '银行卡', amount: 2000 });
+  // 销售收款（已支付）
+  db.sales.push(
+    { status: '已完成', payStatus: '已支付', payMethod: '微信', actualPaid: 300 },
+    { status: '已完成', payStatus: '已支付', payMethod: '对公', actualPaid: 1000 },
+    { status: '已完成', payStatus: '未支付', payMethod: '微信', actualPaid: 0 } // 未支付不计
+  );
+  // 采购付款
+  db.purchases.push({ payMethod: '微信', amount: 200 }, { payMethod: '银行卡', amount: 800 });
+  // 运营支出（仅已计算计入）
+  db.expenses.push({ status: '已计算', payMethod: '微信', amount: 100 });
+  db.expenses.push({ status: '已计算', payMethod: '对公', amount: 300 });
+  db.expenses.push({ status: '未计算', payMethod: '微信', amount: 999 }); // 未计算不计
+  // 其他收入（仅已确认计入）
+  db.incomes.push({ status: '已确认', payMethod: '微信', amount: 50 });
+  db.incomes.push({ status: '未确认', payMethod: '对公', amount: 999 }); // 未确认不计
+
+  const fb = S.fundBalanceByMethod();
+  const byM = Object.fromEntries(fb.map(x => [x.method, x.balance]));
+  eq(byM['微信'], U.round2(1000 + 500 + 300 + 50 - 200 - 100), 'S1 微信余额=期初+注资+收款+收入-采购-支出');
+  eq(byM['对公'], U.round2(5000 + 1000 - 300), 'S2 对公余额=期初+收款-支出');
+  eq(byM['银行卡'], U.round2(2000 - 800), 'S3 银行卡余额=注资-采购');
+  ok(!('未设置' in byM), 'S4 无空支付方式流水，不出现「未设置」分组');
+  eq(S.totalFundBalance(), U.round2(byM['微信'] + byM['对公'] + byM['银行卡']), 'S5 总余额=各方式之和');
+
+  // compute-core 镜像一致
+  const CC = require(path.join(ROOT, 'js/compute-core.js'));
+  const cc = CC.makeCompute(S.db);
+  const cfb = cc.fundBalanceByMethod();
+  const cbyM = Object.fromEntries(cfb.map(x => [x.method, x.balance]));
+  eq(cbyM['微信'], byM['微信'], 'S6 compute-core 微信余额与 store 一致');
+  eq(cbyM['对公'], byM['对公'], 'S7 compute-core 对公余额与 store 一致');
+  eq(cbyM['银行卡'], byM['银行卡'], 'S8 compute-core 银行卡余额与 store 一致');
+})();
+
 /* ---------- 汇总 ---------- */
 console.log(`\n业务单元测试：通过 ${pass}，失败 ${fail}`);
 if (fail) { console.log('\n失败项：\n' + fails.join('\n')); process.exit(1); }

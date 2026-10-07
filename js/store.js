@@ -1063,6 +1063,24 @@ window.S = {
   totalOpeningAp() { return U.round2((this.db.openingAp || []).reduce((a, x) => a + Number(x.amount), 0)); },
   totalOpeningFunds() { return U.round2((this.db.openingFunds || []).reduce((a, x) => a + Number(x.amount), 0)); },
   totalCapitalInjected() { return U.round2((this.db.capitalInjections || []).reduce((a, x) => a + Number(x.amount), 0)); },
+  /* 资金余额（按支付方式）：实时余额 = 期初资金 + 注资 + 销售收款(已支付) + 其他收入(已确认) − 采购付款 − 运营支出(已计算)，均按 payMethod 汇总。
+     不含报损/报溢（属库存与成本核算，其金额不经由支付方式现金流）。空支付方式流水归入「未设置」。 */
+  fundBalanceByMethod() {
+    const db = this.db, m = {};
+    const add = (k, v) => { if (!k) k = '未设置'; m[k] = U.round2((m[k] || 0) + v); };
+    const flags = (db.settings && db.settings.openingFlags) || {};
+    if (flags.funds) (db.openingFunds || []).forEach(x => add(x.method, Number(x.amount)));
+    (db.capitalInjections || []).forEach(x => add(x.method, Number(x.amount)));
+    (db.sales || []).filter(s => s.payStatus === '已支付').forEach(s => add(s.payMethod, Number(s.actualPaid) || this.salePayable(s)));
+    (db.purchases || []).forEach(p => add(p.payMethod, -Number(p.amount)));
+    (db.expenses || []).filter(x => x.status === '已计算').forEach(x => add(x.payMethod, -Number(x.amount)));
+    (db.incomes || []).filter(x => x.status === '已确认').forEach(x => add(x.payMethod, Number(x.amount)));
+    return Object.keys(m)
+      .filter(k => Math.abs(m[k]) > 0.001)
+      .map(k => ({ method: k, balance: m[k] }))
+      .sort((a, b) => b.balance - a.balance);
+  },
+  totalFundBalance() { return U.round2(this.fundBalanceByMethod().reduce((a, x) => a + x.balance, 0)); },
   capitalByInvestor() {
     const m = {};
     (this.db.capitalInjections || []).forEach(x => {

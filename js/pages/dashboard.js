@@ -119,6 +119,8 @@ Pages['page-dashboard'] = {
           return m;
         })(),
         totalCapital: S.totalCapitalInjected(),
+        fundByMethod: S.fundBalanceByMethod(),
+        totalFund: S.totalFundBalance(),
         whTotal: en('warehouses').length
       };
     },
@@ -512,12 +514,27 @@ Pages['page-dashboard'] = {
         <div class="sub">已计算日常运营支出合计</div></div>
       <div class="stat-card c2 clickable" @click="go('capital')"><div class="t">注资总额</div><div class="v money">￥{{fmtMoney(stats.totalCapital)}}</div>
         <div class="sub">股东累计注入资金</div></div>
+      <div class="stat-card c2 clickable" @click="go('capital')"><div class="t">资金总余额</div><div class="v money">￥{{fmtMoney(stats.totalFund)}}</div>
+        <div class="sub">含期初/注资/收付款/收支，按支付方式拆分见下方</div></div>
       <div class="stat-card c2 clickable" @click="go('finance')"><div class="t">其他收入</div><div class="v money green-t">￥{{fmtMoney(stats.otherIncome)}}</div>
         <div class="sub">已确认的其他收入合计（非商品销售收入）</div></div>
       <div class="stat-card c4 clickable" @click="go('complaint')"><div class="t">累计投诉</div><div class="v">{{stats.cmpTotal}}</div><div class="sub">{{subText(stats.cmpByType,' 件')}}</div></div>
       <div class="stat-card c4 clickable" @click="go('inventory')"><div class="t">库存预警</div><div class="v">{{stockAlerts.length}} <span style="font-size:12px;color:#64748b">项</span></div><div class="sub">低于最低库存的商品数</div></div>
       <div class="stat-card c4 clickable" @click="go('inventory')"><div class="t">累计已临期</div><div class="v">{{stats.expiring.qty}} <span style="font-size:12px;color:#64748b">件</span></div><div class="sub">成本 ￥{{fmtMoney(stats.expiring.cost)}} ｜ 货值 ￥{{fmtMoney(stats.expiring.value)}}</div></div>
       <div class="stat-card c4 clickable" @click="go('sales')"><div class="t">超期未支付客户</div><div class="v">{{payAlerts.length}} <span style="font-size:12px;color:#64748b">家</span></div><div class="sub">存在超期欠款的客户数</div></div>
+    </div>
+
+    <!-- 资金余额（按支付方式） -->
+    <div class="card" style="margin-top:14px">
+      <h3>资金余额（按支付方式）</h3>
+      <table class="grid">
+        <thead><tr><th>支付方式</th><th class="num money">余额</th></tr></thead>
+        <tbody>
+          <tr v-for="r in stats.fundByMethod" :key="r.method"><td data-label="支付方式">{{r.method}}</td><td class="num money" :class="{red:r.balance<0}" data-label="余额">{{fmtMoney(r.balance)}}</td></tr>
+          <tr v-if="!stats.fundByMethod.length"><td colspan="2" class="empty">暂无资金流水</td></tr>
+          <tr class="total-row"><td>合计</td><td class="num money" :class="{red:stats.totalFund<0}">{{fmtMoney(stats.totalFund)}}</td></tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- 横向分析 -->
