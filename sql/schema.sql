@@ -524,17 +524,38 @@ alter table public.records replica identity full;
 insert into storage.buckets (id, name, public) values ('opening-docs', 'opening-docs', true)
 on conflict (id) do nothing;
 
+-- 仅账套成员可读/写/删本账套期初单据图片（按路径前缀解析账套）
+create or replace function public.can_read_opening_doc(p_name text)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare
+  v_ws text;
+  v_cnt int;
+begin
+  v_ws := split_part(p_name, '/', 1);
+  if v_ws is null or v_ws = '' then return false; end if;
+  select count(*) into v_cnt
+    from public.workspace_members m
+   where m.workspace_id::text = v_ws
+     and m.user_id = auth.uid()
+     and m.status = '已启用';
+  return coalesce(v_cnt, 0) > 0;
+end;
+$$;
+
 drop policy if exists "opening-docs select" on storage.objects;
 create policy "opening-docs select" on storage.objects
-  for select to authenticated using (bucket_id = 'opening-docs');
+  for select to authenticated
+  using (bucket_id = 'opening-docs' and public.can_read_opening_doc(name));
 
 drop policy if exists "opening-docs insert" on storage.objects;
 create policy "opening-docs insert" on storage.objects
-  for insert to authenticated with check (bucket_id = 'opening-docs');
+  for insert to authenticated
+  with check (bucket_id = 'opening-docs' and public.can_read_opening_doc(name));
 
 drop policy if exists "opening-docs delete" on storage.objects;
 create policy "opening-docs delete" on storage.objects
-  for delete to authenticated using (bucket_id = 'opening-docs');
+  for delete to authenticated
+  using (bucket_id = 'opening-docs' and public.can_read_opening_doc(name));
 
 -- ============================================================================
 -- 完成。返回一行提示。
