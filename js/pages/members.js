@@ -163,6 +163,14 @@ Pages['page-members'] = {
       if (err) return alert(err);
       await this.reload();
     },
+    async purge(m) {
+      if (m.role === 'owner') return alert('创建者账号不可删除');
+      if (!U.confirm(`彻底删除「${m.email || m.name || '该成员'}」的登录账号？\n\n此操作不可恢复：\n• 该用户将无法再用此邮箱登录\n• 其在所有账套的成员关系一并清除\n• 对方需重新注册才能再次使用\n\n确定继续吗？`)) return;
+      const r = await Cloud.deleteUser(this.wsId, m.user_id);
+      if (r) return alert(r);
+      alert('已彻底删除该用户账号');
+      await this.reload();
+    },
 
     /* ---- 邀请：删除 / 修改 / 启用 ---- */
     async cancelInvite(iv) {
@@ -304,6 +312,7 @@ Pages['page-members'] = {
                       {{ (m.status === '未启用' || m.status === '已停用') ? '启用' : '停用' }}
                     </button>
                     <button class="btn btn-sm btn-danger" :disabled="m.status !== '未启用'" @click="remove(m)">删除</button>
+                    <button class="btn btn-sm btn-danger" @click="purge(m)" title="永久删除该用户的登录账号（不可恢复）">彻底删除</button>
                   </template>
                 </td>
               </tr>

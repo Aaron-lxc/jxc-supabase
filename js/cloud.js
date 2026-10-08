@@ -246,6 +246,30 @@ window.Cloud = {
     return error ? this._dbErr(error) : null;
   },
 
+  // 管理员一键彻底删除用户（Auth 账号，级联 profiles / workspace_members）。
+  // 实际删除由 Edge Function 用 service_role 执行，函数内校验调用者权限与目标归属。
+  async deleteUser(wsId, userId) {
+    try {
+      const cfg = CFG.read() || {};
+      const base = cfg.url || '';
+      if (!base) return '未配置 Supabase 连接';
+      const { data: sess } = await this.sb.auth.getSession();
+      const token = sess && sess.session ? sess.session.access_token : '';
+      const res = await fetch(base + '/functions/v1/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': cfg.anonKey || '',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({ ws_id: wsId, user_id: userId })
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) return (j && j.error) || ('删除失败（HTTP ' + res.status + '）');
+      return null;
+    } catch (e) { return String((e && e.message) || e); }
+  },
+
   async listInvites(wsId) {
     const { data, error } = await this.sb.from('invites')
       .select('*').eq('workspace_id', wsId)
