@@ -308,6 +308,18 @@ const SaleList = {
     openTpl() { this.tplDraft = JSON.parse(JSON.stringify(this.tpl)); this.showTpl = true; },
     saveTpl() { S.db.settings.saleTemplate = JSON.parse(JSON.stringify(this.tplDraft)); this.showTpl = false; },
     resetTpl() { this.tplDraft = JSON.parse(JSON.stringify(DEFAULT_TPL)); },
+    /* ---------- 导出当前筛选结果 ---------- */
+    exportData() {
+      if (!this.rows.length) return alert('没有可导出的数据');
+      U.exportExcel('销售单明细.xlsx', this.rows.map((s, i) => ({
+        '序号': i + 1, '销售单号': s.no,
+        '客户名称': S.name('customers', s.customerId), '仓库名称': S.name('warehouses', s.whId),
+        '商品': this.itemsSummary(s), '数量': this.qtySum(s), '金额': Number(s.total) || 0,
+        '税点费用': S.saleTaxCost(s), '累计欠款': this.custArrears(s), '配送费': S.saleDeliveryCost(s),
+        '计入资源佣金': s.incResourceCommission || '是', '计入区域佣金': s.incRegionCommission || '是',
+        '客户备注': s.custRemark || '', '状态': s.status, '创建时间': s.createTime
+      })));
+    },
     /* ---------- 销售单批量导入 ---------- */
     openImport() {
       this.showImport = true;
@@ -442,6 +454,7 @@ const SaleList = {
       <input type="date" v-model="q.d1"> - <input type="date" v-model="q.d2">
       <div class="spacer"></div>
       <button class="btn" @click="openImport">导入</button>
+      <button class="btn" @click="exportData">导出</button>
       <button class="btn" @click="openTpl">销售单模版设置</button>
       <button class="btn btn-primary" @click="openNew">+ 新增销售单</button>
     </div>
