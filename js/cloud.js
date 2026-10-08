@@ -270,6 +270,31 @@ window.Cloud = {
     } catch (e) { return String((e && e.message) || e); }
   },
 
+  // 管理员为成员重置登录密码（service_role 直接改 Auth 用户密码，不依赖邮箱）。
+  // 实际重置由 Edge Function 执行，函数内校验调用者权限与目标归属。
+  // 成功返回 null；失败返回错误信息字符串。
+  async resetUserPassword(wsId, userId, newPassword) {
+    try {
+      const cfg = CFG.read() || {};
+      const base = cfg.url || '';
+      if (!base) return '未配置 Supabase 连接';
+      const { data: sess } = await this.sb.auth.getSession();
+      const token = sess && sess.session ? sess.session.access_token : '';
+      const res = await fetch(base + '/functions/v1/reset-user-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': cfg.anonKey || '',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({ ws_id: wsId, user_id: userId, new_password: newPassword })
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) return (j && j.error) || ('重置失败（HTTP ' + res.status + '）');
+      return null;
+    } catch (e) { return String((e && e.message) || e); }
+  },
+
   async listInvites(wsId) {
     const { data, error } = await this.sb.from('invites')
       .select('*').eq('workspace_id', wsId)

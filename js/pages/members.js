@@ -172,6 +172,29 @@ Pages['page-members'] = {
       await this.reload();
     },
 
+    /* ---- 重置成员密码（管理员代重置，不依赖邮箱） ---- */
+    openResetPw(m) {
+      this.resetPw = { user_id: m.user_id, email: m.email || '', name: m.name || '' };
+      this.resetPwPwd = '';
+      this.showResetPw = true;
+    },
+    genResetPwd() {
+      /* 去掉易混淆字符（I l 1 O 0）的随机密码 */
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+      let s = '';
+      for (let i = 0; i < 10; i++) s += chars[Math.floor(Math.random() * chars.length)];
+      this.resetPwPwd = s;
+    },
+    async submitResetPw() {
+      const pwd = (this.resetPwPwd || '').trim();
+      if (pwd.length < 6) return alert('新密码至少 6 位');
+      if (!U.confirm(`确定重置「${this.resetPw.email || this.resetPw.name}」的登录密码吗？\n\n重置后对方原密码立即失效。`)) return;
+      const r = await Cloud.resetUserPassword(this.wsId, this.resetPw.user_id, pwd);
+      if (r) return alert(r);
+      this.showResetPw = false;
+      alert('密码已重置，请将新密码告知对方：\n\n' + pwd);
+    },
+
     /* ---- 邀请：删除 / 修改 / 启用 ---- */
     async cancelInvite(iv) {
       if (!U.confirm(`确定取消向「${iv.email}」的邀请吗？`)) return;
@@ -453,6 +476,23 @@ Pages['page-members'] = {
         <button class="btn" @click="showInviteEdit=false">取消</button>
         <button class="btn btn-primary" @click="submitInviteEdit">保存</button>
         <span class="muted" v-if="inviteEditMsg">{{ inviteEditMsg }}</span>
+      </template>
+    </x-modal>
+
+    <!-- 重置密码弹窗 -->
+    <x-modal v-if="showResetPw" title="重置登录密码" width="520" :fullscreen="$root.isMobile" @close="showResetPw=false">
+      <div class="muted" style="margin-bottom:10px">成员：{{ resetPw.email || resetPw.name || '—' }}</div>
+      <div class="form-item">
+        <label>新密码<b class="req">*</b>（至少 6 位）</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" v-model="resetPwPwd" placeholder="输入新密码或点右侧随机生成" style="flex:1">
+          <button class="btn btn-sm" @click="genResetPwd">随机生成</button>
+        </div>
+      </div>
+      <div class="form-hint">重置成功后对方原密码立即失效，请将新密码告知对方；对方用邮箱 + 新密码即可登录，不需要邮件验证。</div>
+      <template #foot>
+        <button class="btn" @click="showResetPw=false">取消</button>
+        <button class="btn btn-primary" @click="submitResetPw">确认重置</button>
       </template>
     </x-modal>
 
