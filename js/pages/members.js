@@ -26,6 +26,10 @@ Pages['page-members'] = {
       showInviteEdit: false,
       inviteEdit: null,   // { id, email, role, permissions }
       inviteEditMsg: '',
+      /* 重置密码 */
+      showResetPw: false,
+      resetPw: null,      // { user_id, email, name }
+      resetPwPwd: '',
       /* 转让 */
       showTransfer: false,
       transferId: ''
