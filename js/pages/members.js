@@ -156,15 +156,9 @@ Pages['page-members'] = {
       if (err) return alert(err);
       await this.reload();
     },
-    async remove(m) {
-      if (m.role === 'owner') return alert('创建者不可移除');
-      if (!U.confirm(`确定将「${m.email || m.name}」移出本账套吗？`)) return;
-      const err = await Cloud.removeMember(m.id);
-      if (err) return alert(err);
-      await this.reload();
-    },
     async purge(m) {
       if (m.role === 'owner') return alert('创建者账号不可删除');
+      if (m.status === '已启用') return alert('请先「停用」该成员，再彻底删除其账号');
       if (!U.confirm(`彻底删除「${m.email || m.name || '该成员'}」的登录账号？\n\n此操作不可恢复：\n• 该用户将无法再用此邮箱登录\n• 其在所有账套的成员关系一并清除\n• 对方需重新注册才能再次使用\n\n确定继续吗？`)) return;
       const r = await Cloud.deleteUser(this.wsId, m.user_id);
       if (r) return alert(r);
@@ -253,7 +247,6 @@ Pages['page-members'] = {
     /* ---- 公共 ---- */
     roleLabel: P.roleLabel,
     summary(perms, role) { return P.summary(perms, role); },
-    canRemove(m) { return m.role !== 'owner'; },
     isSelf(m) { return m.user_id === this.meId; },
     myMemberId() {
       const me = this.members.find(m => m.user_id === this.meId);
@@ -331,11 +324,11 @@ Pages['page-members'] = {
                   <template v-if="m.role === 'owner'"><span class="muted">—</span></template>
                   <template v-else>
                     <button class="btn btn-sm" @click="openEdit(m)">修改</button>
+                    <button class="btn btn-sm" v-if="!isSelf(m)" @click="openResetPw(m)" title="为该成员设置新登录密码（原密码立即失效）">重置密码</button>
                     <button class="btn btn-sm" @click="toggleStatus(m)">
                       {{ (m.status === '未启用' || m.status === '已停用') ? '启用' : '停用' }}
                     </button>
-                    <button class="btn btn-sm btn-danger" :disabled="m.status !== '未启用'" @click="remove(m)">删除</button>
-                    <button class="btn btn-sm btn-danger" @click="purge(m)" title="永久删除该用户的登录账号（不可恢复）">彻底删除</button>
+                    <button class="btn btn-sm btn-danger" :disabled="m.status === '已启用'" @click="purge(m)" title="须先停用，才能彻底删除该用户的登录账号（不可恢复）">彻底删除</button>
                   </template>
                 </td>
               </tr>
