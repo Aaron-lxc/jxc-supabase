@@ -23,7 +23,10 @@ Pages['page-opening'] = {
       qAr: { customerId: '', remark: '' },
       qAp: { supplierId: '' },
       /* 图片预览 */
-      previewImage: '', showImagePreview: false
+      previewImage: '', showImagePreview: false,
+      /* 期初应收-核销收款 */
+      showWriteoff: false, curAr: null,
+      wfForm: { method: '', amount: null, remark: '' }
     };
   },
   computed: {
@@ -76,6 +79,10 @@ Pages['page-opening'] = {
     /* 合计基于当前筛选结果 */
     stockValue() { return U.round2(this.stockRows.reduce((a, o) => a + Number(o.qty || 0) * Number(o.price || 0), 0)); },
     arTotal()    { return U.round2(this.arRows.reduce((a, x) => a + Number(x.amount || 0), 0)); },
+    arReceived() { return U.round2(this.arRows.reduce((a, x) => a + (Array.isArray(x.writeoffs) ? x.writeoffs.reduce((b, w) => b + Number(w.amount || 0), 0) : Number(x.received || 0)), 0)); },
+    arUnpaid()   { return U.round2(Math.max(0, this.arTotal - this.arReceived)); },
+    arUnpaidOf(r)   { const recv = Array.isArray(r.writeoffs) ? r.writeoffs.reduce((b, w) => b + Number(w.amount || 0), 0) : Number(r.received || 0); return U.round2(Math.max(0, Number(r.amount || 0) - recv)); },
+    arReceivedOf(r) { return U.round2(Array.isArray(r.writeoffs) ? r.writeoffs.reduce((b, w) => b + Number(w.amount || 0), 0) : Number(r.received || 0)); },
     apTotal()    { return U.round2(this.apRows.reduce((a, x) => a + Number(x.amount || 0), 0)); },
     fundTotal()  { return U.round2(this.fundRows.reduce((a, x) => a + Number(x.amount || 0), 0)); },
     /* 期初库存选中的商品（用于带出保质期/计算到期日） */
@@ -186,6 +193,27 @@ Pages['page-opening'] = {
     resetArForm() { this.editingArId = null; this.formAr = { customerId: '', amount: null, remark: '', docImages: [] }; },
     cancelEditAr() { this.resetArForm(); },
     delAr(r) { S.db.openingAr = S.db.openingAr.filter(x => x.id !== r.id); },
+    /* 期初应收-核销收款（支持多次部分收款；启用后也可操作，无需反初始化） */
+    openWriteoff(r) {
+      if (!P.canEdit('opening') && !P.isManager()) return alert('无期初操作权限');
+      this.curAr = r;
+      this.wfForm = { method: '', amount: this.arUnpaidOf(r), remark: '' };
+      this.showWriteoff = true;
+    },
+    async confirmWriteoff() {
+      const r = this.curAr; if (!r) return;
+      const unpaid = this.arUnpaidOf(r);
+      const amt = U.round2(Number(this.wfForm.amount || 0));
+      if (!this.wfForm.method) return alert('请选择收款方式');
+      if (amt <= 0) return alert('核销金额必须大于 0');
+      if (amt > unpaid + 1e-6) return alert('核销金额不能超过未收余额 ￥' + U.fmtMoney(unpaid));
+      if (!r.writeoffs) r.writeoffs = [];
+      r.writeoffs.push({ method: this.wfForm.method, amount: amt, time: U.now(), remark: this.wfForm.remark || '' });
+      r.received = (r.writeoffs || []).reduce((b, w) => b + Number(w.amount || 0), 0);
+      this.showWriteoff = false; this.curAr = null;
+      await S.persistNow();
+      alert('已核销 ￥' + U.fmtMoney(amt) + (this.arUnpaidOf(r) === 0 ? '，该笔期初应收已结清。' : '，剩余未收 ￥' + U.fmtMoney(this.arUnpaidOf(r)) + '。'));
+    },
     /* 兼容旧数据的单字符串 docImage：统一转为数组 */
     normDocImages(r) {
       if (!r) return [];
@@ -377,23 +405,29 @@ Pages['page-opening'] = {
           <x-combobox v-model="qAr.customerId" :options="filterCustOpts" placeholder="全部客户" style="width:180px"/>
           <input type="text" v-model="qAr.remark" placeholder="备注模糊查询" style="width:160px">
           <div class="spacer"></div>
-          <span class="muted">合计 ￥{{fmtMoney(arTotal)}}</span>
+          <span class="muted">合计 ￥{{fmtMoney(arTotal)}} ｜ 已收 ￥{{fmtMoney(arReceived)}} ｜ 未收 <b :class="{red:arUnpaid>0}">￥{{fmtMoney(arUnpaid)}}</b></span>
         </div>
         <table class="grid">
-          <thead><tr><th>序号</th><th>客户</th><th class="num">金额</th><th>备注</th><th>历史单据</th><th v-if="!openedAr">操作</th></tr></thead>
+          <thead><tr><th>序号</th><th>客户</th><th class="num">金额</th><th class="num">已收</th><th class="num">未收</th><th>备注</th><th>历史单据</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-for="(r,i) in arPaged"><td data-label="序号">{{(pageAr-1)*sizeAr+i+1}}</td><td data-label="客户">{{S.name('customers',r.customerId)}}</td>
-              <td class="num money" data-label="金额">{{fmtMoney(r.amount)}}</td><td data-label="备注">{{r.remark||'-'}}</td>
+              <td class="num money" data-label="金额">{{fmtMoney(r.amount)}}</td>
+              <td class="num money green" data-label="已收">{{fmtMoney(arReceivedOf(r))}}</td>
+              <td class="num money" :class="{red:arUnpaidOf(r)>0}" data-label="未收">{{fmtMoney(arUnpaidOf(r))}} <span v-if="arUnpaidOf(r)===0" class="tag tag-green" style="font-size:10px;padding:1px 4px">已结清</span></td>
+              <td data-label="备注">{{r.remark||'-'}}</td>
               <td data-label="历史单据">
                 <span v-if="!normDocImages(r).length" class="muted">-</span>
                 <div v-else style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                   <img v-for="(url, idx) in normDocImages(r)" :key="idx" :src="url" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer" @click="previewImage=url; showImagePreview=true">
                 </div>
               </td>
-              <td v-if="!openedAr" class="ops" data-label="操作">
-                <span class="link" @click="editAr(r)">修改</span>
-                <span class="link danger" @click="delAr(r)" style="margin-left:8px">删除</span></td></tr>
-            <tr v-if="!arPaged.length"><td colspan="6" class="empty">暂无期初应收</td></tr>
+              <td class="ops" data-label="操作">
+                <template v-if="!openedAr">
+                  <span class="link" @click="editAr(r)">修改</span>
+                  <span class="link danger" @click="delAr(r)" style="margin-left:8px">删除</span>
+                </template>
+                <span class="link green" @click="openWriteoff(r)">核销收款</span></td></tr>
+            <tr v-if="!arPaged.length"><td colspan="8" class="empty">暂无期初应收</td></tr>
           </tbody>
         </table>
         <x-pager :total="arRows.length" v-model:page="pageAr" v-model:size="sizeAr"/>
@@ -431,6 +465,22 @@ Pages['page-opening'] = {
             <span class="muted">仅创建者/管理员可反初始化；反初始化后不再计入客户累计欠款。</span>
           </template>
         </div>
+
+    <x-modal v-if="showWriteoff && curAr" :title="'期初应收核销 - ' + S.name('customers', curAr.customerId)" :width="520" :fullscreen="$root.isMobile" position="bottom" @close="showWriteoff=false">
+      <div class="form-grid">
+        <div class="form-item"><label>客户</label><input type="text" :value="S.name('customers', curAr.customerId)" disabled></div>
+        <div class="form-item"><label>应收总额</label><input type="text" :value="fmtMoney(curAr.amount)" disabled></div>
+        <div class="form-item"><label>已收合计</label><input type="text" :value="fmtMoney(arReceivedOf(curAr))" disabled></div>
+        <div class="form-item"><label>本次前未收</label><input type="text" :value="fmtMoney(arUnpaidOf(curAr))" disabled></div>
+        <div class="form-item"><label>收款方式<b class="req">*</b></label><x-combobox v-model="wfForm.method" :options="fundMethodOpts" placeholder="请选择"/></div>
+        <div class="form-item"><label>本次核销金额<b class="req">*</b></label><input type="number" min="0" :max="arUnpaidOf(curAr)" step="0.01" v-model.number="wfForm.amount"></div>
+        <div class="form-item full"><label>备注</label><input type="text" v-model="wfForm.remark" placeholder="选填"></div>
+      </div>
+      <template #foot>
+        <button class="btn" @click="showWriteoff=false">取消</button>
+        <button class="btn btn-primary" @click="confirmWriteoff">确认核销</button>
+      </template>
+    </x-modal>
       </template>
 
       <!-- 期初应付 -->

@@ -401,6 +401,7 @@ const CustomerList = {
         <div class="form-item"><label>其他联系人</label><div>{{detail.contactOther||'-'}}</div></div>
         <div class="form-item"><label>支付</label><div>{{detail.payMethod}} / {{detail.payCycle}}<span v-if="detail.payDay"> / 每月{{detail.payDay}}号</span></div></div>
         <div class="form-item"><label>累计欠款</label><div class="red money">￥{{fmtMoney(arrears(detail))}}</div></div>
+        <div class="form-item" v-if="S.db.settings.openingFlags.ar"><label>其中：期初应收未收</label><div class="red money">￥{{fmtMoney(S.custOpeningArUnpaid(detail.id))}}</div></div>
         <div class="form-item"><label>银行卡</label><div>{{detail.bankCard||'-'}}</div></div>
         <div class="form-item"><label>对公账户</label><div>{{detail.corpAccount||'-'}}</div></div>
         <div class="form-item"><label>税点 / 是否减免</label><div>{{detail.taxRate||0}}% ｜ {{detail.taxExempt||'否'}}</div></div>

@@ -262,8 +262,15 @@
 
       /* 欠款 */
       custArrears(custId) {
-        return U.round2((db.sales || []).filter(s => s.customerId === custId && s.status === '已完成' && s.payStatus !== '已支付')
+        let amt = U.round2((db.sales || []).filter(s => s.customerId === custId && s.status === '已完成' && s.payStatus !== '已支付')
           .reduce((a, s) => a + this.salePayable(s), 0));
+        if (db.settings && db.settings.openingFlags && db.settings.openingFlags.ar) {
+          const ar = (db.openingAr || []).filter(x => x.customerId === custId);
+          const total = ar.reduce((a, x) => a + Number(x.amount), 0);
+          const recv = ar.reduce((a, x) => a + (Array.isArray(x.writeoffs) ? x.writeoffs.reduce((b, w) => b + Number(w.amount || 0), 0) : Number(x.received || 0)), 0);
+          amt = U.round2(amt + Math.max(0, total - recv));
+        }
+        return amt;
       },
       custOverdueArrears(custId) {
         return U.round2((db.sales || []).filter(s => s.customerId === custId && s.status === '已完成' && s.payStatus !== '已支付' && this.saleOverdueDays(s) > 0)

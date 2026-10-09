@@ -1050,8 +1050,17 @@ window.S = {
     this.db.settings.openingTimes[type] = '';
     return null;
   },
-  custOpeningAr(custId) {
+  custOpeningAr(custId) {            // 期初应收原始合计（启用后生效的基准）
     return U.round2((this.db.openingAr || []).filter(x => x.customerId === custId).reduce((a, x) => a + Number(x.amount), 0));
+  },
+  /* 期初应收已核销（已收）金额：累加每行 writeoffs 中的 amount；旧数据无该字段按 0 处理 */
+  custOpeningArReceived(custId) {
+    return U.round2((this.db.openingAr || []).filter(x => x.customerId === custId)
+      .reduce((a, x) => a + (Array.isArray(x.writeoffs) ? x.writeoffs.reduce((b, w) => b + Number(w.amount || 0), 0) : Number(x.received || 0)), 0));
+  },
+  /* 期初应收未收余额（原始 - 已收），计入客户累计欠款 */
+  custOpeningArUnpaid(custId) {
+    return U.round2(Math.max(0, this.custOpeningAr(custId) - this.custOpeningArReceived(custId)));
   },
   supplierOpeningAp(supplierId) {
     return U.round2((this.db.openingAp || []).filter(x => x.supplierId === supplierId).reduce((a, x) => a + Number(x.amount), 0));
@@ -1060,6 +1069,8 @@ window.S = {
     return U.round2((this.db.openingStocks || []).reduce((a, o) => a + Number(o.qty) * Number(o.price || 0), 0));
   },
   totalOpeningAr() { return U.round2((this.db.openingAr || []).reduce((a, x) => a + Number(x.amount), 0)); },
+  totalOpeningArReceived() { return U.round2((this.db.openingAr || []).reduce((a, x) => a + (Array.isArray(x.writeoffs) ? x.writeoffs.reduce((b, w) => b + Number(w.amount || 0), 0) : Number(x.received || 0)), 0)); },
+  totalOpeningArUnpaid() { return U.round2(Math.max(0, this.totalOpeningAr() - this.totalOpeningArReceived())); },
   totalOpeningAp() { return U.round2((this.db.openingAp || []).reduce((a, x) => a + Number(x.amount), 0)); },
   totalOpeningFunds() { return U.round2((this.db.openingFunds || []).reduce((a, x) => a + Number(x.amount), 0)); },
   totalCapitalInjected() { return U.round2((this.db.capitalInjections || []).reduce((a, x) => a + Number(x.amount), 0)); },
@@ -1302,11 +1313,11 @@ window.S = {
     const d = U.daysBetween(this.saleDueDate(sale), U.today());
     return d > 0 ? d : 0;
   },
-  custArrears(custId) { /* 客户累计未支付（含税应付口径：净额 + 税点费用；含启用后的期初应收） */
+  custArrears(custId) { /* 客户累计未支付（含税应付口径：净额 + 税点费用；含启用后的期初应收未收余额） */
     let amt = this.db.sales
       .filter(s => s.customerId === custId && s.status === '已完成' && s.payStatus !== '已支付')
       .reduce((a, s) => a + this.salePayable(s), 0);
-    if (this.db.settings.openingFlags.ar) amt += this.custOpeningAr(custId);   // 期初应收计入客户台账（启用后生效）
+    if (this.db.settings.openingFlags.ar) amt += this.custOpeningArUnpaid(custId);   // 期初应收未收余额计入客户台账（启用后生效；已核销部分自动扣减）
     return U.round2(amt);
   },
   custOverdueArrears(custId) {
