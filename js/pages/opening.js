@@ -81,8 +81,6 @@ Pages['page-opening'] = {
     arTotal()    { return U.round2(this.arRows.reduce((a, x) => a + Number(x.amount || 0), 0)); },
     arReceived() { return U.round2(this.arRows.reduce((a, x) => a + (Array.isArray(x.writeoffs) ? x.writeoffs.reduce((b, w) => b + Number(w.amount || 0), 0) : Number(x.received || 0)), 0)); },
     arUnpaid()   { return U.round2(Math.max(0, this.arTotal - this.arReceived)); },
-    arUnpaidOf(r)   { const recv = Array.isArray(r.writeoffs) ? r.writeoffs.reduce((b, w) => b + Number(w.amount || 0), 0) : Number(r.received || 0); return U.round2(Math.max(0, Number(r.amount || 0) - recv)); },
-    arReceivedOf(r) { return U.round2(Array.isArray(r.writeoffs) ? r.writeoffs.reduce((b, w) => b + Number(w.amount || 0), 0) : Number(r.received || 0)); },
     apTotal()    { return U.round2(this.apRows.reduce((a, x) => a + Number(x.amount || 0), 0)); },
     fundTotal()  { return U.round2(this.fundRows.reduce((a, x) => a + Number(x.amount || 0), 0)); },
     /* 期初库存选中的商品（用于带出保质期/计算到期日） */
@@ -114,6 +112,9 @@ Pages['page-opening'] = {
   },
   methods: {
     fmtMoney: U.fmtMoney,
+    /* 期初应收：单行已收/未收（带参辅助函数必须放 methods，computed 不支持传参） */
+    arUnpaidOf(r)   { const recv = Array.isArray(r.writeoffs) ? r.writeoffs.reduce((b, w) => b + Number(w.amount || 0), 0) : Number(r.received || 0); return U.round2(Math.max(0, Number(r.amount || 0) - recv)); },
+    arReceivedOf(r) { return U.round2(Array.isArray(r.writeoffs) ? r.writeoffs.reduce((b, w) => b + Number(w.amount || 0), 0) : Number(r.received || 0)); },
     openTab(t) { this.tab = t; },
     tabLabel(t) { return { '期初库存': '库存', '期初应收': '应收', '期初应付': '应付', '期初资金': '资金' }[t] || t; },
     /* ---- 期初库存 ---- */
