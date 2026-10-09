@@ -1250,6 +1250,7 @@ window.S = {
     sale.deliveryFee = form.deliveryFee;
     sale.incResourceCommission = form.incResourceCommission;
     sale.incRegionCommission = form.incRegionCommission;
+    if (form.remark != null) sale.remark = String(form.remark).trim();
     sale.arrearsSnap = this.custArrears(form.customerId);
     sale.revisedAt = U.now();
     sale.revisedBy = Cloud.state.user ? Cloud.state.user.name : '';

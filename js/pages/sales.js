@@ -104,6 +104,7 @@ const SaleList = {
         { label: '累计欠款', value: U.fmtMoney(this.custArrears(s)) },
         { label: '配送费', value: U.fmtMoney(S.saleDeliveryCost(s)) },
         { label: '客户备注', value: s.custRemark || '-' },
+        { label: '销售备注', value: s.remark || '-' },
         { label: '状态', value: s.status },
         { label: '创建时间', value: s.createTime }
       ];
@@ -117,7 +118,7 @@ const SaleList = {
     qtySum(s) { return S.saleQty(s); },
     openNew() {
       this.editing = null;
-      this.form = { customerId: '', whId: '', taxRate: 0, taxExempt: '否', deliveryFee: null, incResourceCommission: '是', incRegionCommission: '是', items: [this.blankItem()] };
+      this.form = { customerId: '', whId: '', taxRate: 0, taxExempt: '否', deliveryFee: null, incResourceCommission: '是', incRegionCommission: '是', remark: '', items: [this.blankItem()] };
       this.showForm = true;
     },
     openEdit(s) {
@@ -127,7 +128,7 @@ const SaleList = {
         lotKey: (it.alloc && it.alloc.length && (it.alloc[0].batchNo || '')) || it.lotKey || ''
       }));
       this.editing = s;
-      this.form = { customerId: s.customerId, whId: s.whId, taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', deliveryFee: s.deliveryFee || 0, incResourceCommission: s.incResourceCommission || '是', incRegionCommission: s.incRegionCommission || '是', items };
+      this.form = { customerId: s.customerId, whId: s.whId, taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', deliveryFee: s.deliveryFee || 0, incResourceCommission: s.incResourceCommission || '是', incRegionCommission: s.incRegionCommission || '是', remark: s.remark || '', items };
       this.showForm = true;
     },
     /* 复制销售单：打开「新增」弹窗并预填原单内容（客户/仓库/税点/减免/佣金计入/配送费/商品明细），
@@ -140,6 +141,7 @@ const SaleList = {
         deliveryFee: s.deliveryFee || 0,
         incResourceCommission: s.incResourceCommission || '是',
         incRegionCommission: s.incRegionCommission || '是',
+        remark: s.remark || '',
         items: s.items.map(it => ({ ...it }))
       };
       this.showForm = true;
@@ -211,7 +213,7 @@ const SaleList = {
       const cExempt = cust ? (cust.taxExempt || '否') : '否';
       const taxManual = (taxRate !== cRate || taxExempt !== cExempt);
       if (this.editing && this.editing.status === '已完成') {
-        const form = { customerId: f.customerId, whId: f.whId, items, total, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0), incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是' };
+        const form = { customerId: f.customerId, whId: f.whId, items, total, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0), incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是', remark: (f.remark || '').trim() };
         const err = S.reviseFinishedSale(this.editing, form);
         if (err) return alert(err);
         this.showForm = false;
@@ -221,7 +223,8 @@ const SaleList = {
         Object.assign(this.editing, {
           customerId: f.customerId, whId: f.whId, items, total, custRemark: cust ? cust.remark : '',
           arrearsSnap: arrears, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0),
-          incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是'
+          incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是',
+          remark: (f.remark || '').trim()
         });
       } else {
         S.db.sales.push({
@@ -229,6 +232,7 @@ const SaleList = {
           items, total, custRemark: cust ? cust.remark : '', arrearsSnap: arrears,
           taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0),
           incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是',
+          remark: (f.remark || '').trim(),
           status: '未完成', payStatus: '', payTime: '', createTime: U.now(), finishTime: ''
         });
       }
@@ -292,6 +296,7 @@ const SaleList = {
       if (t.foot.taxPayable) f2.push(`<span><b>含税应付合计：￥${U.fmtMoney(S.salePayable(s))}</b></span>`);
       if (t.foot.delivery) f2.push(`<span>配送费（不计入应收，计入成本）：￥${U.fmtMoney(S.saleDeliveryCost(s))}</span>`);
       if (t.foot.remark && s.custRemark) f2.push(`<span>客户备注：${U.esc(s.custRemark)}</span>`);
+      if (s.remark) f2.push(`<span>销售备注：${U.esc(s.remark)}</span>`);
       if (f2.length) H.push(`<div class="p-info">${f2.join('')}</div>`);
 
       const sign = [];
@@ -317,7 +322,7 @@ const SaleList = {
         '商品': this.itemsSummary(s), '数量': this.qtySum(s), '金额': Number(s.total) || 0,
         '税点费用': S.saleTaxCost(s), '累计欠款': this.custArrears(s), '配送费': S.saleDeliveryCost(s),
         '计入资源佣金': s.incResourceCommission || '是', '计入区域佣金': s.incRegionCommission || '是',
-        '客户备注': s.custRemark || '', '状态': s.status, '创建时间': s.createTime
+        '客户备注': s.custRemark || '', '销售备注': s.remark || '', '状态': s.status, '创建时间': s.createTime
       })));
     },
     /* ---------- 销售单批量导入 ---------- */
@@ -539,6 +544,8 @@ const SaleList = {
       </table>
       </div>
       <div style="margin-top:8px"><button class="btn btn-sm" @click="addItem">+ 添加明细行</button></div>
+      <div class="form-item full" style="margin-top:8px"><label>销售备注</label>
+        <input type="text" v-model="form.remark" maxlength="200" placeholder="选填，本单备注（区别于自动同步的客户备注）"></div>
       <div class="total-bar">合计金额（税前商品金额）：<b class="money">￥{{fmtMoney(formTotal)}}</b></div>
       <div class="total-bar sub">税点费用（税点 {{form.taxRate||0}}%）：<b class="money red">￥{{fmtMoney(formTaxCost)}}</b>　｜　含税应付合计：<span style="font-weight:700;color:#0f172a">￥{{fmtMoney(formPayable)}}</span></div>
       <div class="form-hint" v-if="formTaxManual"><span class="tag tag-orange">特调</span> 本单税点已手工调整（客户档案为 {{formCust.taxRate||0}}% / 减免{{formCust.taxExempt||'否'}}），保存后本单不再随客户档案税点变更自动更新；改回与客户一致即恢复自动跟随。</div>
