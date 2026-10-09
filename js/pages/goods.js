@@ -60,20 +60,20 @@ const GoodsList = {
       if (!f.typeId) return alert('请选择商品类型');
       if (!f.unitId) return alert('请选择商品单位');
       if (!f.supplierId) return alert('请选择供应商');
-      if (f.purchasePrice == null || f.retailPrice == null) return alert('请填写采购价与零售价');
+      if (f.purchasePrice == null) return alert('请填写采购价');
       if (this.editing) {
         Object.assign(this.editing, {
           name: f.name.trim(), typeId: f.typeId, sku: f.sku, unitId: f.unitId, supplierId: f.supplierId,
-          purchasePrice: Number(f.purchasePrice), retailPrice: Number(f.retailPrice),
-          bigPrice: Number(f.bigPrice) || Number(f.retailPrice), wholePrice: Number(f.wholePrice) || Number(f.retailPrice),
+          purchasePrice: Number(f.purchasePrice), retailPrice: Number(f.retailPrice) || 0,
+          bigPrice: Number(f.bigPrice) || 0, wholePrice: Number(f.wholePrice) || 0,
           minStock: Number(f.minStock) || 0, shelfLife: Number(f.shelfLife) || 0, expireWarn: Number(f.expireWarn) || 0
         });
       } else {
         S.db.goods.push({
           id: S.genId(), code: S.genCode('GD'), name: f.name.trim(), typeId: f.typeId, sku: f.sku,
           unitId: f.unitId, supplierId: f.supplierId,
-          purchasePrice: Number(f.purchasePrice), retailPrice: Number(f.retailPrice),
-          bigPrice: Number(f.bigPrice) || Number(f.retailPrice), wholePrice: Number(f.wholePrice) || Number(f.retailPrice),
+          purchasePrice: Number(f.purchasePrice), retailPrice: Number(f.retailPrice) || 0,
+          bigPrice: Number(f.bigPrice) || 0, wholePrice: Number(f.wholePrice) || 0,
           minStock: Number(f.minStock) || 0, shelfLife: Number(f.shelfLife) || 0, expireWarn: Number(f.expireWarn) || 0, createTime: U.now(), status: '已启用'
         });
       }
@@ -140,16 +140,16 @@ const GoodsList = {
         const num = (v, dflt) => { const n = Number(v); return isNaN(n) ? dflt : n; };
         const purchasePrice = num(r['采购价'], null);
         if (purchasePrice == null || purchasePrice < 0) errs.push('采购价必填且不能为负');
-        const retailPrice = num(r['零售价'], null);
-        if (retailPrice == null || retailPrice < 0) errs.push('零售价必填且不能为负');
+        const retailPrice = num(r['零售价'], 0) || 0;
+        if (retailPrice < 0) errs.push('零售价不能为负');
         const status = ('' + (r['状态'] || '已启用')).trim() === '未启用' ? '未启用' : '已启用';
         if (errs.length) { this.importErrors.push({ line, name, errs }); return; }
         this.importRows.push({
           id: S.genId(), code: S.genCode('GD'), name, typeId, unitId, supplierId,
           sku: ('' + (r['SKU'] || '')).trim(),
           purchasePrice, retailPrice,
-          bigPrice: num(r['大客价'], retailPrice) || retailPrice,
-          wholePrice: num(r['批发价'], retailPrice) || retailPrice,
+          bigPrice: num(r['大客价'], 0) || 0,
+          wholePrice: num(r['批发价'], 0) || 0,
           minStock: num(r['最低库存'], 0) || 0,
           shelfLife: num(r['保质期(天)'], 0) || 0,
           expireWarn: num(r['临期提醒(天)'], 0) || 0,
@@ -255,7 +255,7 @@ const GoodsList = {
         <div class="form-item"><label>保质期(天)</label><input type="number" min="0" v-model.number="form.shelfLife" placeholder="0=永不过期"></div>
         <div class="form-item"><label>临期提醒(天)</label><input type="number" min="0" v-model.number="form.expireWarn" placeholder="0=不提醒"></div>
         <div class="form-item"><label>采购价<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="form.purchasePrice"></div>
-        <div class="form-item"><label>零售价<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="form.retailPrice"></div>
+        <div class="form-item"><label>零售价</label><input type="number" min="0" step="0.01" v-model.number="form.retailPrice"></div>
         <div class="form-item"><label>大客价</label><input type="number" min="0" step="0.01" v-model.number="form.bigPrice"></div>
         <div class="form-item"><label>批发价</label><input type="number" min="0" step="0.01" v-model.number="form.wholePrice"></div>
       </div>
