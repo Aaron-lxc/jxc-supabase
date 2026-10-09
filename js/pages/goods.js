@@ -54,6 +54,7 @@ const GoodsList = {
     },
     openNew() { this.editing = null; this.form = this.blank(); this.showForm = true; },
     openEdit(g) { this.editing = g; this.form = { ...g }; this.showForm = true; },
+    openCopy(g) { this.editing = null; this.form = Object.assign(this.blank(), g); this.form.name = g.name + '-副本'; this.showForm = true; },
     save() {
       const f = this.form;
       if (!f.name.trim()) return alert('请输入商品名称');
@@ -231,6 +232,7 @@ const GoodsList = {
           <td data-label="状态"><x-status :v="g.status"/></td>
           <td class="ops" data-label="操作">
             <span class="link" @click="openEdit(g)">编辑</span>
+            <span class="link" @click="openCopy(g)">复制</span>
             <span class="link danger" @click="del(g)">删除</span>
             <span class="link" :class="g.status==='已启用'?'warn':'green'" @click="toggle(g)">{{g.status==='已启用'?'停用':'启用'}}</span>
           </td>
@@ -372,6 +374,7 @@ const SupplierList = {
     },
     openNew() { this.editing = null; this.form = this.blank(); this.showForm = true; },
     openEdit(s) { this.editing = s; this.form = Object.assign(this.blank(), s); this.showForm = true; },
+    openCopy(s) { this.editing = null; this.form = Object.assign(this.blank(), s); this.form.name = s.name + '-副本'; this.showForm = true; },
     save() {
       const f = this.form;
       if (!f.name || !f.name.trim()) return alert('请输入供应商名称');
@@ -528,6 +531,7 @@ const SupplierList = {
           <td data-label="状态"><x-status :v="s.status"/></td>
           <td class="ops" data-label="操作">
             <span class="link" @click="openEdit(s)">编辑</span>
+            <span class="link" @click="openCopy(s)">复制</span>
             <span class="link danger" @click="del(s)">删除</span>
             <span class="link" :class="s.status==='已启用'?'warn':'green'" @click="toggle(s)">{{s.status==='已启用'?'停用':'启用'}}</span>
           </td>
