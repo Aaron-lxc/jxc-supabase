@@ -365,9 +365,17 @@ window.S = {
      数据模型：{ id, no, fromWhId, toWhId, goodsId, batchNo, qty, costPrice, amount,
                 productionDate, shelfLife, expiryDate, logisticsFee, time, status, remark }
      批次身份(batchNo)全程保留，不影响既有 FEFO / 临期计算。 */
+  /* 调拨单明细兼容：新单 items[]，老单用顶层 goodsId 单明细 */
+  transferItems(t) {
+    if (Array.isArray(t.items) && t.items.length) return t.items;
+    if (t.goodsId != null) return [{ goodsId: t.goodsId, batchNo: t.batchNo == null ? null : t.batchNo, qty: t.qty, costPrice: t.costPrice, amount: t.amount, productionDate: t.productionDate || null, shelfLife: Number(t.shelfLife) || 0, expiryDate: t.expiryDate || '' }];
+    return [];
+  },
   addTransfer(d) {
     d.id = this.genId();
     d.no = this.genNo('DB');
+    d.items = Array.isArray(d.items) && d.items.length ? d.items
+      : (d.goodsId != null ? [{ goodsId: d.goodsId, batchNo: d.batchNo == null ? null : d.batchNo, qty: d.qty, costPrice: d.costPrice, amount: d.amount, productionDate: d.productionDate || null, shelfLife: Number(d.shelfLife) || 0, expiryDate: d.expiryDate || '' }] : []);
     d.status = '未生效';
     d.time = d.time || U.today();
     this.db.transfers.push(d);
@@ -377,7 +385,7 @@ window.S = {
     const t = this.byId('transfers', id);
     if (!t) return '调拨单不存在';
     if (t.status === '已生效') return '已生效的调拨单不能修改，请先撤销';
-    Object.assign(t, patch);
+    Object.assign(t, patch, { id: t.id, no: t.no, status: '未生效' });
     return null;
   },
   activateTransfer(id) {
@@ -385,18 +393,26 @@ window.S = {
     if (!t) return '调拨单不存在';
     if (t.status === '已生效') return '该调拨单已生效，无需重复生效';
     if (t.fromWhId === t.toWhId) return '发货仓库与收货仓库不能相同';
-    const g = this.byId('goods', t.goodsId); if (!g) return '商品不存在';
-    const fromRec = this.stockRec(t.fromWhId, t.goodsId, false);
-    if (!fromRec) return '发货仓库无此商品库存';
-    const lot = (fromRec.lots || []).find(l => l.batchNo === t.batchNo);
-    const avail = lot ? lot.qty : 0;
-    if (avail < t.qty) return '发货仓库批次「' + (t.batchNo || '未分批次') + '」余量不足（当前 ' + avail + '，需 ' + t.qty + '）';
-    /* 从发货仓按批次扣减 */
-    this.consumeLotSelected(fromRec, g, t.qty, t.batchNo);
-    /* 向收货仓按原批次入库（保留 批次号/生产日期/成本） */
-    const toRec = this.stockRec(t.toWhId, t.goodsId, true);
-    this.addLotQty(toRec, { batchNo: t.batchNo, productionDate: t.productionDate || null, cost: Number(t.costPrice) || 0 }, t.qty);
-    toRec.lastInTime = U.now();
+    const items = this.transferItems(t);
+    if (!items.length) return '调拨单没有明细';
+    /* 先全量校验：任一行库存不足则整单不生效（数据闭环） */
+    for (const it of items) {
+      const g = this.byId('goods', it.goodsId); if (!g) return '商品不存在';
+      const fromRec = this.stockRec(t.fromWhId, it.goodsId, false);
+      if (!fromRec) return '发货仓库无「' + g.name + '」库存';
+      const lot = (fromRec.lots || []).find(l => l.batchNo === it.batchNo);
+      const avail = lot ? lot.qty : 0;
+      if (avail < it.qty) return '发货仓库「' + g.name + '」批次「' + (it.batchNo || '未分批次') + '」余量不足（当前 ' + avail + '，需 ' + it.qty + '）';
+    }
+    /* 校验通过，逐行搬库存 */
+    for (const it of items) {
+      const g = this.byId('goods', it.goodsId);
+      const fromRec = this.stockRec(t.fromWhId, it.goodsId, false);
+      this.consumeLotSelected(fromRec, g, it.qty, it.batchNo);
+      const toRec = this.stockRec(t.toWhId, it.goodsId, true);
+      this.addLotQty(toRec, { batchNo: it.batchNo, productionDate: it.productionDate || null, cost: Number(it.costPrice) || 0 }, it.qty);
+      toRec.lastInTime = U.now();
+    }
     t.status = '已生效';
     return null;
   },
@@ -404,13 +420,15 @@ window.S = {
     const t = this.byId('transfers', id);
     if (!t) return '调拨单不存在';
     if (t.status !== '已生效') return '仅已生效的调拨单可撤销';
-    const g = this.byId('goods', t.goodsId); if (!g) return '商品不存在';
-    /* 收货仓退回该批次 */
-    const toRec = this.stockRec(t.toWhId, t.goodsId, false);
-    if (toRec) this.consumeLotSelected(toRec, g, t.qty, t.batchNo);
-    /* 发货仓补回该批次 */
-    const fromRec = this.stockRec(t.fromWhId, t.goodsId, true);
-    this.addLotQty(fromRec, { batchNo: t.batchNo, productionDate: t.productionDate || null, cost: Number(t.costPrice) || 0 }, t.qty);
+    for (const it of this.transferItems(t)) {
+      const g = this.byId('goods', it.goodsId); if (!g) return '商品不存在';
+      /* 收货仓退回该批次 */
+      const toRec = this.stockRec(t.toWhId, it.goodsId, false);
+      if (toRec) this.consumeLotSelected(toRec, g, it.qty, it.batchNo);
+      /* 发货仓补回该批次 */
+      const fromRec = this.stockRec(t.fromWhId, it.goodsId, true);
+      this.addLotQty(fromRec, { batchNo: it.batchNo, productionDate: it.productionDate || null, cost: Number(it.costPrice) || 0 }, it.qty);
+    }
     t.status = '未生效';
     return null;
   },
