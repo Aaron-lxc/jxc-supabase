@@ -87,7 +87,7 @@ const SaleList = {
       const c = this.formCust;
       if (!c) return false;
       return Number(this.form.taxRate || 0) !== Number(c.taxRate || 0)
-        || (this.form.taxExempt || '否') !== (c.taxExempt || '否');
+        || (this.form.taxExempt || '是') !== (c.taxExempt || '是'); /* 客户档案未设置减免时按「是」比对，避免默认值误报特调 */
     }
   },
   methods: {
@@ -118,7 +118,7 @@ const SaleList = {
     qtySum(s) { return S.saleQty(s); },
     openNew() {
       this.editing = null;
-      this.form = { customerId: '', whId: '', taxRate: 0, taxExempt: '否', deliveryFee: null, incResourceCommission: '是', incRegionCommission: '是', remark: '', items: [this.blankItem()] };
+      this.form = { customerId: '', whId: '', taxRate: 0, taxExempt: '是', deliveryFee: null, incResourceCommission: '否', incRegionCommission: '否', remark: '', items: [this.blankItem()] };
       this.showForm = true;
     },
     openEdit(s) {
@@ -146,10 +146,10 @@ const SaleList = {
       };
       this.showForm = true;
     },
-    /* 选定客户后自动带出该客户的税点/减免（可在单据上临时覆盖） */
+    /* 选定客户后自动带出该客户的税点/减免（可在单据上临时覆盖）；减免仅档案有值才覆盖，未设置保持表单默认「是」 */
     onCustChange(v) {
       const c = v ? S.byId('customers', v) : null;
-      if (c) { this.form.taxRate = c.taxRate || 0; this.form.taxExempt = c.taxExempt || '否'; }
+      if (c) { this.form.taxRate = c.taxRate || 0; if (c.taxExempt) this.form.taxExempt = c.taxExempt; }
     },
     blankItem() { return { goodsId: '', sku: '', qty: null, unitId: '', priceType: '零售价', price: null, amount: 0, lotKey: '', _oidx: -1 }; },
     addItem() { this.form.items.push(this.blankItem()); },
@@ -206,11 +206,12 @@ const SaleList = {
       const total = U.round2(items.reduce((a, it) => a + it.amount, 0));
       /* 累计欠款：自动匹配该客户当前累计欠款（含税应付口径）并留存快照；税点按本单填写值（默认带出客户值）保存 */
       const arrears = S.custArrears(f.customerId);
-      const taxRate = Number(f.taxRate || 0), taxExempt = f.taxExempt || '否';
+      const taxRate = Number(f.taxRate || 0), taxExempt = f.taxExempt || '是';
       /* 手工特调标记：本单税点与客户档案当前值不一致即视为特调，
-         此后客户档案调整税点时本单不再自动跟随；改回与客户一致则自动恢复跟随 */
+         此后客户档案调整税点时本单不再自动跟随；改回与客户一致则自动恢复跟随。
+         客户档案未设置减免时按「是」比对（与新单默认一致，避免误报特调） */
       const cRate = cust ? Number(cust.taxRate || 0) : 0;
-      const cExempt = cust ? (cust.taxExempt || '否') : '否';
+      const cExempt = cust ? (cust.taxExempt || '是') : '是';
       const taxManual = (taxRate !== cRate || taxExempt !== cExempt);
       if (this.editing && this.editing.status === '已完成') {
         const form = { customerId: f.customerId, whId: f.whId, items, total, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0), incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是', remark: (f.remark || '').trim() };
@@ -336,8 +337,8 @@ const SaleList = {
       const tpl = {
         '销售单号': '', '客户名称': '', '仓库名称': '', '商品名称': '',
         '数量': 1, '销售价格': 0, '价格类型': '零售价',
-        '税点(%)': 0, '是否减免': '否', '配送费': 0,
-        '计入资源佣金': '是', '计入区域佣金': '是', '创建时间': ''
+        '税点(%)': 0, '是否减免': '是', '配送费': 0,
+        '计入资源佣金': '否', '计入区域佣金': '否', '创建时间': ''
       };
       U.exportExcel('销售单导入模板.xlsx', [tpl]);
     },
@@ -391,10 +392,10 @@ const SaleList = {
         });
         if (errs.length) { this.importErrors.push({ lines: grp.map(g => g.line).join(','), errs }); return; }
         const taxRate = Number(('' + (first.r['税点(%)'] || '0')).trim()) || 0;
-        const taxExempt = ('' + (first.r['是否减免'] || '否')).trim() === '是' ? '是' : '否';
+        const taxExempt = ('' + (first.r['是否减免'] || '是')).trim() === '是' ? '是' : '否';
         const deliveryFee = Number(('' + (first.r['配送费'] || '0')).trim()) || 0;
-        const incRes = ('' + (first.r['计入资源佣金'] || '是')).trim() === '否' ? '否' : '是';
-        const incReg = ('' + (first.r['计入区域佣金'] || '是')).trim() === '否' ? '否' : '是';
+        const incRes = ('' + (first.r['计入资源佣金'] || '否')).trim() === '是' ? '是' : '否';
+        const incReg = ('' + (first.r['计入区域佣金'] || '否')).trim() === '是' ? '是' : '否';
         const no = key.indexOf('__auto__') === 0 ? '' : key;
         if (no && existingNo.has(no)) { this.importErrors.push({ lines: grp.map(g => g.line).join(','), errs: ['销售单号「' + no + '」已存在'] }); return; }
         const createTime = ('' + (first.r['创建时间'] || '')).trim() || U.now();
@@ -427,7 +428,7 @@ const SaleList = {
         const cust = S.byId('customers', o.custId);
         const arrears = S.custArrears(o.custId);
         const cRate = cust ? Number(cust.taxRate || 0) : 0;
-        const cExempt = cust ? (cust.taxExempt || '否') : '否';
+        const cExempt = cust ? (cust.taxExempt || '是') : '是';
         const taxManual = (o.taxRate !== cRate || o.taxExempt !== cExempt);
         S.db.sales.push({
           id: S.genId(), no: o.no || S.genNo('SO'),
@@ -513,11 +514,11 @@ const SaleList = {
         <div class="form-item"><label>开票税点%</label>
           <input type="number" min="0" step="0.01" style="width:90px" v-model.number="form.taxRate"></div>
         <div class="form-item"><label>是否减免</label>
-          <x-combobox v-model="form.taxExempt" :options="exemptOpts" placeholder="否" style="width:120px"/></div>
+          <x-combobox v-model="form.taxExempt" :options="exemptOpts" placeholder="是" style="width:120px"/></div>
         <div class="form-item"><label>计入资源佣金</label>
-          <x-combobox v-model="form.incResourceCommission" :options="exemptOpts" placeholder="是" style="width:120px"/></div>
+          <x-combobox v-model="form.incResourceCommission" :options="exemptOpts" placeholder="否" style="width:120px"/></div>
         <div class="form-item"><label>计入区域佣金</label>
-          <x-combobox v-model="form.incRegionCommission" :options="exemptOpts" placeholder="是" style="width:120px"/></div>
+          <x-combobox v-model="form.incRegionCommission" :options="exemptOpts" placeholder="否" style="width:120px"/></div>
         <div class="form-item"><label>配送费</label>
           <input type="number" min="0" step="0.01" style="width:110px" v-model.number="form.deliveryFee" placeholder="0"></div>
         <div class="form-item full"><label>客户备注（自动同步）</label>
