@@ -86,7 +86,8 @@ Pages['page-inventory'] = {
           (!this.q.typeId || g.typeId === this.q.typeId) &&
           U.kw(g.name || '', this.q.name) &&
           (!this.q.supplierId || g.supplierId === this.q.supplierId) &&
-          U.inRange(s.lastInTime || '', this.q.lastInT1, this.q.lastInT2);
+          /* 无最后入库时间（如调拨入库的旧记录）不参与日期过滤，避免被隐藏 */
+          (!s.lastInTime || U.inRange(s.lastInTime, this.q.lastInT1, this.q.lastInT2));
       });
       const out = [];
       base.forEach(s => {

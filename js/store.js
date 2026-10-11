@@ -396,6 +396,7 @@ window.S = {
     /* 向收货仓按原批次入库（保留 批次号/生产日期/成本） */
     const toRec = this.stockRec(t.toWhId, t.goodsId, true);
     this.addLotQty(toRec, { batchNo: t.batchNo, productionDate: t.productionDate || null, cost: Number(t.costPrice) || 0 }, t.qty);
+    toRec.lastInTime = U.now();
     t.status = '已生效';
     return null;
   },
