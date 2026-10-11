@@ -297,6 +297,9 @@ window.Sync = {
       const { ups, dels } = this.diff(S.db);
       if (ups.length || dels.length) this.push();
     });
+    /* 标签页从后台切回时立即拉取增量，避免干等 30s 轮询而看到旧数据 */
+    this._onVisible = () => { if (!document.hidden) this.pollDelta(); };
+    document.addEventListener('visibilitychange', this._onVisible);
   },
 
   stop() {
@@ -304,6 +307,7 @@ window.Sync = {
     clearInterval(this._poll);
     if (this._stopWatch) { this._stopWatch(); this._stopWatch = null; }
     if (this._flush) { window.removeEventListener('beforeunload', this._flush); this._flush = null; }
+    if (this._onVisible) { document.removeEventListener('visibilitychange', this._onVisible); this._onVisible = null; }
     this.unsubscribe();
     this.shadow = {};
     this.lastStamp = '1970-01-01T00:00:00Z';
