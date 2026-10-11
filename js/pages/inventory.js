@@ -50,29 +50,6 @@ Pages['page-inventory'] = {
     transferPaged() { return this.transferRows.slice((this.transferPage - 1) * this.transferSize, this.transferPage * this.transferSize); },
     transferAmountSum() { return U.round2(this.transferRows.reduce((a, t) => a + S.transferItems(t).reduce((s, x) => s + Number(x.amount || 0), 0), 0)); },
     transferLogisticsSum() { return U.round2(this.transferRows.reduce((a, t) => a + Number(t.logisticsFee || 0), 0)); },
-    /* 调拨单某一行商品在发货仓的可选批次 */
-    itemsBatchOpts(i) {
-      const it = this.transferForm.items[i] || {};
-      if (!this.transferForm.fromWhId || !it.goodsId) return [{ value: '', label: '请选择批次' }];
-      const rec = S.stockRec(this.transferForm.fromWhId, it.goodsId, false);
-      if (!rec || !rec.lots || !rec.lots.length) return [{ value: '', label: '无批次库存' }];
-      return [{ value: '', label: '请选择批次' }].concat(rec.lots.filter(l => l.qty > 0)
-        .sort((a, b) => (a.productionDate || '').localeCompare(b.productionDate || ''))
-        .map(l => ({ value: l.batchNo == null ? '__NONE__' : l.batchNo, label: (l.batchNo || '未分批次') + ' / 产 ' + (l.productionDate || '-') + ' / 余 ' + l.qty })));
-    },
-    /* 调拨单明细（兼容老单），以及列表行展示用汇总 */
-    tItems(t) { return S.transferItems(t); },
-    trGoods(t) {
-      const arr = S.transferItems(t);
-      if (!arr.length) return '—';
-      const names = arr.map(x => S.name('goods', x.goodsId));
-      const more = arr.length > 1 ? ' 等' + arr.length + '种' : '';
-      return names[0] + more;
-    },
-    trFirstBatch(t) { const a = S.transferItems(t); return a.length ? (a[0].batchNo || '未分批次') : '—'; },
-    trTotalQty(t) { return S.transferItems(t).reduce((s, x) => s + Number(x.qty || 0), 0); },
-    trTotalAmount(t) { return U.round2(S.transferItems(t).reduce((s, x) => s + Number(x.amount || 0), 0)); },
-
     /* 通用下拉 */
     whOpts() { return [{ value: '', label: '全部仓库' }].concat(S.db.warehouses.map(w => ({ value: w.id, label: w.name }))); },
     typeOpts() { return [{ value: '', label: '全部商品类型' }].concat(S.db.goodsTypes.map(t => ({ value: t.id, label: t.name }))); },
@@ -239,6 +216,28 @@ Pages['page-inventory'] = {
   },
   methods: {
     fmtMoney: U.fmtMoney, fmtNum: U.fmtNum,
+    /* 调拨单某一行商品在发货仓的可选批次 */
+    itemsBatchOpts(i) {
+      const it = this.transferForm.items[i] || {};
+      if (!this.transferForm.fromWhId || !it.goodsId) return [{ value: '', label: '请选择批次' }];
+      const rec = S.stockRec(this.transferForm.fromWhId, it.goodsId, false);
+      if (!rec || !rec.lots || !rec.lots.length) return [{ value: '', label: '无批次库存' }];
+      return [{ value: '', label: '请选择批次' }].concat(rec.lots.filter(l => l.qty > 0)
+        .sort((a, b) => (a.productionDate || '').localeCompare(b.productionDate || ''))
+        .map(l => ({ value: l.batchNo == null ? '__NONE__' : l.batchNo, label: (l.batchNo || '未分批次') + ' / 产 ' + (l.productionDate || '-') + ' / 余 ' + l.qty })));
+    },
+    /* 调拨单明细（兼容老单），以及列表行展示用汇总 */
+    tItems(t) { return S.transferItems(t); },
+    trGoods(t) {
+      const arr = S.transferItems(t);
+      if (!arr.length) return '—';
+      const names = arr.map(x => S.name('goods', x.goodsId));
+      const more = arr.length > 1 ? ' 等' + arr.length + '种' : '';
+      return names[0] + more;
+    },
+    trFirstBatch(t) { const a = S.transferItems(t); return a.length ? (a[0].batchNo || '未分批次') : '—'; },
+    trTotalQty(t) { return S.transferItems(t).reduce((s, x) => s + Number(x.qty || 0), 0); },
+    trTotalAmount(t) { return U.round2(S.transferItems(t).reduce((s, x) => s + Number(x.amount || 0), 0)); },
     /* 报损/报溢弹窗：按仓库+商品列出可选批次 */
     formBatchOpts(form) {
       if (!form.whId || !form.goodsId) return [{ value: '', label: '请先选择仓库和商品' }];
