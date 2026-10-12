@@ -231,7 +231,7 @@ const SaleList = {
         S.db.sales.push({
           id: S.genId(), no: S.genNo('SO'), customerId: f.customerId, whId: f.whId,
           items, total, custRemark: cust ? cust.remark : '', arrearsSnap: arrears,
-          taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0),
+          taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0), deliveryFeeBilled: !!f.deliveryFeeBilled,
           incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是',
           remark: (f.remark || '').trim(),
           status: '未完成', payStatus: '', payTime: '', createTime: U.now(), finishTime: ''
@@ -295,7 +295,8 @@ const SaleList = {
       if (t.foot.arrears) f2.push(`<span><b>客户累计欠款（含税应付）：￥${U.fmtMoney(S.custArrears(s.customerId))}</b></span>`);
       if (t.foot.tax) f2.push(`<span>税点费用（${U.esc(s.taxRate || 0)}%）：￥${U.fmtMoney(S.saleTaxCost(s))}</span>`);
       if (t.foot.taxPayable) f2.push(`<span><b>含税应付合计：￥${U.fmtMoney(S.salePayable(s))}</b></span>`);
-      if (t.foot.delivery) f2.push(`<span>配送费（不计入应收，计入成本）：￥${U.fmtMoney(S.saleDeliveryCost(s))}</span>`);
+      if (t.foot.delivery && !s.deliveryFeeBilled) f2.push(`<span>配送费（不计入应收，计入成本）：￥${U.fmtMoney(S.saleDeliveryCost(s))}</span>`);
+      if (t.foot.delivery && s.deliveryFeeBilled) f2.push(`<span>配送费（已计入应收，不计入佣金）：￥${U.fmtMoney(S.saleDeliveryCost(s))}</span>`);
       if (t.foot.remark && s.custRemark) f2.push(`<span>客户备注：${U.esc(s.custRemark)}</span>`);
       if (s.remark) f2.push(`<span>销售备注：${U.esc(s.remark)}</span>`);
       if (f2.length) H.push(`<div class="p-info">${f2.join('')}</div>`);
@@ -972,7 +973,7 @@ const SettleList = {
         <div class="form-item"><label>应收净额(含税)</label><input type="text" :value="cur?fmtMoney(S.salePayable(cur.s)):''" disabled></div>
         <div class="form-item"><label>支付方式<b class="req">*</b></label><x-combobox v-model="settleForm.method" :options="methodOpts" placeholder="请选择"/></div>
         <div class="form-item"><label>实际支付金额<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="settleForm.actualPaid"></div>
-        <div class="form-item"><label>配送费（不计入应收）</label><input type="number" min="0" step="0.01" v-model.number="settleForm.deliveryFee" placeholder="0"></div>
+        <div class="form-item" v-if="cur && cur.s && !cur.s.deliveryFeeBilled"><label>配送费（不计入应收）</label><input type="number" min="0" step="0.01" v-model.number="settleForm.deliveryFee" placeholder="0"></div>
         <template v-if="prepaidAvail>0">
           <div class="form-item full"><label>可用预存货款</label>
             <input type="text" :value="fmtMoney(prepaidAvail)" disabled>

@@ -41,7 +41,9 @@ Pages['page-report'] = {
       /* 税点成本：仅计入成本侧，不影响销售额与佣金基数 */
       const taxCost = U.round2(sales.reduce((a, s) => a + S.saleTaxCost(s), 0));
       const deliveryCost = U.round2(sales.reduce((a, s) => a + S.saleDeliveryCost(s), 0));
-      const profit = U.round2(net - cost - taxCost - deliveryCost);
+      /* 已转嫁客户的运费：作为收入加回（实际运费仍计 deliveryCost 冲减，平进平出） */
+      const billedDelivery = U.round2(sales.reduce((a, s) => a + (s.deliveryFeeBilled ? Number(s.deliveryFee || 0) : 0), 0));
+      const profit = U.round2(net + billedDelivery - cost - taxCost - deliveryCost);
       const purchases = S.db.purchases.filter(p => U.inRange(p.inTime, this.d1, this.d2));
       const purAmt = U.round2(purchases.reduce((a, p) => a + Number(p.amount), 0));
       const purQty = purchases.reduce((a, p) => a + Number(p.qty), 0);

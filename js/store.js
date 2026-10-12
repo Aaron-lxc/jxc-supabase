@@ -1152,8 +1152,12 @@ window.S = {
     return q;
   },
   saleNet(sale) { return U.round2((sale.total || 0) - this.saleReturnedAmt(sale.id)); },
-  /* 含税应付 = 净额 + 税点费用（用于客户应付/累计欠款口径；佣金基数仍用 saleNet，与本函数无关） */
-  salePayable(sale) { return U.round2(this.saleNet(sale) + this.saleTaxCost(sale)); },
+  /* 含税应付 = 净额 + 税点费用 + 运费(若客户承担)；佣金基数仍用 saleNet，与本函数无关 */
+  salePayable(sale) {
+    let v = this.saleNet(sale) + this.saleTaxCost(sale);
+    if (sale.deliveryFeeBilled) v += U.round2(Number(sale.deliveryFee || 0));
+    return U.round2(v);
+  },
   saleQty(sale) { return (sale.items || []).reduce((a, i) => a + Number(i.qty), 0); },
   saleNetQty(sale) {
     let q = this.saleQty(sale);
@@ -1267,6 +1271,7 @@ window.S = {
     sale.custRemark = (this.byId('customers', form.customerId) || {}).remark || '';
     sale.taxRate = form.taxRate; sale.taxExempt = form.taxExempt; sale.taxManual = form.taxManual;
     sale.deliveryFee = form.deliveryFee;
+    sale.deliveryFeeBilled = !!form.deliveryFeeBilled;
     sale.incResourceCommission = form.incResourceCommission;
     sale.incRegionCommission = form.incRegionCommission;
     if (form.remark != null) sale.remark = String(form.remark).trim();

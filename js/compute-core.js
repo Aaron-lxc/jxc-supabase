@@ -239,7 +239,11 @@
         if (!rate || exempt === '是') return 0;
         return U.round2(this.saleNet(sale) * rate / 100);
       },
-      salePayable(sale) { return U.round2(this.saleNet(sale) + this.saleTaxCost(sale)); },
+      salePayable(sale) {
+        let v = this.saleNet(sale) + this.saleTaxCost(sale);
+        if (sale.deliveryFeeBilled) v += U.round2(Number(sale.deliveryFee || 0));
+        return U.round2(v);
+      },
       saleDueDate(sale) {
         const c = this.byId('customers', sale.customerId);
         const fin = U.ymd(sale.finishTime || sale.createTime);
