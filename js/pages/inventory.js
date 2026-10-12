@@ -19,6 +19,15 @@ Pages['page-inventory'] = {
       transferPage: 1, transferSize: 10, showTransferForm: false, editingTransfer: null, transferForm: {}
     };
   },
+  created() {
+    /* 调拨明细行：用「商品id|批次号」签名监听触发成本自动带出。
+       不能用 deep watch items——Vue deep watch 新旧值同引用，字段比较恒 false。 */
+    this.$watch(
+      () => (this.transferForm.items || []).map(it => (it.goodsId || '') + '|' + (it.batchNo || '')).join(';'),
+      () => this.recalcTransferItems(),
+      { immediate: true }
+    );
+  },
   computed: {
     S() { return window.S; },
     canLoss() { return P.canView('loss'); },
@@ -189,29 +198,6 @@ Pages['page-inventory'] = {
       if (this.editingTransfer) return;
       /* 发货仓库变更，所有明细的批次失效，重置为单行空行 */
       this.transferForm.items = [this.blankTransferItem()];
-    },
-    'transferForm.items': {
-      deep: true,
-      handler(nv, ov) {
-        const S = window.S;
-        nv.forEach((it, i) => {
-          const old = (ov && ov[i]) || {};
-          const g = it.goodsId ? S.byId('goods', it.goodsId) : null;
-          if (it.goodsId !== old.goodsId) {
-            it.batchNo = '';
-            if (g) it.costPrice = g.purchasePrice;
-          }
-          if (it.batchNo !== old.batchNo) {
-            const real = (it.batchNo && it.batchNo !== '__NONE__') ? it.batchNo : null;
-            const rec = S.stockRec(this.transferForm.fromWhId, it.goodsId, false);
-            const lot = rec && rec.lots ? rec.lots.find(l => l.batchNo === real) : null;
-            if (lot) { it.costPrice = lot.cost; it.productionDate = lot.productionDate || ''; }
-            else if (g) { it.costPrice = g.purchasePrice; it.productionDate = ''; }
-          }
-          it.amount = U.round2((Number(it.qty) || 0) * (Number(it.costPrice) || 0));
-          it.qty = (it.qty == null || it.qty === '') ? null : Number(it.qty);
-        });
-      }
     }
   },
   methods: {
@@ -225,6 +211,21 @@ Pages['page-inventory'] = {
       return [{ value: '', label: '请选择批次' }].concat(rec.lots.filter(l => l.qty > 0)
         .sort((a, b) => (a.productionDate || '').localeCompare(b.productionDate || ''))
         .map(l => ({ value: l.batchNo == null ? '__NONE__' : l.batchNo, label: (l.batchNo || '未分批次') + ' / 产 ' + (l.productionDate || '-') + ' / 余 ' + l.qty })));
+    },
+    /* 调拨明细行：根据当前所选商品/批次自动带出成本单价、生产日期、保质期、到期时间，并重算成本金额 */
+    recalcTransferItems() {
+      const S = window.S;
+      (this.transferForm.items || []).forEach((it) => {
+        const g = it.goodsId ? S.byId('goods', it.goodsId) : null;
+        const rec = S.stockRec(this.transferForm.fromWhId, it.goodsId, false);
+        const real = (it.batchNo && it.batchNo !== '__NONE__') ? it.batchNo : null;
+        const lot = rec && rec.lots ? rec.lots.find(l => l.batchNo === real) : null;
+        it.costPrice = lot ? lot.cost : (g ? g.purchasePrice : 0);
+        it.productionDate = lot ? (lot.productionDate || '') : '';
+        it.shelfLife = g ? (g.shelfLife || 0) : 0;
+        it.expiryDate = (it.productionDate && g && g.shelfLife) ? U.addDays(it.productionDate, g.shelfLife) : '';
+        it.amount = U.round2((Number(it.qty) || 0) * (Number(it.costPrice) || 0));
+      });
     },
     /* 调拨单明细（兼容老单），以及列表行展示用汇总 */
     tItems(t) { return S.transferItems(t); },
