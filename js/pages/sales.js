@@ -523,9 +523,7 @@ const SaleList = {
           <x-combobox v-model="form.incRegionCommission" :options="exemptOpts" placeholder="否" style="width:120px"/></div>
         <div class="form-item"><label>配送费</label>
           <input type="number" min="0" step="0.01" style="width:110px" v-model.number="form.deliveryFee" placeholder="0">
-          <label class="chk" style="display:flex;align-items:center;gap:6px;margin-top:6px;white-space:nowrap">
-            <input type="checkbox" v-model="form.deliveryFeeBilled"> 客户承担运费（计入应收，不计入佣金）
-          </label></div>
+          <label class="chk-line"><input type="checkbox" v-model="form.deliveryFeeBilled"> 客户承担运费（计入应收，不计入佣金）</label></div>
         <div class="form-item full"><label>客户备注（自动同步）</label>
           <div class="muted">{{formCust ? (formCust.remark || '（该客户暂无备注）') : '（未选择客户）'}}</div></div>
       </div>

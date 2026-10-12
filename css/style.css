@@ -134,6 +134,9 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
 .form-item label { font-size: 12px; color: #64748b; }
 .form-item label b.req { color: #dc2626; margin-left: 2px; }
 .form-item input, .form-item select, .form-item textarea { width: 100%; }
+/* 表单内的勾选行：勾选框不拉伸、文字紧跟其后 */
+.form-item input[type="checkbox"] { width: auto; margin: 0; }
+.form-item .chk-line { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: #64748b; white-space: nowrap; }
 /* 密码框：眼睛图标切换明文 */
 .pwd-wrap { position: relative; }
 .pwd-wrap input { padding-right: 38px; }
