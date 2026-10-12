@@ -1099,7 +1099,7 @@ window.S = {
     const db = this.db, m = {};
     const add = (k, v) => { if (!k) k = '未设置'; m[k] = U.round2((m[k] || 0) + v); };
     const flags = (db.settings && db.settings.openingFlags) || {};
-    if (flags.funds) (db.openingFunds || []).forEach(x => add(x.method, Number(x.amount)));
+    if (flags.funds) (db.openingFunds || []).forEach(x => add(x.payMethod, Number(x.amount)));
     (db.capitalInjections || []).forEach(x => add(x.method, Number(x.amount)));
     (db.sales || []).filter(s => s.payStatus === '已支付').forEach(s => add(s.payMethod, Number(s.actualPaid) || this.salePayable(s)));
     (db.purchases || []).forEach(p => add(p.payMethod, -Number(p.amount)));
