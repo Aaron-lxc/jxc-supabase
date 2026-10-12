@@ -118,7 +118,7 @@ const SaleList = {
     qtySum(s) { return S.saleQty(s); },
     openNew() {
       this.editing = null;
-      this.form = { customerId: '', whId: '', taxRate: 0, taxExempt: '是', deliveryFee: null, incResourceCommission: '否', incRegionCommission: '否', remark: '', items: [this.blankItem()] };
+      this.form = { customerId: '', whId: '', taxRate: 0, taxExempt: '是', deliveryFee: null, deliveryFeeBilled: false, incResourceCommission: '否', incRegionCommission: '否', remark: '', items: [this.blankItem()] };
       this.showForm = true;
     },
     openEdit(s) {
@@ -128,7 +128,7 @@ const SaleList = {
         lotKey: (it.alloc && it.alloc.length && (it.alloc[0].batchNo || '')) || it.lotKey || ''
       }));
       this.editing = s;
-      this.form = { customerId: s.customerId, whId: s.whId, taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', deliveryFee: s.deliveryFee || 0, incResourceCommission: s.incResourceCommission || '是', incRegionCommission: s.incRegionCommission || '是', remark: s.remark || '', items };
+      this.form = { customerId: s.customerId, whId: s.whId, taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', deliveryFee: s.deliveryFee || 0, deliveryFeeBilled: !!s.deliveryFeeBilled, incResourceCommission: s.incResourceCommission || '是', incRegionCommission: s.incRegionCommission || '是', remark: s.remark || '', items };
       this.showForm = true;
     },
     /* 复制销售单：打开「新增」弹窗并预填原单内容（客户/仓库/税点/减免/佣金计入/配送费/商品明细），
@@ -139,6 +139,7 @@ const SaleList = {
         customerId: s.customerId, whId: s.whId,
         taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否',
         deliveryFee: s.deliveryFee || 0,
+        deliveryFeeBilled: !!s.deliveryFeeBilled,
         incResourceCommission: s.incResourceCommission || '是',
         incRegionCommission: s.incRegionCommission || '是',
         remark: s.remark || '',
@@ -214,7 +215,7 @@ const SaleList = {
       const cExempt = cust ? (cust.taxExempt || '是') : '是';
       const taxManual = (taxRate !== cRate || taxExempt !== cExempt);
       if (this.editing && this.editing.status === '已完成') {
-        const form = { customerId: f.customerId, whId: f.whId, items, total, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0), incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是', remark: (f.remark || '').trim() };
+        const form = { customerId: f.customerId, whId: f.whId, items, total, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0), deliveryFeeBilled: !!f.deliveryFeeBilled, incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是', remark: (f.remark || '').trim() };
         const err = S.reviseFinishedSale(this.editing, form);
         if (err) return alert(err);
         this.showForm = false;
@@ -223,7 +224,7 @@ const SaleList = {
       if (this.editing) {
         Object.assign(this.editing, {
           customerId: f.customerId, whId: f.whId, items, total, custRemark: cust ? cust.remark : '',
-          arrearsSnap: arrears, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0),
+          arrearsSnap: arrears, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0), deliveryFeeBilled: !!f.deliveryFeeBilled,
           incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是',
           remark: (f.remark || '').trim()
         });
@@ -521,7 +522,10 @@ const SaleList = {
         <div class="form-item"><label>计入区域佣金</label>
           <x-combobox v-model="form.incRegionCommission" :options="exemptOpts" placeholder="否" style="width:120px"/></div>
         <div class="form-item"><label>配送费</label>
-          <input type="number" min="0" step="0.01" style="width:110px" v-model.number="form.deliveryFee" placeholder="0"></div>
+          <input type="number" min="0" step="0.01" style="width:110px" v-model.number="form.deliveryFee" placeholder="0">
+          <label class="chk" style="display:flex;align-items:center;gap:6px;margin-top:6px;white-space:nowrap">
+            <input type="checkbox" v-model="form.deliveryFeeBilled"> 客户承担运费（计入应收，不计入佣金）
+          </label></div>
         <div class="form-item full"><label>客户备注（自动同步）</label>
           <div class="muted">{{formCust ? (formCust.remark || '（该客户暂无备注）') : '（未选择客户）'}}</div></div>
       </div>
