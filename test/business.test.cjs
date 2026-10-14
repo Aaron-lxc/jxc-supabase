@@ -490,7 +490,7 @@ function reset() {
   const db = reset();
   db.settings.openingFlags = Object.assign({}, db.settings.openingFlags, { funds: true });
   // 期初资金
-  db.openingFunds.push({ method: '微信', amount: 1000 }, { method: '对公', amount: 5000 });
+  db.openingFunds.push({ payMethod: '微信', amount: 1000 }, { payMethod: '对公', amount: 5000 });
   // 注资
   db.capitalInjections.push({ method: '微信', amount: 500 }, { method: '银行卡', amount: 2000 });
   // 销售收款（已支付）
