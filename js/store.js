@@ -1100,6 +1100,7 @@ window.S = {
     const add = (k, v) => { if (!k) k = '未设置'; m[k] = U.round2((m[k] || 0) + v); };
     const flags = (db.settings && db.settings.openingFlags) || {};
     if (flags.funds) (db.openingFunds || []).forEach(x => add(x.payMethod, Number(x.amount)));
+    if (flags.ar) (db.openingAr || []).forEach(x => (Array.isArray(x.writeoffs) ? x.writeoffs : []).forEach(w => add(w.method, Number(w.amount))));   // 期初应收核销收款计入资金余额（已结清亦计入）
     (db.capitalInjections || []).forEach(x => add(x.method, Number(x.amount)));
     (db.sales || []).filter(s => s.payStatus === '已支付').forEach(s => add(s.payMethod, Number(s.actualPaid) || this.salePayable(s)));
     (db.purchases || []).forEach(p => add(p.payMethod, -Number(p.amount)));

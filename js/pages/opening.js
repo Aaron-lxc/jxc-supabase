@@ -26,7 +26,9 @@ Pages['page-opening'] = {
       previewImage: '', showImagePreview: false,
       /* 期初应收-核销收款 */
       showWriteoff: false, curAr: null,
-      wfForm: { method: '', amount: null, remark: '' }
+      wfForm: { method: '', amount: null, remark: '' },
+      /* 期初应收-撤回核销 */
+      showUndo: false, undoAr: null
     };
   },
   computed: {
@@ -214,6 +216,29 @@ Pages['page-opening'] = {
       this.showWriteoff = false; this.curAr = null;
       await S.persistNow();
       alert('已核销 ￥' + U.fmtMoney(amt) + (this.arUnpaidOf(r) === 0 ? '，该笔期初应收已结清。' : '，剩余未收 ￥' + U.fmtMoney(this.arUnpaidOf(r)) + '。'));
+    },
+    /* 期初应收-撤回核销：逐条撤回；已收回退，资金余额（按支付方式）自动同步重算 */
+    openUndo(r) {
+      if (!P.canEdit('opening') && !P.isManager()) return alert('无期初操作权限');
+      this.undoAr = r; this.showUndo = true;
+    },
+    async undoWriteoff(w) {
+      const r = this.undoAr; if (!r) return;
+      if (!U.confirm(`确认撤回该笔核销（${w.method} ￥${U.fmtMoney(w.amount)}）？已收回退、资金余额同步更新。`)) return;
+      if (!r.writeoffs) r.writeoffs = [];
+      const i = r.writeoffs.indexOf(w); if (i >= 0) r.writeoffs.splice(i, 1);
+      r.received = (r.writeoffs || []).reduce((b, x) => b + Number(x.amount || 0), 0);
+      this.showUndo = false; this.undoAr = null;
+      await S.persistNow();
+      alert('已撤回核销 ￥' + U.fmtMoney(w.amount) + (this.arUnpaidOf(r) === 0 ? '。' : '，当前未收 ￥' + U.fmtMoney(this.arUnpaidOf(r)) + '。'));
+    },
+    async undoAllReceived() {   // 老数据（无 writeoffs 逐笔明细，仅 received 字段）
+      const r = this.undoAr; if (!r) return;
+      if (!U.confirm('确认撤回该笔历史期初应收的全部已收金额？')) return;
+      r.writeoffs = []; r.received = 0;
+      this.showUndo = false; this.undoAr = null;
+      await S.persistNow();
+      alert('已撤回全部已收，当前未收 ￥' + U.fmtMoney(this.arUnpaidOf(r)) + '。');
     },
     /* 兼容旧数据的单字符串 docImage：统一转为数组 */
     normDocImages(r) {
@@ -427,7 +452,8 @@ Pages['page-opening'] = {
                   <span class="link" @click="editAr(r)">修改</span>
                   <span class="link danger" @click="delAr(r)" style="margin-left:8px">删除</span>
                 </template>
-                <span class="link green" @click="openWriteoff(r)">核销收款</span></td></tr>
+                <span class="link green" @click="openWriteoff(r)">核销收款</span>
+                <span class="link" v-if="(r.writeoffs && r.writeoffs.length) || (r.received||0) > 0" @click="openUndo(r)" style="margin-left:8px">撤回核销</span></td></tr>
             <tr v-if="!arPaged.length"><td colspan="8" class="empty">暂无期初应收</td></tr>
           </tbody>
         </table>
@@ -481,6 +507,24 @@ Pages['page-opening'] = {
         <button class="btn" @click="showWriteoff=false">取消</button>
         <button class="btn btn-primary" @click="confirmWriteoff">确认核销</button>
       </template>
+    </x-modal>
+
+    <x-modal v-if="showUndo && undoAr" :title="'期初应收撤回核销 - ' + S.name('customers', undoAr.customerId)" :width="520" :fullscreen="$root.isMobile" position="bottom" @close="showUndo=false">
+      <div v-if="undoAr.writeoffs && undoAr.writeoffs.length">
+        <table class="grid" style="margin-bottom:8px">
+          <thead><tr><th>收款方式</th><th class="num">金额</th><th>时间</th><th>备注</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="w in undoAr.writeoffs"><td>{{w.method}}</td><td class="num money">{{fmtMoney(w.amount)}}</td><td>{{w.time}}</td><td>{{w.remark||'-'}}</td>
+              <td><span class="link danger" @click="undoWriteoff(w)">撤回</span></td></tr>
+          </tbody>
+        </table>
+        <div class="muted">已收合计 ￥{{fmtMoney(arReceivedOf(undoAr))}} ｜ 未收 ￥{{fmtMoney(arUnpaidOf(undoAr))}}（撤回后自动重算并更新资金余额）</div>
+      </div>
+      <div v-else>
+        <div class="form-hint">该笔为历史数据（无逐笔核销明细），当前已收 ￥{{fmtMoney(undoAr.received||0)}}。</div>
+        <button class="btn btn-danger" @click="undoAllReceived">撤回全部已收</button>
+      </div>
+      <template #foot><button class="btn" @click="showUndo=false">关闭</button></template>
     </x-modal>
       </template>
 
