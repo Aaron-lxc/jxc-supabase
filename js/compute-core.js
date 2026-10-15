@@ -244,6 +244,13 @@
         if (sale.deliveryFeeBilled) v += U.round2(Number(sale.deliveryFee || 0));
         return U.round2(v);
       },
+      saleReceived(sale) {
+        if (Array.isArray(sale.payments) && sale.payments.length) {
+          return U.round2(sale.payments.reduce((a, p) => a + Number(p.amount || 0), 0));
+        }
+        return U.round2(Number(sale.actualPaid) || ((sale.payStatus === '已结清' || sale.payStatus === '已支付') ? this.salePayable(sale) : 0));
+      },
+      saleUnpaid(sale) { return U.round2(this.salePayable(sale) - this.saleReceived(sale)); },
       saleDueDate(sale) {
         const c = this.byId('customers', sale.customerId);
         const fin = U.ymd(sale.finishTime || sale.createTime);
@@ -256,7 +263,7 @@
         return (c.payCycle === '当月结' && due < fin) ? fin : due;
       },
       saleOverdueDays(sale) {
-        if (sale.status !== '已完成' || sale.payStatus === '已支付') return 0;
+        if (sale.status !== '已完成' || this.saleUnpaid(sale) <= 0) return 0;
         const d = U.daysBetween(this.saleDueDate(sale), U.today());
         return d > 0 ? d : 0;
       },
@@ -266,8 +273,8 @@
 
       /* 欠款 */
       custArrears(custId) {
-        let amt = U.round2((db.sales || []).filter(s => s.customerId === custId && s.status === '已完成' && s.payStatus !== '已支付')
-          .reduce((a, s) => a + this.salePayable(s), 0));
+        let amt = U.round2((db.sales || []).filter(s => s.customerId === custId && s.status === '已完成')
+          .reduce((a, s) => a + this.saleUnpaid(s), 0));
         if (db.settings && db.settings.openingFlags && db.settings.openingFlags.ar) {
           const ar = (db.openingAr || []).filter(x => x.customerId === custId);
           const total = ar.reduce((a, x) => a + Number(x.amount), 0);
@@ -277,8 +284,8 @@
         return amt;
       },
       custOverdueArrears(custId) {
-        return U.round2((db.sales || []).filter(s => s.customerId === custId && s.status === '已完成' && s.payStatus !== '已支付' && this.saleOverdueDays(s) > 0)
-          .reduce((a, s) => a + this.salePayable(s), 0));
+        return U.round2((db.sales || []).filter(s => s.customerId === custId && s.status === '已完成' && this.saleUnpaid(s) > 0 && this.saleOverdueDays(s) > 0)
+          .reduce((a, s) => a + this.saleUnpaid(s), 0));
       },
 
       /* 佣金 - 费率 */
@@ -384,7 +391,7 @@
         done.forEach(s => {
           const reasons = [];
           if (lastIds.includes(s.id)) reasons.push('客户最后一单');
-          if (s.payStatus !== '已支付') reasons.push('货款未支付');
+          if (this.saleUnpaid(s) > 0) reasons.push('货款未支付');
           if (!reasons.length) return;
           const comm = this.saleCommissionFor(s, partnerId, type);
           if (comm <= 0) return;
@@ -528,7 +535,11 @@
         if (flags.funds) (db.openingFunds || []).forEach(x => add(x.payMethod, Number(x.amount)));
         if (flags.ar) (db.openingAr || []).forEach(x => (Array.isArray(x.writeoffs) ? x.writeoffs : []).forEach(w => add(w.method, Number(w.amount))));   // 期初应收核销收款计入资金余额（已结清亦计入）
         (db.capitalInjections || []).forEach(x => add(x.method, Number(x.amount)));
-        (db.sales || []).filter(s => s.payStatus === '已支付').forEach(s => add(s.payMethod, Number(s.actualPaid) || this.salePayable(s)));
+        (db.sales || []).forEach(s => {
+          const rec = this.saleReceived(s); if (rec <= 0) return;
+          if (Array.isArray(s.payments) && s.payments.length) s.payments.forEach(p => add(p.method, Number(p.amount)));
+          else add(s.payMethod, Number(s.actualPaid) || this.salePayable(s));
+        });
         (db.purchases || []).forEach(p => add(p.payMethod, -Number(p.amount)));
         (db.expenses || []).filter(x => x.status === '已计算').forEach(x => add(x.payMethod, -Number(x.amount)));
         (db.incomes || []).filter(x => x.status === '已确认').forEach(x => add(x.payMethod, Number(x.amount)));
@@ -553,7 +564,7 @@
       },
       payAlerts() {
         return (db.customers || []).map(c => {
-          const od = (db.sales || []).filter(s => s.customerId === c.id && s.status === '已完成' && s.payStatus !== '已支付' && this.saleOverdueDays(s) > 0);
+          const od = (db.sales || []).filter(s => s.customerId === c.id && s.status === '已完成' && this.saleUnpaid(s) > 0 && this.saleOverdueDays(s) > 0);
           let due = '', maxDays = 0;
           od.forEach(s => {
             const d = this.saleDueDate(s);
@@ -584,16 +595,17 @@
         const taxCost = this.totalTaxCost(null, null);
         const deliveryCost = this.totalDeliveryCost(null, null);
         const receiptByMethod = {};
-        (db.sales || []).filter(s => s.payStatus === '已支付').forEach(s => {
-          const k = s.payMethod || '未设置';
-          receiptByMethod[k] = U.round2((receiptByMethod[k] || 0) + (Number(s.actualPaid) || this.salePayable(s)));
+        (db.sales || []).forEach(s => {
+          const rec = this.saleReceived(s); if (rec <= 0) return;
+          if (Array.isArray(s.payments) && s.payments.length) s.payments.forEach(p => { const k = p.method || '未设置'; receiptByMethod[k] = U.round2((receiptByMethod[k] || 0) + Number(p.amount)); });
+          else { const k = s.payMethod || '未设置'; receiptByMethod[k] = U.round2((receiptByMethod[k] || 0) + (Number(s.actualPaid) || this.salePayable(s))); }
         });
         return {
           custTotal: custs.length,
           invQty, invCost: U.round2(invCost), invValue: U.round2(invValue), invProfit: U.round2(invValue - invCost),
           totalSales,           totalCost: U.round2(opCost + resComm + regComm + taxCost + deliveryCost),
           opCost, resComm, regComm, taxCost, deliveryCost, otherIncome,
-          totalReceipts: U.round2((db.sales || []).filter(s => s.payStatus === '已支付').reduce((a, s) => a + (Number(s.actualPaid) || this.salePayable(s)), 0)),
+          totalReceipts: U.round2((db.sales || []).reduce((a, s) => a + this.saleReceived(s), 0)),
           receiptByMethod,
           totalCapital: this.totalCapitalInjected(),
           totalOpeningFunds: this.totalOpeningFunds()

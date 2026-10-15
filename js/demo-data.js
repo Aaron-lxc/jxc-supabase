@@ -195,7 +195,7 @@ window.Demo = {
         id: id(), no: no('SO', t), customerId: cust.id, whId: wh.id, items,
         total: U.round2(total), custRemark: cust.remark,
         taxRate: cust.taxRate, taxExempt: cust.taxExempt,
-        status: done ? '已完成' : '未完成', payStatus: done ? (sd[5] ? '已支付' : '未支付') : '',
+        status: done ? '已完成' : '未完成', payStatus: done ? (sd[5] ? '已结清' : '未支付') : '',
         payTime: done && sd[5] ? ago(sd[0] - 1, 16) : '',
         createTime: t, finishTime: done ? ago(sd[0], 15) : ''
       };

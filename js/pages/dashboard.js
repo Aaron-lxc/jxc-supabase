@@ -109,12 +109,13 @@ Pages['page-dashboard'] = {
         cmpTotal: db.complaints.length, cmpByType,
         lossCost, overflowGain,
         totalPurchase: U.round2(db.purchases.reduce((a, p) => a + Number(p.amount), 0)),
-        totalReceipts: U.round2(db.sales.filter(s => s.payStatus === '已支付').reduce((a, s) => a + (Number(s.actualPaid) || S.salePayable(s)), 0)),
+        totalReceipts: U.round2(db.sales.reduce((a, s) => a + S.saleReceived(s), 0)),
         receiptByMethod: (() => {
           const m = {};
-          db.sales.filter(s => s.payStatus === '已支付').forEach(s => {
-            const k = s.payMethod || '未设置';
-            m[k] = U.round2((m[k] || 0) + (Number(s.actualPaid) || S.salePayable(s)));
+          db.sales.forEach(s => {
+            const rec = S.saleReceived(s); if (rec <= 0) return;
+            if (Array.isArray(s.payments) && s.payments.length) s.payments.forEach(p => { const k = p.method || '未设置'; m[k] = U.round2((m[k] || 0) + Number(p.amount)); });
+            else { const k = s.payMethod || '未设置'; m[k] = U.round2((m[k] || 0) + (Number(s.actualPaid) || S.salePayable(s))); }
           });
           return m;
         })(),
@@ -144,7 +145,7 @@ Pages['page-dashboard'] = {
         .map(c => {
           /* 该客户名下所有已超期未支付的销售单 */
           const od = S.db.sales.filter(s => s.customerId === c.id && s.status === '已完成'
-            && s.payStatus !== '已支付' && S.saleOverdueDays(s) > 0);
+            && S.saleUnpaid(s) > 0 && S.saleOverdueDays(s) > 0);
           let due = '', maxDays = 0;
           od.forEach(s => {
             const d = S.saleDueDate(s);
@@ -399,17 +400,17 @@ Pages['page-dashboard'] = {
         series = [{ name: '销售金额（净额）', data: v }];
       } else if (this.metric === '收款金额') {
         const v = zero();
-        db.sales.filter(s => s.payStatus === '已支付' && U.inRange(s.finishTime || s.createTime, this.hd1, this.hd2)).forEach(s => {
+        db.sales.filter(s => S.saleReceived(s) > 0 && U.inRange(s.finishTime || s.createTime, this.hd1, this.hd2)).forEach(s => {
           const i = idx(s.finishTime || s.createTime);
-          if (i >= 0) v[i] = U.round2(v[i] + (Number(s.actualPaid) || S.salePayable(s)));
+          if (i >= 0) v[i] = U.round2(v[i] + S.saleReceived(s));
         });
         series = [{ name: '收款金额', data: v }];
       } else if (this.metric === '欠款金额') {
         const v = zero();
-        db.sales.filter(s => s.status === '已完成' && s.payStatus !== '已支付').forEach(s => {
+        db.sales.filter(s => s.status === '已完成' && S.saleUnpaid(s) > 0).forEach(s => {
           const i = idx(s.finishTime || s.createTime);
           if (i >= 0) {
-            const unpaid = U.round2(S.salePayable(s) - (Number(s.actualPaid) || 0));
+            const unpaid = S.saleUnpaid(s);
             for (let k = i; k < v.length; k++) v[k] = U.round2(v[k] + unpaid);
           }
         });
@@ -506,7 +507,7 @@ Pages['page-dashboard'] = {
         <div class="sub">资源 ￥{{fmtMoney(stats.resComm)}} ｜ 区域 ￥{{fmtMoney(stats.regComm)}}</div></div>
       <div class="stat-card c2 clickable" @click="go('purchase')"><div class="t">累计采购金额</div><div class="v money">￥{{fmtMoney(stats.totalPurchase)}}</div>
         <div class="sub">采购入库总成本（含税）</div></div>
-      <div class="stat-card c2 clickable" @click="go('sales')"><div class="t">累计收款（已支付）</div><div class="v money">￥{{fmtMoney(stats.totalReceipts)}}</div>
+      <div class="stat-card c2 clickable" @click="go('sales')"><div class="t">累计收款</div><div class="v money">￥{{fmtMoney(stats.totalReceipts)}}</div>
         <div class="sub">分类型收款：{{subText(stats.receiptByMethod,' 元')}}</div></div>
       <div class="stat-card c2 clickable" @click="go('sales')"><div class="t">累计欠款金额</div><div class="v money red">￥{{fmtMoney(stats.totalArrears)}}</div>
         <div class="sub">全部客户累计未支付金额</div></div>

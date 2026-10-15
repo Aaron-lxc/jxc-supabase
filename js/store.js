@@ -1102,7 +1102,11 @@ window.S = {
     if (flags.funds) (db.openingFunds || []).forEach(x => add(x.payMethod, Number(x.amount)));
     if (flags.ar) (db.openingAr || []).forEach(x => (Array.isArray(x.writeoffs) ? x.writeoffs : []).forEach(w => add(w.method, Number(w.amount))));   // 期初应收核销收款计入资金余额（已结清亦计入）
     (db.capitalInjections || []).forEach(x => add(x.method, Number(x.amount)));
-    (db.sales || []).filter(s => s.payStatus === '已支付').forEach(s => add(s.payMethod, Number(s.actualPaid) || this.salePayable(s)));
+    (db.sales || []).forEach(s => {
+      const rec = this.saleReceived(s); if (rec <= 0) return;
+      if (Array.isArray(s.payments) && s.payments.length) s.payments.forEach(p => add(p.method, Number(p.amount)));
+      else add(s.payMethod, Number(s.actualPaid) || this.salePayable(s));
+    });
     (db.purchases || []).forEach(p => add(p.payMethod, -Number(p.amount)));
     (db.expenses || []).filter(x => x.status === '已计算').forEach(x => add(x.payMethod, -Number(x.amount)));
     (db.incomes || []).filter(x => x.status === '已确认').forEach(x => add(x.payMethod, Number(x.amount)));
@@ -1159,6 +1163,14 @@ window.S = {
     if (sale.deliveryFeeBilled) v += U.round2(Number(sale.deliveryFee || 0));
     return U.round2(v);
   },
+  /* 销售已收（现金逐笔累加）：优先按 payments 逐笔；无 payments 的老单回落（与历史一致：有 actualPaid 用之，已结清明细视为全额收讫） */
+  saleReceived(sale) {
+    if (Array.isArray(sale.payments) && sale.payments.length) {
+      return U.round2(sale.payments.reduce((a, p) => a + Number(p.amount || 0), 0));
+    }
+    return U.round2(Number(sale.actualPaid) || ((sale.payStatus === '已结清' || sale.payStatus === '已支付') ? this.salePayable(sale) : 0));
+  },
+  saleUnpaid(sale) { return U.round2(this.salePayable(sale) - this.saleReceived(sale)); },
   saleQty(sale) { return (sale.items || []).reduce((a, i) => a + Number(i.qty), 0); },
   saleNetQty(sale) {
     let q = this.saleQty(sale);
@@ -1335,21 +1347,21 @@ window.S = {
     return (c.payCycle === '当月结' && due < fin) ? fin : due;
   },
   saleOverdueDays(sale) {
-    if (sale.status !== '已完成' || sale.payStatus === '已支付') return 0;
+    if (sale.status !== '已完成' || this.saleUnpaid(sale) <= 0) return 0;
     const d = U.daysBetween(this.saleDueDate(sale), U.today());
     return d > 0 ? d : 0;
   },
-  custArrears(custId) { /* 客户累计未支付（含税应付口径：净额 + 税点费用；含启用后的期初应收未收余额） */
-    let amt = this.db.sales
-      .filter(s => s.customerId === custId && s.status === '已完成' && s.payStatus !== '已支付')
-      .reduce((a, s) => a + this.salePayable(s), 0);
+  custArrears(custId) { /* 客户累计未收（含税应付口径：净额 + 税点费用 − 已收；逐笔收款后按未收余额计入；含启用后的期初应收未收余额） */
+    let amt = U.round2(this.db.sales
+      .filter(s => s.customerId === custId && s.status === '已完成')
+      .reduce((a, s) => a + this.saleUnpaid(s), 0));
     if (this.db.settings.openingFlags.ar) amt += this.custOpeningArUnpaid(custId);   // 期初应收未收余额计入客户台账（启用后生效；已核销部分自动扣减）
     return U.round2(amt);
   },
   custOverdueArrears(custId) {
     return U.round2(this.db.sales
-      .filter(s => s.customerId === custId && s.status === '已完成' && s.payStatus !== '已支付' && this.saleOverdueDays(s) > 0)
-      .reduce((a, s) => a + this.salePayable(s), 0));
+      .filter(s => s.customerId === custId && s.status === '已完成' && this.saleUnpaid(s) > 0 && this.saleOverdueDays(s) > 0)
+      .reduce((a, s) => a + this.saleUnpaid(s), 0));
   },
 
   /* ------- 佣金 ------- */
@@ -1566,7 +1578,7 @@ window.S = {
     done.forEach(s => {
       const reasons = [];
       if (lastIds.includes(s.id)) reasons.push('客户最后一单');
-      if (s.payStatus !== '已支付') reasons.push('货款未支付');
+      if (this.saleUnpaid(s) > 0) reasons.push('货款未支付');
       if (!reasons.length) return;
       const comm = this.saleCommissionFor(s, partnerId, type);
       if (comm <= 0) return;
