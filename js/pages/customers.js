@@ -6,7 +6,8 @@ const CustomerList = {
     return {
       q: { name: '', regionId: '', levelId: '', dealerLevelId: '', typeId: '', status: '', d1: '', d2: '' },
       page: 1, pageSize: 10, showForm: false, editing: null, form: {}, detail: null, selIds: [],
-      showImport: false, importFile: null, importRows: [], importErrors: [], importOverwrite: false
+      showImport: false, importFile: null, importRows: [], importErrors: [], importOverwrite: false,
+      custMemoModal: null
     };
   },
   computed: {
@@ -39,7 +40,8 @@ const CustomerList = {
     gpOpts() { return [{ value: null, label: '无' }].concat(S.enabled('regionPartners').map(p => ({ value: p.id, label: p.name }))); },
     payMethodOpts() { return (window.PAY_METHODS || ['对公', '微信', '收款码', '银行卡']).map(x => ({ value: x, label: x })); },
     payCycleOpts() { return ['现结', '当月结', '次月结'].map(x => ({ value: x, label: x })); },
-    exemptOpts() { return ['否', '是'].map(x => ({ value: x, label: x })); }
+    exemptOpts() { return ['否', '是'].map(x => ({ value: x, label: x })); },
+    canEditMemo() { return P.canEdit('customers') || P.isManager(); }
   },
   methods: {
     fmtMoney: U.fmtMoney,
@@ -312,7 +314,7 @@ const CustomerList = {
       <tbody>
         <tr v-for="c in paged" :key="c.id">
           <td data-label="选择"><input type="checkbox" :value="c.id" v-model="selIds"></td>
-          <td data-label="客户编号">{{c.code}}</td><td data-label="客户名称">{{c.name}}</td>
+          <td data-label="客户编号">{{c.code}}</td><td data-label="客户名称">{{c.name}}<span class="memo-badge" v-if="S.custMemoCount(c.id)" @click.stop="openCustMemos(c)">📌{{S.custMemoCount(c.id)}}</span></td>
           <td data-label="区域">{{S.name('regions',c.regionId)}}</td><td data-label="类型">{{S.name('custTypes',c.typeId)}}</td><td data-label="级别">{{S.name('custLevels',c.levelId)}}</td><td data-label="经销商级别">{{S.name('dealerLevels',c.dealerLevelId)}}</td>
           <td data-label="支付方式">{{c.payMethod}}</td>
           <td data-label="支付周期">{{c.payCycle}}<span v-if="c.payDay">/{{c.payDay}}号</span></td>
@@ -407,6 +409,7 @@ const CustomerList = {
         <div class="form-item"><label>税点 / 是否减免</label><div>{{detail.taxRate||0}}% ｜ {{detail.taxExempt||'否'}}</div></div>
         <div class="form-item"><label>累计税点成本</label><div class="money">￥{{fmtMoney(taxCost(detail))}}</div></div>
         <div class="form-item full"><label>客户开票信息</label><div style="white-space:pre-wrap">{{detail.invoiceInfo||'-'}}</div></div>
+        <div class="form-item"><label>客户备忘</label><div>{{S.custMemoCount(detail.id)}} 条 <span class="link" @click="openCustMemos(detail)">查看</span></div></div>
         <div class="form-item full"><label>备注</label><div>{{detail.remark||'-'}}</div></div>
       </div>
       <template #foot><button class="btn" @click="detail=null">关闭</button></template>
@@ -448,11 +451,130 @@ const CustomerList = {
         <button class="btn btn-primary" :disabled="!importRows.length" @click="doImport">确认导入（{{importRows.length}} 条）</button>
       </template>
     </x-modal>
+
+    <x-modal v-if="custMemoModal" :title="'客户备忘 - '+(custMemoModal.name)" :width="560" @close="closeCustMemos">
+      <div v-if="!S.custMemos(custMemoModal.id).length" class="muted" style="padding:10px 0">该客户暂无备忘</div>
+      <div v-else class="memo-list">
+        <div class="memo-item" v-for="m in S.custMemos(custMemoModal.id)" :key="m.id">
+          <div class="memo-row"><span class="memo-content">{{m.content}}</span><x-status :v="m.status"/></div>
+          <div class="memo-meta">备忘时间：{{m.memoTime||'-'}} ｜ 定时提醒：{{m.remindTime ? m.remindTime : '不提醒'}}</div>
+          <div class="memo-ops" v-if="canEditMemo">
+            <span class="link" v-if="m.status!=='已解决'" @click="completeMemo(m)">完成</span>
+            <span class="link warn" v-else @click="revertMemo(m)">撤回</span>
+            <span class="link danger" @click="delMemo(m)">删除</span>
+          </div>
+        </div>
+      </div>
+      <template #foot>
+        <button class="btn" @click="closeCustMemos">关闭</button>
+        <button class="btn btn-primary" v-if="canEditMemo" @click="openNewMemoFor(custMemoModal)">+ 新增该客户备忘</button>
+      </template>
+    </x-modal>
+  </div>`
+};
+
+const CustomerMemoList = {
+  data() {
+    return {
+      q: { customerId: '', kw: '', status: '', d1: '', d2: '' },
+      page: 1, pageSize: 10, showForm: false, editing: null, form: {}
+    };
+  },
+  computed: {
+    S() { return window.S; },
+    canEditMemo() { return P.canEdit('customers') || P.isManager(); },
+    customerOpts() { return [{ value: '', label: '全部客户' }].concat((S.db.customers || []).map(c => ({ value: c.id, label: c.name }))); },
+    statusOpts() { return [{ value: '', label: '全部状态' }, { value: '未解决', label: '未解决' }, { value: '已解决', label: '已解决' }]; },
+    rows() {
+      return (S.db.memos || []).filter(m =>
+        (!this.q.customerId || m.customerId === this.q.customerId) &&
+        U.kw(m.content, this.q.kw) &&
+        (!this.q.status || m.status === this.q.status) &&
+        U.inRange(m.memoTime, this.q.d1, this.q.d2)
+      ).slice().sort((a, b) => ((a.status === '未解决' ? 0 : 1) - (b.status === '未解决' ? 0 : 1)) || (b.memoTime || '').localeCompare(a.memoTime || ''));
+    },
+    paged() { return this.rows.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); }
+  },
+  methods: {
+    custName(id) { return id ? S.name('customers', id) : '-'; },
+    blank() { return { customerId: '', content: '', memoTime: U.today(), remindTime: '', status: '未解决' }; },
+    openNew() { this.editing = null; this.form = this.blank(); this.showForm = true; },
+    openEdit(m) { this.editing = m; this.form = Object.assign(this.blank(), m); this.showForm = true; },
+    save() {
+      const f = this.form;
+      if (!f.customerId) return alert('请选择客户');
+      if (!f.content || !f.content.trim()) return alert('请填写备忘事项');
+      const data = { customerId: f.customerId, content: f.content.trim(), memoTime: f.memoTime || U.today(), remindTime: f.remindTime || '', status: f.status || '未解决' };
+      if (this.editing) S.updateMemo(this.editing.id, data);
+      else S.addMemo(data);
+      this.showForm = false;
+    },
+    del(m) { if (!U.confirm('确定删除该客户备忘吗？')) return; S.delMemo(m.id); },
+    complete(m) { S.updateMemo(m.id, { status: '已解决' }); },
+    revert(m) { S.updateMemo(m.id, { status: '未解决' }); },
+    fmt(v) { return v ? v : '—'; }
+  },
+  template: `
+  <div>
+    <div class="toolbar">
+      <x-combobox v-model="q.customerId" :options="customerOpts" placeholder="客户名称（全部）"/>
+      <input type="text" v-model="q.kw" placeholder="备忘事项模糊查询">
+      <x-combobox v-model="q.status" :options="statusOpts" placeholder="全部状态"/>
+      <label>备忘时间</label><input type="date" v-model="q.d1"> - <input type="date" v-model="q.d2">
+      <div class="spacer"></div>
+      <button class="btn btn-primary" v-if="canEditMemo" @click="openNew">+ 新增备忘</button>
+    </div>
+    <div class="table-wrap">
+    <table class="grid">
+      <thead><tr>
+        <th>序号</th><th>客户名称</th><th>备忘事项</th><th>备忘时间</th><th>定时提醒</th><th>状态</th><th>操作</th>
+      </tr></thead>
+      <tbody>
+        <tr v-for="(m,i) in paged" :key="m.id">
+          <td data-label="序号">{{i+1+(page-1)*pageSize}}</td>
+          <td data-label="客户名称">{{custName(m.customerId)}}</td>
+          <td data-label="备忘事项">{{m.content}}</td>
+          <td data-label="备忘时间">{{fmt(m.memoTime)}}</td>
+          <td data-label="定时提醒">{{m.remindTime ? '🔔 '+m.remindTime : '不提醒'}}</td>
+          <td data-label="状态"><x-status :v="m.status"/></td>
+          <td class="ops" data-label="操作">
+            <template v-if="canEditMemo">
+              <span class="link" v-if="m.status!=='已解决'" @click="complete(m)">完成</span>
+              <span class="link warn" v-else @click="revert(m)">撤回</span>
+              <span class="link" @click="openEdit(m)">修改</span>
+              <span class="link danger" @click="del(m)">删除</span>
+            </template>
+            <span v-else class="muted">仅查看</span>
+          </td>
+        </tr>
+        <tr v-if="!paged.length"><td colspan="7" class="empty">暂无客户备忘</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
+
+    <x-modal v-if="showForm" :title="editing?'修改客户备忘':'新增客户备忘'" :width="640" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
+      <div class="form-grid">
+        <div class="form-item"><label>客户名称<b class="req">*</b></label>
+          <x-combobox v-model="form.customerId" :options="customerOpts" placeholder="请选择（可输入检索）"/></div>
+        <div class="form-item"><label>备忘时间</label><input type="date" v-model="form.memoTime"></div>
+        <div class="form-item full"><label>定时提醒<span class="muted">（留空=不提醒）</span></label>
+          <input type="datetime-local" v-model="form.remindTime"></div>
+        <div class="form-item"><label>状态</label>
+          <x-combobox v-model="form.status" :options="statusOpts.filter(x=>x.value)" placeholder="未解决"/></div>
+        <div class="form-item full"><label>备忘事项<b class="req">*</b></label>
+          <textarea rows="3" v-model="form.content" placeholder="填写需要跟进/提醒的事项"></textarea></div>
+      </div>
+      <template #foot>
+        <button class="btn" @click="showForm=false">取消</button>
+        <button class="btn btn-primary" @click="save">保存</button>
+      </template>
+    </x-modal>
   </div>`
 };
 
 Pages['page-customers'] = {
-  components: { 'customer-list': CustomerList },
+  components: { 'customer-list': CustomerList, 'customer-memo-list': CustomerMemoList },
   data() { return { tab: '客户管理' }; },
   template: `
   <div>
@@ -466,6 +588,7 @@ Pages['page-customers'] = {
       <dict-page v-else-if="tab==='经销商级别'" coll="dealerLevels" label="经销商级别"/>
       <dict-page v-else-if="tab==='客户类型'" coll="custTypes" label="客户类型"/>
       <dict-page v-else coll="regions" label="区域名称"/>
+      <customer-memo-list v-else-if="tab==='客户备忘'"/>
     </div>
   </div>`
 };

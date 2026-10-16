@@ -58,6 +58,7 @@
       complaintTypes: [], complaints: [],
       rewardTypes: [], rewards: [], dealerRewards: [],
       merchantRefs: [], personRefs: [], personPromos: [], recommenderBindings: [],
+      memos: [],
       regionAssessArchive: [],
       resourceRates: [], regionRates: [], commissionPayments: [], commissionLocks: [],
       openingStocks: [], openingAr: [], openingAp: [], openingFunds: [], capitalInjections: [],
@@ -547,6 +548,31 @@
           .map(k => ({ method: k, balance: m[k] })).sort((a, b) => b.balance - a.balance);
       },
       totalFundBalance() { return U.round2(this.fundBalanceByMethod().reduce((a, x) => a + x.balance, 0)); },
+      /* 某支付方式的收支明细（与 store.fundMethodDetail 镜像）：7 类流水逐笔 */
+      fundMethodDetail(method) {
+        const rows = [];
+        const push = (date, type, source, dir, amount) => {
+          if (!date) date = '1970-01-01';
+          rows.push({ date, type, source: source || '', dir, amount: U.round2(amount) });
+        };
+        const flags = (db.settings && db.settings.openingFlags) || {};
+        if (flags.funds) (db.openingFunds || []).forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.createTime, '期初资金', '期初资金录入', '收', Number(x.amount)); });
+        if (flags.ar) (db.openingAr || []).forEach(x => (Array.isArray(x.writeoffs) ? x.writeoffs : []).forEach(w => { if ((w.method || '未设置') === method) push(w.time || x.date || x.createTime, '期初应收核销', '期初应收：' + (this.name('customers', x.customerId) || ''), '收', Number(w.amount)); }));
+        (db.capitalInjections || []).forEach(x => { if ((x.method || '未设置') === method) push(x.date || x.createTime, '注资', '股东注资：' + (x.investor || ''), '收', Number(x.amount)); });
+        (db.sales || []).forEach(s => {
+          const rec = this.saleReceived(s); if (rec <= 0) return;
+          const cust = this.name('customers', s.customerId) || '';
+          if (Array.isArray(s.payments) && s.payments.length) s.payments.forEach(p => { if ((p.method || '未设置') === method) push(p.time || s.finishTime || s.time, '销售收款', '销售单：' + cust, '收', Number(p.amount)); });
+          else if ((s.payMethod || '未设置') === method) push(s.finishTime || s.time, '销售收款', '销售单：' + cust, '收', Number(s.actualPaid) || this.salePayable(s));
+        });
+        (db.purchases || []).forEach(p => { if ((p.payMethod || '未设置') === method) push(p.date || p.time, '采购付款', '采购单：' + (this.name('suppliers', p.supplierId) || ''), '支', -Number(p.amount)); });
+        (db.expenses || []).filter(x => x.status === '已计算').forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.time, '运营支出', (x.remark || x.cat || '运营支出'), '支', -Number(x.amount)); });
+        (db.incomes || []).filter(x => x.status === '已确认').forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.time, '其他收入', (x.remark || x.cat || '其他收入'), '收', Number(x.amount)); });
+        rows.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.type || '').localeCompare(b.type || ''));
+        let run = 0;
+        rows.forEach(r => { run = U.round2(run + r.amount); r.runningBalance = run; });
+        return rows;
+      },
 
       /* 成本 */
       totalTaxCost(d1, d2) { return U.round2(this.completedSalesIn(d1 || null, d2 || null).reduce((a, s) => a + this.saleTaxCost(s), 0)); },

@@ -101,7 +101,12 @@
         drawerFields: [],
         selectedRow: null,
         /* 侧边栏可展开的父菜单 */
-        openedMenus: {}
+        openedMenus: {},
+        /* 客户备忘定时提醒队列（纯前端，页面打开期间 60s 轮询触发） */
+        memoReminder: null,
+        memoQueue: [],
+        memoFired: {},
+        _memoTimer: null
       };
     },
 
@@ -437,6 +442,8 @@
         location.reload();
       },
       async switchWs() {
+        if (this._memoTimer) { clearInterval(this._memoTimer); this._memoTimer = null; }
+        this.memoReminder = null; this.memoQueue = []; this.memoFired = {};
         if (!U.confirm('切换账套将重新加载数据，确定继续吗？')) return;
         /* 关键：先把当前页面组件卸掉，避免 teardown 后仪表盘等页面的 computed 仍访问 S.db 报错 */
         this.cur = '';
@@ -636,6 +643,17 @@
           </div>
         </div>
         <x-drawer :title="drawerTitle" :fields="drawerFields" :open="drawerOpen" @close="closeDrawer"></x-drawer>
+        <x-modal v-if="memoReminder" title="客户备忘提醒" :width="480" @close="closeMemoReminder">
+          <div class="memo-detail">
+            <div class="memo-detail-cust">客户：<b>{{memoReminder.customerName || '—'}}</b></div>
+            <div class="memo-detail-content">{{memoReminder.content}}</div>
+            <div class="memo-detail-meta">备忘时间：{{memoReminder.memoTime || '-'}} ｜ 提醒时间：{{memoReminder.remindTime || '-'}}</div>
+          </div>
+          <template #foot>
+            <button class="btn" @click="closeMemoReminder">稍后处理</button>
+            <button class="btn btn-primary" @click="memoReminderDone">标记为已解决</button>
+          </template>
+        </x-modal>
       </div>
 
       <!-- ⑤ 错误屏 -->

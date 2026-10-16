@@ -345,6 +345,32 @@ table.grid.rc-comm th, table.grid.rc-comm td { text-align: center; }
 
 .orange { color: #d97706; }
 
+/* 客户备忘徽标 */
+.memo-badge {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 10px;
+  background: #fef3c7; color: #b45309; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.memo-badge:hover { background: #fde68a; }
+
+/* 客户备忘列表（弹窗内） */
+.memo-list { display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow: auto; }
+.memo-item { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; background: #fff; }
+.memo-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.memo-content { font-size: 14px; color: #0f172a; white-space: pre-wrap; word-break: break-all; }
+.memo-meta { margin-top: 6px; font-size: 12px; color: #64748b; }
+.memo-ops { margin-top: 6px; display: flex; gap: 12px; }
+.memo-ops .link { font-size: 13px; }
+
+/* 仪表盘资金卡片可点击行 */
+.clickable-row { cursor: pointer; }
+.clickable-row:hover { background: #f1f5f9; }
+
+/* 全局备忘提醒弹窗内容 */
+.memo-detail { padding: 4px 2px; }
+.memo-detail-cust { font-size: 13px; color: #64748b; margin-bottom: 8px; }
+.memo-detail-content { font-size: 15px; color: #0f172a; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+.memo-detail-meta { margin-top: 10px; font-size: 12px; color: #64748b; }
+
 /* 佣金账户卡片 */
 .acc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 8px; }
 .acc-item { background: #f8fafc; border: 1px solid #e2e8f0; border-left: 3px solid #64748b; border-radius: 6px; padding: 10px 12px; }

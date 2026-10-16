@@ -22,7 +22,7 @@ window.Sync = {
     'merchantRefs', 'personRefs', 'personPromos', 'recommenderBindings',
     'regionAssessArchive',
     'resourceRates', 'regionRates', 'commissionPayments', 'commissionLocks',
-    'openingStocks', 'openingAr', 'openingAp', 'openingFunds', 'capitalInjections'
+    'openingStocks', 'openingAr', 'openingAp', 'openingFunds', 'capitalInjections', 'memos'
   ],
   /* 单对象集合（固定一行，rid = '_'） */
   SINGLETONS: ['meta', 'settings'],

@@ -527,6 +527,64 @@ function reset() {
   eq(cbyM['银行卡'], byM['银行卡'], 'S8 compute-core 银行卡余额与 store 一致');
 })();
 
+/* =================== M. 客户备忘 =================== */
+(function () {
+  const db = reset();
+  db.customers.push({ id: 'C1', name: '测试客户A' }, { id: 'C2', name: '测试客户B' });
+  const m1 = S.addMemo({ customerId: 'C1', content: '首次回访', memoTime: '2026-10-01', remindTime: '', status: '未解决' });
+  ok(!!m1.id, 'M1 addMemo 生成 id');
+  eq(m1.customerName, '测试客户A', 'M2 自动带出客户名称');
+  eq(m1.status, '未解决', 'M3 默认状态=未解决');
+  eq(m1.remindTime, '', 'M4 默认不提醒(空=禁用)');
+  S.addMemo({ customerId: 'C1', content: '二次回访', memoTime: '2026-10-05', status: '已解决' });
+  S.addMemo({ customerId: 'C2', content: 'B客户事项', memoTime: '2026-10-03', status: '未解决' });
+  eq(S.custMemoCount('C1'), 2, 'M5 C1 备忘计数=2');
+  eq(S.custMemoCount('C2'), 1, 'M6 C2 备忘计数=1');
+  // 排序：未解决优先，同状态按 memoTime 倒序
+  const cms = S.custMemos('C1');
+  eq(cms.length, 2, 'M7 custMemos 仅含 C1');
+  eq(cms[0].status, '未解决', 'M8 未解决排前');
+  eq(cms[1].status, '已解决', 'M9 已解决排后');
+  // 修改
+  const upd = S.updateMemo(m1.id, { content: '已修改为重要', status: '已解决' });
+  eq(upd.content, '已修改为重要', 'M10 updateMemo 改内容');
+  eq(upd.status, '已解决', 'M11 updateMemo 改状态');
+  // 改客户 → 自动同步客户名
+  const upd2 = S.updateMemo(m1.id, { customerId: 'C2' });
+  eq(upd2.customerName, '测试客户B', 'M12 改客户自动同步客户名');
+  eq(S.custMemoCount('C2'), 2, 'M13 C2 计数随迁移+1');
+  // 删除
+  S.delMemo(m1.id);
+  eq(S.custMemoCount('C1'), 1, 'M14 删除后 C1 计数归位');
+  eq(S.custMemoCount('C2'), 1, 'M15 删除后 C2 计数归位');
+})();
+
+/* =================== S2. 资金收支明细（按支付方式聚合 + runningBalance） =================== */
+(function () {
+  const db = reset();
+  db.settings.openingFlags = Object.assign({}, db.settings.openingFlags, { funds: true });
+  db.openingFunds.push({ payMethod: '微信', amount: 1000, date: '2026-01-01' });
+  db.sales.push({ status: '已完成', payStatus: '已支付', customerId: 'C1', actualPaid: 300,
+    payments: [{ method: '微信', amount: 300, time: '2026-02-01' }] });
+  db.purchases.push({ payMethod: '微信', amount: 200, date: '2026-03-01' });
+  db.incomes.push({ status: '已确认', payMethod: '微信', amount: 50, date: '2026-04-01' });
+  db.expenses.push({ status: '已计算', payMethod: '微信', amount: 100, date: '2026-05-01' });
+
+  const rows = S.fundMethodDetail('微信');
+  eq(rows.length, 5, 'S2-1 微信共5笔(期初+销售+采购+收入+支出)');
+  eq(rows[0].date, '2026-01-01', 'S2-2 首笔=期初资金(日期最早)');
+  eq(rows[0].dir, '收', 'S2-3 期初为收');
+  eq(rows[0].runningBalance, 1000, 'S2-4 首笔累计=1000');
+  eq(rows[1].dir, '收', 'S2-5 销售收款为收');
+  eq(rows[1].runningBalance, 1300, 'S2-6 累计=1000+300');
+  eq(rows[2].dir, '支', 'S2-7 采购付款为支');
+  eq(rows[2].runningBalance, 1100, 'S2-8 累计=1300-200');
+  eq(rows[3].runningBalance, 1150, 'S2-9 收入后累计=1100+50');
+  eq(rows[4].runningBalance, 1050, 'S2-10 支出后累计=1150-100');
+  const sum = rows.reduce((a, r) => U.round2(a + r.amount), 0);
+  eq(sum, 1050, 'S2-11 各笔金额合计=1050 与末笔累计一致');
+})();
+
 /* ---------- 汇总 ---------- */
 console.log(`\n业务单元测试：通过 ${pass}，失败 ${fail}`);
 if (fail) { console.log('\n失败项：\n' + fails.join('\n')); process.exit(1); }

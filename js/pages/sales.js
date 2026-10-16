@@ -92,6 +92,8 @@ const SaleList = {
   },
   methods: {
     fmtMoney: U.fmtMoney,
+    openCustMemosModal() { this.showCustMemos = true; },
+    closeCustMemosModal() { this.showCustMemos = false; },
     rowFields(s) {
       return [
         { label: '销售单号', value: s.no },
@@ -509,6 +511,9 @@ const SaleList = {
       <div class="form-grid">
         <div class="form-item"><label>客户名称<b class="req">*</b></label>
           <x-combobox v-model="form.customerId" :options="custOpts" placeholder="请选择（可输入检索）" @update:modelValue="onCustChange"/></div>
+        <div class="form-item" v-if="form && form.customerId && S.custMemoCount(form.customerId)">
+          <label>该客户备忘</label>
+          <div class="ro-field"><span class="memo-badge" @click="openCustMemosModal">📌 {{S.custMemoCount(form.customerId)}} 条，点击查看</span></div></div>
         <div class="form-item"><label>仓库名称<b class="req">*</b></label>
           <x-combobox v-model="form.whId" :options="whOpts" placeholder="请选择（可输入检索）"/></div>
         <div class="form-item"><label>累计欠款（自动匹配）</label>
@@ -593,6 +598,17 @@ const SaleList = {
         <button class="btn" @click="print(detail)">打印销售单</button>
         <button class="btn" @click="detail=null">关闭</button>
       </template>
+    </x-modal>
+
+    <x-modal v-if="showCustMemos && form && form.customerId" :title="'客户备忘 - '+(S.name('customers',form.customerId))" :width="560" @close="closeCustMemosModal">
+      <div v-if="!S.custMemos(form.customerId).length" class="muted" style="padding:10px 0">该客户暂无备忘</div>
+      <div v-else class="memo-list">
+        <div class="memo-item" v-for="m in S.custMemos(form.customerId)" :key="m.id">
+          <div class="memo-row"><span class="memo-content">{{m.content}}</span><x-status :v="m.status"/></div>
+          <div class="memo-meta">备忘时间：{{m.memoTime||'-'}} ｜ 定时提醒：{{m.remindTime ? m.remindTime : '不提醒'}}</div>
+        </div>
+      </div>
+      <template #foot><button class="btn btn-primary" @click="closeCustMemosModal">关闭</button></template>
     </x-modal>
 
     <!-- 打印预览 -->

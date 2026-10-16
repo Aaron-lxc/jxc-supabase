@@ -28,6 +28,7 @@ window.S = {
       rewardTypes: [], rewards: [],
       dealerRewards: [],
       merchantRefs: [], personRefs: [], personPromos: [], recommenderBindings: [],
+      memos: [],
       regionAssessArchive: [],
       resourceRates: [], regionRates: [],
       commissionPayments: [],
@@ -1116,6 +1117,33 @@ window.S = {
       .sort((a, b) => b.balance - a.balance);
   },
   totalFundBalance() { return U.round2(this.fundBalanceByMethod().reduce((a, x) => a + x.balance, 0)); },
+  /* 某支付方式的收支明细（7 类流水逐笔）：期初资金(收) / 期初应收核销(收) / 注资(收) / 销售收款(收) / 其他收入(收) / 采购付款(支) / 运营支出(支)。
+     dir: '收'|'支'；amount 为带符号原始金额（收正支负）；runningBalance 为按日期升序的累计余额。 */
+  fundMethodDetail(method) {
+    const db = this.db, S = this;
+    const rows = [];
+    const push = (date, type, source, dir, amount) => {
+      if (!date) date = '1970-01-01';
+      rows.push({ date, type, source: source || '', dir, amount: U.round2(amount) });
+    };
+    const flags = (db.settings && db.settings.openingFlags) || {};
+    if (flags.funds) (db.openingFunds || []).forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.createTime, '期初资金', '期初资金录入', '收', Number(x.amount)); });
+    if (flags.ar) (db.openingAr || []).forEach(x => (Array.isArray(x.writeoffs) ? x.writeoffs : []).forEach(w => { if ((w.method || '未设置') === method) push(w.time || x.date || x.createTime, '期初应收核销', '期初应收：' + (S.name('customers', x.customerId) || ''), '收', Number(w.amount)); }));
+    (db.capitalInjections || []).forEach(x => { if ((x.method || '未设置') === method) push(x.date || x.createTime, '注资', '股东注资：' + (x.investor || ''), '收', Number(x.amount)); });
+    (db.sales || []).forEach(s => {
+      const rec = this.saleReceived(s); if (rec <= 0) return;
+      const cust = S.name('customers', s.customerId) || '';
+      if (Array.isArray(s.payments) && s.payments.length) s.payments.forEach(p => { if ((p.method || '未设置') === method) push(p.time || s.finishTime || s.time, '销售收款', '销售单：' + cust, '收', Number(p.amount)); });
+      else if ((s.payMethod || '未设置') === method) push(s.finishTime || s.time, '销售收款', '销售单：' + cust, '收', Number(s.actualPaid) || this.salePayable(s));
+    });
+    (db.purchases || []).forEach(p => { if ((p.payMethod || '未设置') === method) push(p.date || p.time, '采购付款', '采购单：' + (S.name('suppliers', p.supplierId) || ''), '支', -Number(p.amount)); });
+    (db.expenses || []).filter(x => x.status === '已计算').forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.time, '运营支出', (x.remark || x.cat || '运营支出'), '支', -Number(x.amount)); });
+    (db.incomes || []).filter(x => x.status === '已确认').forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.time, '其他收入', (x.remark || x.cat || '其他收入'), '收', Number(x.amount)); });
+    rows.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.type || '').localeCompare(b.type || ''));
+    let run = 0;
+    rows.forEach(r => { run = U.round2(run + r.amount); r.runningBalance = run; });
+    return rows;
+  },
   capitalByInvestor() {
     const m = {};
     (this.db.capitalInjections || []).forEach(x => {
@@ -1143,6 +1171,37 @@ window.S = {
     const fr = (this.db.settings && this.db.settings.feeRates) || {};
     return Number(fr[method] || 0);
   },
+
+  /* ------- 客户备忘 ------- */
+  custMemoCount(custId) { return (this.db.memos || []).filter(m => m.customerId === custId).length; },
+  custMemos(custId) {
+    return (this.db.memos || []).filter(m => m.customerId === custId)
+      .slice().sort((a, b) => ((a.status === '未解决' ? 0 : 1) - (b.status === '未解决' ? 0 : 1)) || (b.memoTime || '').localeCompare(a.memoTime || ''));
+  },
+  addMemo(d) {
+    const rec = {
+      id: this.genId(),
+      customerId: d.customerId || null,
+      customerName: d.customerName || (d.customerId ? this.name('customers', d.customerId) : ''),
+      content: (d.content || '').trim(),
+      memoTime: d.memoTime || U.today(),
+      remindTime: d.remindTime || '',          // 空 = 不提醒
+      status: d.status || '未解决',
+      createTime: U.now(),
+      createBy: (Cloud.state && Cloud.state.user) ? Cloud.state.user.name : ''
+    };
+    this.db.memos.push(rec);
+    return rec;
+  },
+  updateMemo(id, patch) {
+    const m = (this.db.memos || []).find(x => x.id === id);
+    if (!m) return null;
+    const np = Object.assign({}, patch);
+    if ('customerId' in np) np.customerName = (np.customerId ? this.name('customers', np.customerId) : '') || '';
+    Object.assign(m, np);
+    return m;
+  },
+  delMemo(id) { this.db.memos = (this.db.memos || []).filter(x => x.id !== id); },
 
   /* ------- 销售 ------- */
   saleReturnedAmt(saleId) {

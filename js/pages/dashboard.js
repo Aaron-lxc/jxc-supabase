@@ -308,6 +308,19 @@ Pages['page-dashboard'] = {
   methods: {
     fmtMoney: U.fmtMoney, fmtNum: U.fmtNum,
     go(key) { if (this.$root && this.$root.go) this.$root.go(key); },
+    fundDetailTypeOpts() {
+      return [{ value: '', label: '全部类型' }, { value: '期初资金', label: '期初资金' }, { value: '期初应收核销', label: '期初应收核销' },
+        { value: '注资', label: '注资' }, { value: '销售收款', label: '销售收款' }, { value: '其他收入', label: '其他收入' },
+        { value: '采购付款', label: '采购付款' }, { value: '运营支出', label: '运营支出' }];
+    },
+    fundDetailRows() {
+      if (!this.fundDetailMethod) return [];
+      return S.fundMethodDetail(this.fundDetailMethod).filter(r =>
+        !this.fdType || r.type === this.fdType
+      ).filter(r => U.inRange(r.date, this.fd1, this.fd2));
+    },
+    openFundDetail(method) { this.fundDetailMethod = method; this.fd1 = ''; this.fd2 = ''; this.fdType = ''; },
+    closeFundDetail() { this.fundDetailMethod = null; },
     subText(obj, unit) {
       return Object.entries(obj).map(([k, v]) => k + ' ' + v + (unit || '')).join(' ｜ ') || '暂无';
     },
@@ -531,12 +544,38 @@ Pages['page-dashboard'] = {
       <table class="grid">
         <thead><tr><th>支付方式</th><th class="num money">余额</th></tr></thead>
         <tbody>
-          <tr v-for="r in stats.fundByMethod" :key="r.method"><td data-label="支付方式">{{r.method}}</td><td class="num money" :class="{red:r.balance<0}" data-label="余额">{{fmtMoney(r.balance)}}</td></tr>
+          <tr v-for="r in stats.fundByMethod" :key="r.method" class="clickable-row" @click="openFundDetail(r.method)"><td data-label="支付方式">{{r.method}}</td><td class="num money" :class="{red:r.balance<0}" data-label="余额">{{fmtMoney(r.balance)}}</td></tr>
           <tr v-if="!stats.fundByMethod.length"><td colspan="2" class="empty">暂无资金流水</td></tr>
           <tr class="total-row"><td>合计</td><td class="num money" :class="{red:stats.totalFund<0}">{{fmtMoney(stats.totalFund)}}</td></tr>
         </tbody>
       </table>
     </div>
+
+    <x-modal v-if="fundDetailMethod" :title="'资金收支明细 - '+fundDetailMethod" :width="760" :fullscreen="$root.isMobile" position="bottom" @close="closeFundDetail">
+      <div class="toolbar" style="margin-bottom:10px">
+        <x-combobox v-model="fdType" :options="fundDetailTypeOpts" placeholder="全部类型"/>
+        <label>日期</label><input type="date" v-model="fd1"> - <input type="date" v-model="fd2">
+        <div class="spacer"></div>
+        <span class="muted">共 {{fundDetailRows.length}} 笔</span>
+      </div>
+      <div class="table-wrap" style="max-height:420px;overflow:auto">
+      <table class="grid">
+        <thead><tr><th>日期</th><th>类型</th><th>来源</th><th>方向</th><th class="num">金额</th><th class="num">累计余额</th></tr></thead>
+        <tbody>
+          <tr v-for="(r,i) in fundDetailRows" :key="i">
+            <td data-label="日期">{{r.date}}</td>
+            <td data-label="类型">{{r.type}}</td>
+            <td data-label="来源">{{r.source}}</td>
+            <td data-label="方向"><span :class="r.dir==='收'?'tag tag-green':'tag tag-red'">{{r.dir}}</span></td>
+            <td class="num money" :class="{red:r.amount<0}" data-label="金额">{{fmtMoney(r.amount)}}</td>
+            <td class="num money" :class="{red:r.runningBalance<0}" data-label="累计余额">{{fmtMoney(r.runningBalance)}}</td>
+          </tr>
+          <tr v-if="!fundDetailRows.length"><td colspan="6" class="empty">该支付方式暂无符合条件的收支流水</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <template #foot><button class="btn btn-primary" @click="closeFundDetail">关闭</button></template>
+    </x-modal>
 
     <!-- 横向分析 -->
     <div class="card">
