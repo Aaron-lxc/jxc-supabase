@@ -304,11 +304,7 @@ Pages['page-dashboard'] = {
         .sort((a, b) => (b.amt - a.amt) || (b.qty - a.qty));
       return { cols, rows };
     },
-    top10() { return this.ranking.rows.slice(0, 10); }
-  },
-  methods: {
-    fmtMoney: U.fmtMoney, fmtNum: U.fmtNum,
-    go(key) { if (this.$root && this.$root.go) this.$root.go(key); },
+    top10() { return this.ranking.rows.slice(0, 10); },
     fundDetailTypeOpts() {
       return [{ value: '', label: '全部类型' }, { value: '期初资金', label: '期初资金' }, { value: '期初应收核销', label: '期初应收核销' },
         { value: '注资', label: '注资' }, { value: '销售收款', label: '销售收款' }, { value: '其他收入', label: '其他收入' },
@@ -319,7 +315,11 @@ Pages['page-dashboard'] = {
       return S.fundMethodDetail(this.fundDetailMethod).filter(r =>
         !this.fdType || r.type === this.fdType
       ).filter(r => U.inRange(r.date, this.fd1, this.fd2));
-    },
+    }
+  },
+  methods: {
+    fmtMoney: U.fmtMoney, fmtNum: U.fmtNum,
+    go(key) { if (this.$root && this.$root.go) this.$root.go(key); },
     openFundDetail(method) { this.fundDetailMethod = method; this.fd1 = ''; this.fd2 = ''; this.fdType = ''; },
     closeFundDetail() { this.fundDetailMethod = null; },
     subText(obj, unit) {
@@ -545,7 +545,7 @@ Pages['page-dashboard'] = {
       <table class="grid">
         <thead><tr><th>支付方式</th><th class="num money">余额</th></tr></thead>
         <tbody>
-          <tr v-for="r in stats.fundByMethod" :key="r.method" class="clickable-row" @click="openFundDetail(r.method)"><td data-label="支付方式">{{r.method}}</td><td class="num money" :class="{red:r.balance<0}" data-label="余额">{{fmtMoney(r.balance)}}</td></tr>
+          <tr v-for="r in stats.fundByMethod" :key="r.method" class="clickable-row" @click="openFundDetail(r.method)"><td data-label="支付方式"><span class="link">{{r.method}}</span></td><td class="num money" :class="{red:r.balance<0}" data-label="余额">{{fmtMoney(r.balance)}}</td></tr>
           <tr v-if="!stats.fundByMethod.length"><td colspan="2" class="empty">暂无资金流水</td></tr>
           <tr class="total-row"><td>合计</td><td class="num money" :class="{red:stats.totalFund<0}">{{fmtMoney(stats.totalFund)}}</td></tr>
         </tbody>
