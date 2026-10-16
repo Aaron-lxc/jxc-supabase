@@ -512,9 +512,10 @@ const SaleList = {
       <div class="form-grid">
         <div class="form-item"><label>客户名称<b class="req">*</b></label>
           <x-combobox v-model="form.customerId" :options="custOpts" placeholder="请选择（可输入检索）" @update:modelValue="onCustChange"/></div>
-        <div class="form-item" v-if="form && form.customerId && S.custMemoCount(form.customerId)">
+        <div class="form-item" v-if="form && form.customerId">
           <label>该客户备忘</label>
-          <div class="ro-field"><span class="memo-badge" @click="openCustMemosModal">📌 {{S.custMemoCount(form.customerId)}} 条，点击查看</span></div></div>
+          <div class="ro-field"><span class="memo-badge" v-if="S.custMemoCount(form.customerId)" @click="openCustMemosModal">📌 {{S.custMemoCount(form.customerId)}} 条，点击查看</span>
+          <span class="muted" v-else>该客户暂无备忘（可在「客户管理 → 客户备忘」新增）</span></div></div>
         <div class="form-item"><label>仓库名称<b class="req">*</b></label>
           <x-combobox v-model="form.whId" :options="whOpts" placeholder="请选择（可输入检索）"/></div>
         <div class="form-item"><label>累计欠款（自动匹配）</label>
