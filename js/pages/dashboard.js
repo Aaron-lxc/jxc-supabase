@@ -312,9 +312,10 @@ Pages['page-dashboard'] = {
     },
     fundDetailRows() {
       if (!this.fundDetailMethod) return [];
+      /* 无日期流水(期初/未知日期, date='')不受日期区间过滤, 始终显示——U.inRange 对空日期返回 false 会整行滤掉 */
       return S.fundMethodDetail(this.fundDetailMethod).filter(r =>
         !this.fdType || r.type === this.fdType
-      ).filter(r => U.inRange(r.date, this.fd1, this.fd2));
+      ).filter(r => !r.date || U.inRange(r.date, this.fd1, this.fd2));
     }
   },
   methods: {
