@@ -23,7 +23,8 @@ const SaleList = {
       q: { no: '', cust: '', whId: '', goods: '', supplierId: '', status: '', incRes: '', incReg: '', d1: '', d2: '' },
       page: 1, pageSize: 10, showForm: false, editing: null, form: null, detail: null,
       showTpl: false, tplDraft: null, preview: null, tplLabels: TPL_LABELS,
-      showImport: false, importFile: null, importOrders: [], importErrors: []
+      showImport: false, importFile: null, importOrders: [], importErrors: [],
+      showCustMemos: false
     };
   },
   computed: {

@@ -8,6 +8,7 @@ Pages['page-dashboard'] = {
       vd1: U.addDays(U.today(), -29), vd2: U.today(), rank: '在售商品销量排名',
       showMore: false, expanded: { stock: false, pay: false, wh: false, expiring: false },
       metricTotal: 0,
+      fundDetailMethod: null, fd1: '', fd2: '', fdType: '',
       metrics: ['销售数量', '销售金额', '新增客户数量', '各类型客户数量', '各级别客户数量', '资源合伙人数量', '区域合伙人数量', '收款金额', '欠款金额', '支出金额'],
       ranks: ['在售商品销量排名', '客户销量排名',
         '资源合伙人累计总销量排名', '一级资源合伙人销量排名', '二级资源合伙人销量排名', '三级资源合伙人销量排名',

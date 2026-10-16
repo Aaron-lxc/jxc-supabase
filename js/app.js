@@ -237,6 +237,7 @@
         this.loadingPage = true;
         this.step = 'app';
         this.ensurePage();
+        this.startMemoReminders();
       },
 
       /* ===== 连接配置 ===== */
@@ -440,6 +441,45 @@
         try { S.teardown(); } catch (e) { /* ignore */ }
         await Cloud.signOut();
         location.reload();
+      },
+      /* ===== 客户备忘定时提醒 ===== */
+      startMemoReminders() {
+        if (this._memoTimer) clearInterval(this._memoTimer);
+        this._memoTimer = setInterval(() => this.checkMemoReminders(), 60000);
+        this.checkMemoReminders();
+      },
+      checkMemoReminders() {
+        try {
+          if (document.hidden) return;
+          if (!S.db || !Array.isArray(S.db.memos)) return;
+          const now = U.now();
+          /* datetime-local 值为 'T' 分隔，U.now() 为空格分隔，统一归一化后再比较 */
+          const due = S.db.memos.filter(m => m.status === '未解决' && m.remindTime
+            && (m.remindTime || '').replace('T', ' ') <= now && !this.memoFired[m.id]);
+          if (!due.length) return;
+          due.sort((a, b) => (a.remindTime || '').localeCompare(b.remindTime || ''));
+          this.memoQueue.push(...due.map(m => m.id));
+          if (!this.memoReminder) this.showNextMemoReminder();
+        } catch (e) { /* 提醒失败不影响主流程 */ }
+      },
+      showNextMemoReminder() {
+        while (this.memoQueue.length) {
+          const id = this.memoQueue.shift();
+          const m = (S.db.memos || []).find(x => x.id === id);
+          if (!m) continue;
+          this.memoReminder = m;
+          return;
+        }
+        this.memoReminder = null;
+      },
+      /* 稍后处理：不标记已发，60s 后会再次提醒 */
+      closeMemoReminder() { this.memoReminder = null; this.showNextMemoReminder(); },
+      /* 标记为已解决并弹下一条 */
+      memoReminderDone() {
+        const m = this.memoReminder;
+        if (m) { this.memoFired[m.id] = true; try { S.updateMemo(m.id, { status: '已解决' }); } catch (e) { /* ignore */ } }
+        this.memoReminder = null;
+        this.showNextMemoReminder();
       },
       async switchWs() {
         if (this._memoTimer) { clearInterval(this._memoTimer); this._memoTimer = null; }

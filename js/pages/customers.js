@@ -147,6 +147,17 @@ const CustomerList = {
       S.db.customers = S.db.customers.filter(x => x.id !== c.id);
     },
     toggle(c) { c.status = c.status === '已启用' ? '未启用' : '已启用'; },
+    /* ---------- 客户备忘（名称徽标 / 详情入口） ---------- */
+    openCustMemos(c) { this.custMemoModal = c; },
+    closeCustMemos() { this.custMemoModal = null; },
+    completeMemo(m) { S.updateMemo(m.id, { status: '已解决' }); },
+    revertMemo(m) { S.updateMemo(m.id, { status: '未解决' }); },
+    delMemo(m) {
+      if (!U.confirm('确定删除该客户备忘吗？')) return;
+      S.delMemo(m.id);
+      if (this.custMemoModal && !S.custMemoCount(this.custMemoModal.id)) this.custMemoModal = null;
+    },
+    openNewMemoFor(c) { this.custMemoModal = null; this.$emit('open-memo', c.id); },
     exportData() {
       U.exportExcel('客户档案.xlsx', this.rows.map((c, i) => ({
         '序号': i + 1, '客户编号': c.code, '客户名称': c.name,
@@ -474,6 +485,15 @@ const CustomerList = {
 };
 
 const CustomerMemoList = {
+  props: { preselect: { type: Object, default: null } },
+  watch: {
+    /* 从客户列表徽标弹窗「+ 新增该客户备忘」跳入：预选客户并直接打开新增表单 */
+    preselect(o) {
+      if (!o || !o.id) return;
+      this.q.customerId = o.id; this.page = 1;
+      if (this.canEditMemo) { this.editing = null; this.form = this.blank(); this.form.customerId = o.id; this.showForm = true; }
+    }
+  },
   data() {
     return {
       q: { customerId: '', kw: '', status: '', d1: '', d2: '' },
@@ -575,20 +595,21 @@ const CustomerMemoList = {
 
 Pages['page-customers'] = {
   components: { 'customer-list': CustomerList, 'customer-memo-list': CustomerMemoList },
-  data() { return { tab: '客户管理' }; },
+  data() { return { tab: '客户管理', memoPreselect: null }; },
+  methods: { openMemoTab(id) { this.tab = '客户备忘'; this.memoPreselect = { id, t: Date.now() }; } },
   template: `
   <div>
     <div class="page-title">客户管理</div>
     <div class="tabs">
-      <div class="tab" v-for="t in ['客户管理','客户级别','经销商级别','客户类型','区域管理']" :key="t" :class="{active:tab===t}" @click="tab=t">{{t}}</div>
+      <div class="tab" v-for="t in ['客户管理','客户级别','经销商级别','客户类型','区域管理','客户备忘']" :key="t" :class="{active:tab===t}" @click="tab=t">{{t}}</div>
     </div>
     <div class="card">
-      <customer-list v-if="tab==='客户管理'"/>
+      <customer-list v-if="tab==='客户管理'" @open-memo="openMemoTab"/>
       <dict-page v-else-if="tab==='客户级别'" coll="custLevels" label="客户级别"/>
       <dict-page v-else-if="tab==='经销商级别'" coll="dealerLevels" label="经销商级别"/>
       <dict-page v-else-if="tab==='客户类型'" coll="custTypes" label="客户类型"/>
+      <customer-memo-list v-else-if="tab==='客户备忘'" :preselect="memoPreselect"/>
       <dict-page v-else coll="regions" label="区域名称"/>
-      <customer-memo-list v-else-if="tab==='客户备忘'"/>
     </div>
   </div>`
 };
