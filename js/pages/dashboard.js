@@ -564,7 +564,7 @@ Pages['page-dashboard'] = {
         <thead><tr><th>日期</th><th>类型</th><th>来源</th><th>方向</th><th class="num">金额</th><th class="num">累计余额</th></tr></thead>
         <tbody>
           <tr v-for="(r,i) in fundDetailRows" :key="i">
-            <td data-label="日期">{{r.date}}</td>
+            <td data-label="日期">{{r.show || r.date || '—'}}</td>
             <td data-label="类型">{{r.type}}</td>
             <td data-label="来源">{{r.source}}</td>
             <td data-label="方向"><span :class="r.dir==='收'?'tag tag-green':'tag tag-red'">{{r.dir}}</span></td>

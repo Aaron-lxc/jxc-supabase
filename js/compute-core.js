@@ -552,8 +552,10 @@
       fundMethodDetail(method) {
         const rows = [];
         const push = (date, type, source, dir, amount) => {
-          if (!date) date = '1970-01-01';
-          rows.push({ date, type, source: source || '', dir, amount: U.round2(amount) });
+          /* 与 store.fundMethodDetail 镜像：日期规范化，缺失置空不伪造 1970-01-01，show 字段兜底显示 */
+          let d = date ? String(date).trim() : '';
+          if (d && /^\d{4}-\d{2}-\d{2}/.test(d)) d = d.slice(0, 10); else d = '';
+          rows.push({ date: d, show: d || (String(type).indexOf('期初') === 0 ? '期初' : '—'), type, source: source || '', dir, amount: U.round2(amount) });
         };
         const flags = (db.settings && db.settings.openingFlags) || {};
         if (flags.funds) (db.openingFunds || []).forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.createTime, '期初资金', '期初资金录入', '收', Number(x.amount)); });
@@ -566,8 +568,8 @@
           else if ((s.payMethod || '未设置') === method) push(s.finishTime || s.time, '销售收款', '销售单：' + cust, '收', Number(s.actualPaid) || this.salePayable(s));
         });
         (db.purchases || []).forEach(p => { if ((p.payMethod || '未设置') === method) push(p.date || p.time, '采购付款', '采购单：' + (this.name('suppliers', p.supplierId) || ''), '支', -Number(p.amount)); });
-        (db.expenses || []).filter(x => x.status === '已计算').forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.time, '运营支出', (x.remark || x.cat || '运营支出'), '支', -Number(x.amount)); });
-        (db.incomes || []).filter(x => x.status === '已确认').forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.time, '其他收入', (x.remark || x.cat || '其他收入'), '收', Number(x.amount)); });
+        (db.expenses || []).filter(x => x.status === '已计算').forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.time || x.createTime, '运营支出', (x.remark || x.cat || '运营支出'), '支', -Number(x.amount)); });
+        (db.incomes || []).filter(x => x.status === '已确认').forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.time || x.createTime, '其他收入', (x.remark || x.cat || '其他收入'), '收', Number(x.amount)); });
         rows.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.type || '').localeCompare(b.type || ''));
         let run = 0;
         rows.forEach(r => { run = U.round2(run + r.amount); r.runningBalance = run; });
