@@ -51,9 +51,9 @@ Pages['page-opening'] = {
     fundMethodOpts() { return (window.PAY_METHODS || []).map(m => ({ value: m, label: m })); },
     /* 选项：筛选用（含“全部”） */
     filterWhOpts() { return [{ value: '', label: '全部仓库' }].concat(S.db.warehouses.map(w => ({ value: w.id, label: w.name }))); },
-    filterGoodsOpts() { return [{ value: '', label: '全部商品' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
-    filterCustOpts() { return [{ value: '', label: '全部客户' }].concat(S.enabled('customers').map(c => ({ value: c.id, label: c.name }))); },
-    filterSupOpts() { return [{ value: '', label: '全部供应商' }].concat(S.enabled('suppliers').map(s => ({ value: s.id, label: s.name }))); },
+    filterGoodsOpts() { return [{ value: '', label: '全部商品' }].concat(S.db.goods.map(g => ({ value: g.id, label: (g.sku ? g.name + '（' + g.sku + '）' : g.name) + (g.status === '已启用' ? '' : '（未启用）') }))); },
+    filterCustOpts() { return [{ value: '', label: '全部客户' }].concat(S.db.customers.map(c => ({ value: c.id, label: c.status === '已启用' ? c.name : c.name + '（未启用）' }))); },
+    filterSupOpts() { return [{ value: '', label: '全部供应商' }].concat(S.db.suppliers.map(s => ({ value: s.id, label: s.status === '已启用' ? s.name : s.name + '（未启用）' }))); },
     /* 列表：先过滤再分页 */
     stockRows() {
       return S.db.openingStocks.filter(r =>
