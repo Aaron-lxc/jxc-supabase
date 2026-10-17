@@ -195,7 +195,15 @@ Pages['page-opening'] = {
     },
     resetArForm() { this.editingArId = null; this.formAr = { customerId: '', amount: null, remark: '', docImages: [] }; },
     cancelEditAr() { this.resetArForm(); },
-    delAr(r) { S.db.openingAr = S.db.openingAr.filter(x => x.id !== r.id); },
+    delAr(r) {
+      if (!P.canEdit('opening') && !P.isManager()) return alert('无期初操作权限');
+      const rec = S.db.openingAr.find(x => x.id === r.id);
+      if (!rec) return;
+      const recv = Array.isArray(rec.writeoffs) ? rec.writeoffs.reduce((b, w) => b + Number(w.amount || 0), 0) : Number(rec.received || 0);
+      if (U.round2(recv) > 0) return alert('该期初应收已有核销收款（￥' + U.fmtMoney(recv) + '），请先「撤回核销」后再删除，避免资金账不平。');
+      if (!confirm('确定删除该期初应收记录？删除后将同步从客户应收余额与合计中移除。')) return;
+      S.db.openingAr = S.db.openingAr.filter(x => x.id !== r.id);
+    },
     /* 期初应收-核销收款（支持多次部分收款；启用后也可操作，无需反初始化） */
     openWriteoff(r) {
       if (!P.canEdit('opening') && !P.isManager()) return alert('无期初操作权限');
@@ -448,11 +456,9 @@ Pages['page-opening'] = {
                 </div>
               </td>
               <td class="ops" data-label="操作">
-                <template v-if="!openedAr">
-                  <span class="link" @click="editAr(r)">修改</span>
-                  <span class="link danger" @click="delAr(r)" style="margin-left:8px">删除</span>
-                </template>
-                <span class="link green" @click="openWriteoff(r)">核销收款</span>
+                <span class="link danger" @click="delAr(r)">删除</span>
+                <span class="link" v-if="!openedAr" @click="editAr(r)" style="margin-left:8px">修改</span>
+                <span class="link green" @click="openWriteoff(r)" style="margin-left:8px">核销收款</span>
                 <span class="link" v-if="(r.writeoffs && r.writeoffs.length) || (r.received||0) > 0" @click="openUndo(r)" style="margin-left:8px">撤回核销</span></td></tr>
             <tr v-if="!arPaged.length"><td colspan="8" class="empty">暂无期初应收</td></tr>
           </tbody>
