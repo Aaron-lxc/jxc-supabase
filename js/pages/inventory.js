@@ -69,7 +69,7 @@ Pages['page-inventory'] = {
       return [{ value: '', label: '全部批次号' }].concat(Array.from(set).sort().map(b => ({ value: b, label: b })));
     },
     payMethodOpts() { return [{ value: '', label: '请选择' }].concat((window.PAY_METHODS || []).map(m => ({ value: m, label: m }))); },
-    checkGoodsOpts() { return [{ value: '', label: '全部商品' }].concat(S.enabled('goods').map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name }))); },
+    checkGoodsOpts() { return [{ value: '', label: '全部商品' }].concat(S.db.goods.map(g => ({ value: g.id, label: (g.sku ? g.name + '（' + g.sku + '）' : g.name) + (g.status === '已启用' ? '' : '（未启用）') }))); },
     checkFiltered() {
       return this.checkRows.filter(cr =>
         (!this.checkQ.whId || cr.whId === this.checkQ.whId) &&

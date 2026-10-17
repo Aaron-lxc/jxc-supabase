@@ -8,19 +8,19 @@ window.Pages = window.Pages || {};
 
 /* ---------------- 下拉选项辅助（运行时取 S） ---------------- */
 function actCustAll() {
-  return [{ value: '', label: '全部客户' }].concat((window.S.enabled('customers') || []).map(c => ({ value: c.id, label: c.name })));
+  return [{ value: '', label: '全部客户' }].concat((window.S.db.customers || []).map(c => ({ value: c.id, label: c.status === '已启用' ? c.name : c.name + '（未启用）' })));
 }
 function actCustPick() {
   return [{ value: '', label: '请选择' }].concat((window.S.enabled('customers') || []).map(c => ({ value: c.id, label: c.name })));
 }
 function actGoodsAll() {
-  return [{ value: '', label: '全部商品' }].concat((window.S.enabled('goods') || []).map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name })));
+  return [{ value: '', label: '全部商品' }].concat((window.S.db.goods || []).map(g => ({ value: g.id, label: (g.sku ? g.name + '（' + g.sku + '）' : g.name) + (g.status === '已启用' ? '' : '（未启用）') })));
 }
 function actGoodsPick() {
   return [{ value: '', label: '请选择' }].concat((window.S.enabled('goods') || []).map(g => ({ value: g.id, label: g.sku ? g.name + '（' + g.sku + '）' : g.name })));
 }
 function actWhAll() {
-  return [{ value: '', label: '全部仓库' }].concat((window.S.enabled('warehouses') || []).map(w => ({ value: w.id, label: w.name })));
+  return [{ value: '', label: '全部仓库' }].concat((window.S.db.warehouses || []).map(w => ({ value: w.id, label: w.status === '已启用' ? w.name : w.name + '（未启用）' })));
 }
 function actWhPick() {
   return [{ value: '', label: '请选择' }].concat((window.S.enabled('warehouses') || []).map(w => ({ value: w.id, label: w.name })));
