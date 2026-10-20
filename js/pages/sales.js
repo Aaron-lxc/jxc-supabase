@@ -109,6 +109,7 @@ const SaleList = {
         { label: '客户备注', value: s.custRemark || '-' },
         { label: '销售备注', value: s.remark || '-' },
         { label: '状态', value: s.status },
+        { label: '销售时间', value: s.saleTime || s.createTime },
         { label: '创建时间', value: s.createTime }
       ];
     },
@@ -121,7 +122,7 @@ const SaleList = {
     qtySum(s) { return S.saleQty(s); },
     openNew() {
       this.editing = null;
-      this.form = { customerId: '', whId: '', taxRate: 0, taxExempt: '是', deliveryFee: null, deliveryFeeBilled: false, incResourceCommission: '否', incRegionCommission: '否', remark: '', items: [this.blankItem()] };
+      this.form = { customerId: '', whId: '', saleTime: U.now().slice(0, 16).replace(' ', 'T'), taxRate: 0, taxExempt: '是', deliveryFee: null, deliveryFeeBilled: false, incResourceCommission: '否', incRegionCommission: '否', remark: '', items: [this.blankItem()] };
       this.showForm = true;
     },
     openEdit(s) {
@@ -131,7 +132,7 @@ const SaleList = {
         lotKey: (it.alloc && it.alloc.length && (it.alloc[0].batchNo || '')) || it.lotKey || ''
       }));
       this.editing = s;
-      this.form = { customerId: s.customerId, whId: s.whId, taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', deliveryFee: s.deliveryFee || 0, deliveryFeeBilled: !!s.deliveryFeeBilled, incResourceCommission: s.incResourceCommission || '是', incRegionCommission: s.incRegionCommission || '是', remark: s.remark || '', items };
+      this.form = { customerId: s.customerId, whId: s.whId, saleTime: ((s.saleTime || s.createTime || U.now()) + '').slice(0, 16).replace(' ', 'T'), taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否', deliveryFee: s.deliveryFee || 0, deliveryFeeBilled: !!s.deliveryFeeBilled, incResourceCommission: s.incResourceCommission || '是', incRegionCommission: s.incRegionCommission || '是', remark: s.remark || '', items };
       this.showForm = true;
     },
     /* 复制销售单：打开「新增」弹窗并预填原单内容（客户/仓库/税点/减免/佣金计入/配送费/商品明细），
@@ -140,6 +141,7 @@ const SaleList = {
       this.editing = null;
       this.form = {
         customerId: s.customerId, whId: s.whId,
+        saleTime: U.now().slice(0, 16).replace(' ', 'T'),
         taxRate: s.taxRate || 0, taxExempt: s.taxExempt || '否',
         deliveryFee: s.deliveryFee || 0,
         deliveryFeeBilled: !!s.deliveryFeeBilled,
@@ -206,6 +208,14 @@ const SaleList = {
         it.qty = Number(it.qty); it.price = Number(it.price);
         it.amount = U.round2(it.qty * it.price);
       }
+      /* 库存拦截：同单同商品数量合计超过所选仓库库存，整单不允许保存（与完成时 finishSale 校验同口径） */
+      const needMap = {};
+      items.forEach(it => { needMap[it.goodsId] = (needMap[it.goodsId] || 0) + it.qty; });
+      for (const gid in needMap) {
+        const avail = S.stockQty(f.whId, gid);
+        if (needMap[gid] > avail) return alert('「' + (S.name('goods', gid) || '商品') + '」销售数量 ' + needMap[gid] + ' 超过仓库「' + (S.name('warehouses', f.whId) || '?') + '」库存 ' + avail + '，不允许保存');
+      }
+      const saleTime = ((f.saleTime || '') + '').replace('T', ' ').trim() || U.now();
       const cust = S.byId('customers', f.customerId);
       const total = U.round2(items.reduce((a, it) => a + it.amount, 0));
       /* 累计欠款：自动匹配该客户当前累计欠款（含税应付口径）并留存快照；税点按本单填写值（默认带出客户值）保存 */
@@ -227,7 +237,7 @@ const SaleList = {
       if (this.editing) {
         Object.assign(this.editing, {
           customerId: f.customerId, whId: f.whId, items, total, custRemark: cust ? cust.remark : '',
-          arrearsSnap: arrears, taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0), deliveryFeeBilled: !!f.deliveryFeeBilled,
+          arrearsSnap: arrears, taxRate, taxExempt, taxManual, saleTime, deliveryFee: U.round2(Number(f.deliveryFee) || 0), deliveryFeeBilled: !!f.deliveryFeeBilled,
           incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是',
           remark: (f.remark || '').trim()
         });
@@ -235,7 +245,7 @@ const SaleList = {
         S.db.sales.push({
           id: S.genId(), no: S.genNo('SO'), customerId: f.customerId, whId: f.whId,
           items, total, custRemark: cust ? cust.remark : '', arrearsSnap: arrears,
-          taxRate, taxExempt, taxManual, deliveryFee: U.round2(Number(f.deliveryFee) || 0), deliveryFeeBilled: !!f.deliveryFeeBilled,
+          taxRate, taxExempt, taxManual, saleTime, deliveryFee: U.round2(Number(f.deliveryFee) || 0), deliveryFeeBilled: !!f.deliveryFeeBilled,
           incResourceCommission: f.incResourceCommission || '是', incRegionCommission: f.incRegionCommission || '是',
           remark: (f.remark || '').trim(),
           status: '未完成', payStatus: '', payTime: '', createTime: U.now(), finishTime: ''
@@ -328,7 +338,7 @@ const SaleList = {
         '商品': this.itemsSummary(s), '数量': this.qtySum(s), '金额': Number(s.total) || 0,
         '税点费用': S.saleTaxCost(s), '累计欠款': this.custArrears(s), '配送费': S.saleDeliveryCost(s),
         '计入资源佣金': s.incResourceCommission || '是', '计入区域佣金': s.incRegionCommission || '是',
-        '客户备注': s.custRemark || '', '销售备注': s.remark || '', '状态': s.status, '创建时间': s.createTime
+        '客户备注': s.custRemark || '', '销售备注': s.remark || '', '状态': s.status, '销售时间': s.saleTime || s.createTime, '创建时间': s.createTime
       })));
     },
     /* ---------- 销售单批量导入 ---------- */
@@ -343,7 +353,7 @@ const SaleList = {
         '销售单号': '', '客户名称': '', '仓库名称': '', '商品名称': '',
         '数量': 1, '销售价格': 0, '价格类型': '零售价',
         '税点(%)': 0, '是否减免': '是', '配送费': 0,
-        '计入资源佣金': '否', '计入区域佣金': '否', '创建时间': ''
+        '计入资源佣金': '否', '计入区域佣金': '否', '销售时间': '', '创建时间': ''
       };
       U.exportExcel('销售单导入模板.xlsx', [tpl]);
     },
@@ -404,8 +414,9 @@ const SaleList = {
         const no = key.indexOf('__auto__') === 0 ? '' : key;
         if (no && existingNo.has(no)) { this.importErrors.push({ lines: grp.map(g => g.line).join(','), errs: ['销售单号「' + no + '」已存在'] }); return; }
         const createTime = ('' + (first.r['创建时间'] || '')).trim() || U.now();
+        const saleTime = ('' + (first.r['销售时间'] || '')).trim() || createTime;
         const total = U.round2(items.reduce((a, it) => a + it.amount, 0));
-        this.importOrders.push({ lines: grp.map(g => g.line).join(','), no, custName: first.custName, whName: first.whName, itemCount: items.length, total, custId, whId, items, taxRate, taxExempt, deliveryFee, incRes, incReg, createTime });
+        this.importOrders.push({ lines: grp.map(g => g.line).join(','), no, custName: first.custName, whName: first.whName, itemCount: items.length, total, custId, whId, items, taxRate, taxExempt, deliveryFee, incRes, incReg, createTime, saleTime });
       });
     },
     async onImportFile(e) {
@@ -442,7 +453,7 @@ const SaleList = {
           taxRate: o.taxRate, taxExempt: o.taxExempt, taxManual,
           deliveryFee: U.round2(o.deliveryFee),
           incResourceCommission: o.incRes, incRegionCommission: o.incReg,
-          status: '未完成', payStatus: '', payTime: '', createTime: o.createTime, finishTime: ''
+          status: '未完成', payStatus: '', payTime: '', createTime: o.createTime, saleTime: o.saleTime, finishTime: ''
         });
         added++;
       });
@@ -473,7 +484,7 @@ const SaleList = {
     <table class="grid">
       <thead><tr>
         <th>序号</th><th>销售单号</th><th>客户名称</th><th>仓库名称</th><th>商品</th>
-        <th class="num">数量</th><th class="num">金额</th><th class="num">税点费用</th><th class="num">累计欠款</th><th class="num">配送费</th><th>计入资源佣金</th><th>计入区域佣金</th><th>客户备注</th><th>状态</th><th>创建时间</th><th>操作</th>
+        <th class="num">数量</th><th class="num">金额</th><th class="num">税点费用</th><th class="num">累计欠款</th><th class="num">配送费</th><th>计入资源佣金</th><th>计入区域佣金</th><th>客户备注</th><th>状态</th><th>销售时间</th><th>创建时间</th><th>操作</th>
       </tr></thead>
       <tbody>
         <tr v-for="(s,i) in paged" :key="s.id">
@@ -488,7 +499,7 @@ const SaleList = {
           <td data-label="计入资源佣金" :class="(s.incResourceCommission||'是')==='否'?'red':''">{{s.incResourceCommission||'是'}}</td>
           <td data-label="计入区域佣金" :class="(s.incRegionCommission||'是')==='否'?'red':''">{{s.incRegionCommission||'是'}}</td>
           <td data-label="客户备注">{{s.custRemark||'-'}}</td>
-          <td data-label="状态"><x-status :v="s.status"/></td><td data-label="创建时间">{{s.createTime}}</td>
+          <td data-label="状态"><x-status :v="s.status"/></td><td data-label="销售时间">{{s.saleTime || s.createTime}}</td><td data-label="创建时间">{{s.createTime}}</td>
           <td class="ops" data-label="操作">
             <span class="link" @click="openPreview(s)">预览</span>
             <span class="link" @click="print(s)">打印</span>
@@ -518,6 +529,8 @@ const SaleList = {
           <span class="muted" v-else>该客户暂无备忘（可在「客户管理 → 客户备忘」新增）</span></div></div>
         <div class="form-item"><label>仓库名称<b class="req">*</b></label>
           <x-combobox v-model="form.whId" :options="whOpts" placeholder="请选择（可输入检索）"/></div>
+        <div class="form-item"><label>销售时间</label>
+          <input type="datetime-local" style="width:190px" v-model="form.saleTime"></div>
         <div class="form-item"><label>累计欠款（自动匹配）</label>
           <div class="ro-field money" :class="{red:formArrears>0}">￥{{fmtMoney(formArrears)}}</div></div>
         <div class="form-item"><label>开票税点%</label>

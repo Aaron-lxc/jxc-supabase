@@ -357,6 +357,24 @@ function reset() {
   ok(S.stockQty('W1', 'G1') === 50, 'B5-12 两次失败用例未改动库存（仍为 50）');
 })();
 
+/* ---------- B5a 完成销售单超库存必须拦截（保存侧同口径由页面 save 校验） ---------- */
+(function B5a_finishSaleStockGuard() {
+  reset();
+  const db = S.db;
+  const rec = S.stockRec('W1', 'G1', true);
+  S.addLotQty(rec, { batchNo: 'B1', productionDate: '2026-01-01', qty: 10, cost: 10 }, 10);
+  db.customers.push({ id: 'C1', name: '客户1', taxRate: 0, taxExempt: '否', remark: '' });
+  const sale = { id: 'SX', no: 'SO-X', customerId: 'C1', whId: 'W1', items: [{ goodsId: 'G1', qty: 25, price: 15, amount: 375, lotKey: 'B1', alloc: [] }], total: 375, status: '未完成', payStatus: '', payTime: '', createTime: 'T0', saleTime: '2026-10-20 10:00', finishTime: '' };
+  db.sales.push(sale);
+  ok(/库存不足/.test(S.finishSale(sale) || ''), 'B5a-1 销售数量25>库存10, finishSale 拒绝');
+  eq(sale.status, '未完成', 'B5a-2 拒绝后状态仍为未完成');
+  eq(S.stockQty('W1', 'G1'), 10, 'B5a-3 库存未被扣减');
+  sale.items[0].qty = 8; sale.items[0].amount = 120;
+  ok(S.finishSale(sale) === null, 'B5a-4 改为8件后完成成功');
+  eq(S.stockQty('W1', 'G1'), 2, 'B5a-5 完成后库存 10-8=2');
+  eq(sale.saleTime, '2026-10-20 10:00', 'B5a-6 saleTime 字段保留');
+})();
+
 /* ---------- B6 客户自定义佣金比例 + 已支付单锁定 ---------- */
 (function B6_customCommissionAndLock() {
   reset();
