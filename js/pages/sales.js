@@ -208,12 +208,17 @@ const SaleList = {
         it.qty = Number(it.qty); it.price = Number(it.price);
         it.amount = U.round2(it.qty * it.price);
       }
-      /* 库存拦截：同单同商品数量合计超过所选仓库库存，整单不允许保存（与完成时 finishSale 校验同口径） */
-      const needMap = {};
-      items.forEach(it => { needMap[it.goodsId] = (needMap[it.goodsId] || 0) + it.qty; });
-      for (const gid in needMap) {
-        const avail = S.stockQty(f.whId, gid);
-        if (needMap[gid] > avail) return alert('「' + (S.name('goods', gid) || '商品') + '」销售数量 ' + needMap[gid] + ' 超过仓库「' + (S.name('warehouses', f.whId) || '?') + '」库存 ' + avail + '，不允许保存');
+      /* 库存拦截：同单同商品数量合计超过所选仓库库存，整单不允许保存（与完成时 finishSale 校验同口径）。
+         注意：genId() 生成数字型 id，绝不能用对象键(for-in)聚合——对象键会转字符串，
+         再用 === 去匹配 stockQty/byId 必然失配 → 误报「库存 0 / 商品」。必须用数组保留原始 id 类型。 */
+      const needList = [];
+      items.forEach(it => {
+        const e = needList.find(x => x.goodsId === it.goodsId);
+        if (e) e.qty = U.round2(e.qty + it.qty); else needList.push({ goodsId: it.goodsId, qty: it.qty });
+      });
+      for (const nd of needList) {
+        const avail = S.stockQty(f.whId, nd.goodsId);
+        if (nd.qty > avail) return alert('「' + (S.name('goods', nd.goodsId) || '商品') + '」销售数量 ' + nd.qty + ' 超过仓库「' + (S.name('warehouses', f.whId) || '?') + '」库存 ' + avail + '，不允许保存');
       }
       const saleTime = ((f.saleTime || '') + '').replace('T', ' ').trim() || U.now();
       const cust = S.byId('customers', f.customerId);

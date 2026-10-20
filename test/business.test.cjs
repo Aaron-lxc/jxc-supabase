@@ -373,6 +373,12 @@ function reset() {
   ok(S.finishSale(sale) === null, 'B5a-4 改为8件后完成成功');
   eq(S.stockQty('W1', 'G1'), 2, 'B5a-5 完成后库存 10-8=2');
   eq(sale.saleTime, '2026-10-20 10:00', 'B5a-6 saleTime 字段保留');
+  /* B5a-7 源码级回归：保存侧库存拦截必须用数组聚合（保留数字型 goodsId 原始类型）。
+     genId() 是数字 id，若用对象键 for-in 聚合，键被转成字符串后 === 匹配
+     stockQty/byId 全部失配 → 误报「库存 0 / 商品」（2026-10-21 线上事故）。 */
+  const salesSrc = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', 'pages', 'sales.js'), 'utf8');
+  ok(salesSrc.indexOf('for (const gid in needMap)') === -1, 'B5a-7 保存侧拦截不得用对象键聚合（数字 id 会失配）');
+  ok(salesSrc.indexOf('needList') > -1, 'B5a-8 保存侧拦截使用 needList 数组聚合');
 })();
 
 /* ---------- B6 客户自定义佣金比例 + 已支付单锁定 ---------- */
