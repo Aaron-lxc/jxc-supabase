@@ -947,8 +947,14 @@ window.S = {
     const p = this.byId('purchases', id);
     if (!p) return '单据不存在';
     const rec = this.stockRec(p.whId, p.goodsId, false);
-    if (!rec || rec.qty < p.qty) return '库存不足以回滚（该批货可能已售出），无法删除';
-    rec.qty -= Number(p.qty);
+    if (!rec || rec.qty < Number(p.qty)) return '库存不足以回滚（该批货可能已售出），无法删除';
+    const g = this.byId('goods', p.goodsId) || {};
+    const ownBatch = p.batchNo || p.no;
+    const ownLot = (rec.lots || []).find(l => l.batchNo === ownBatch);
+    const ownQty = ownLot ? Math.min(Number(ownLot.qty) || 0, Number(p.qty)) : 0;
+    if (ownQty > 0) this.consumeLotSelected(rec, g, ownQty, ownBatch);  // 先扣本采购批次
+    const remain = U.round2(Number(p.qty) - ownQty);
+    if (remain > 0) this.consumeLotSelected(rec, g, remain, null);  // 不足部分 FEFO 溢出，避免只改 rec.qty 不回滚 lots 导致数量复活
     this.db.purchases = this.db.purchases.filter(x => x.id !== id);
     return null;
   },
@@ -962,7 +968,12 @@ window.S = {
       const orec = this.stockRec(oldWh, oldGoods, false);
       if (!orec || orec.qty < oldQty) return '原库存不足以回滚（该批货可能已售出），无法修改';
       const g0 = this.byId('goods', oldGoods) || {};
-      this.consumeLotSelected(orec, g0, oldQty, null);  // 回滚旧批次(FEFO)
+      const ownBatch = p.batchNo || p.no;
+      const ownLot = (orec.lots || []).find(l => l.batchNo === ownBatch);
+      const ownQty = ownLot ? Math.min(Number(ownLot.qty) || 0, oldQty) : 0;
+      if (ownQty > 0) this.consumeLotSelected(orec, g0, ownQty, ownBatch);  // 先回滚本采购批次
+      const remain = U.round2(oldQty - ownQty);
+      if (remain > 0) this.consumeLotSelected(orec, g0, remain, null);  // 不足部分 FEFO 溢出（期初批次不再被优先吞噬）
     }
     const g = this.byId('goods', patch.goodsId);
     if (!g) return '商品不存在';
