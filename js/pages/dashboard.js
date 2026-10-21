@@ -277,7 +277,7 @@ Pages['page-dashboard'] = {
         case '供应商采购量排名':
           cols = [{ k: 'name', label: '供应商' }, { k: 'qty', label: '采购数量', num: 1 }, { k: 'amt', label: '采购金额', num: 1, money: 1 }];
           db.purchases.filter(p => U.inRange(p.inTime, d1, d2))
-            .forEach(p => add(S.name('suppliers', p.supplierId), Number(p.qty), Number(p.amount))); break;
+            .forEach(p => (p.items || []).forEach(it => add(S.name('suppliers', it.supplierId), Number(it.qty), Number(it.amount)))); break;
         case '商品分类销量排名':
           cols[0].label = '商品分类';
           eachItem((s, it, q, a) => { const g = S.byId('goods', it.goodsId); add(g ? S.name('goodsTypes', g.typeId) : '', q, a); }); break;

@@ -84,6 +84,7 @@
     });
     for (const k of Object.keys(emptyDB())) if (db[k] === undefined) db[k] = emptyDB()[k];
     migrateTaxManual(db);
+    migratePurchaseItems(db);
     ensureSettings(db);
     return db;
   }
@@ -99,6 +100,20 @@
       const sRate = (s.taxRate == null || s.taxRate === '') ? cRate : Number(s.taxRate);
       const sExempt = (s.taxExempt == null || s.taxExempt === '') ? cExempt : s.taxExempt;
       s.taxManual = (sRate !== cRate || sExempt !== cExempt);
+    });
+  }
+
+  /* 存量数据一次性迁移：把历史「平铺单件」采购单升级为带 items 明细（与 store.migratePurchaseItems 镜像）。 */
+  function migratePurchaseItems(db) {
+    (db.purchases || []).forEach(p => {
+      if (!p.items) {
+        p.items = [{
+          goodsId: p.goodsId, typeId: p.typeId, unitId: p.unitId, supplierId: p.supplierId,
+          qty: Number(p.qty), price: Number(p.price), amount: U.round2(Number(p.qty) * Number(p.price)),
+          productionDate: p.productionDate || null, batchNo: p.batchNo || ''
+        }];
+      }
+      if (p.amount == null) p.amount = U.round2((p.items || []).reduce((a, it) => a + Number(it.amount || 0), 0));
     });
   }
 
@@ -567,7 +582,7 @@
           if (Array.isArray(s.payments) && s.payments.length) s.payments.forEach(p => { if ((p.method || '未设置') === method) push(p.time || s.finishTime || s.time, '销售收款', '销售单：' + cust, '收', Number(p.amount)); });
           else if ((s.payMethod || '未设置') === method) push(s.finishTime || s.time, '销售收款', '销售单：' + cust, '收', Number(s.actualPaid) || this.salePayable(s));
         });
-        (db.purchases || []).forEach(p => { if ((p.payMethod || '未设置') === method) push(p.date || p.time, '采购付款', '采购单：' + (this.name('suppliers', p.supplierId) || ''), '支', -Number(p.amount)); });
+        (db.purchases || []).forEach(p => { if ((p.payMethod || '未设置') === method) push(p.inTime || p.date || p.time, '采购付款', '采购单：' + (this.name('suppliers', p.supplierId) || ''), '支', -Number(p.amount)); });
         (db.expenses || []).filter(x => x.status === '已计算').forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.time || x.createTime, '运营支出', (x.remark || x.cat || '运营支出'), '支', -Number(x.amount)); });
         (db.incomes || []).filter(x => x.status === '已确认').forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.time || x.createTime, '其他收入', (x.remark || x.cat || '其他收入'), '收', Number(x.amount)); });
         rows.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.type || '').localeCompare(b.type || ''));

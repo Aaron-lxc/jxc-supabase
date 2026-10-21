@@ -46,7 +46,7 @@ Pages['page-report'] = {
       const profit = U.round2(net + billedDelivery - cost - taxCost - deliveryCost);
       const purchases = S.db.purchases.filter(p => U.inRange(p.inTime, this.d1, this.d2));
       const purAmt = U.round2(purchases.reduce((a, p) => a + Number(p.amount), 0));
-      const purQty = purchases.reduce((a, p) => a + Number(p.qty), 0);
+      const purQty = purchases.reduce((a, p) => a + (p.items || []).reduce((b, it) => b + Number(it.qty), 0), 0);
       const lossCost = U.round2(S.db.losses.filter(l => U.inRange(l.time, this.d1, this.d2)).reduce((a, l) => a + Number(l.amount || 0), 0));
       const overflowGain = U.round2(S.db.overflows.filter(o => U.inRange(o.time, this.d1, this.d2)).reduce((a, o) => a + Number(o.amount || 0), 0));
       const opCost = U.round2(S.db.expenses.filter(x => x.status === '已计算' && U.inRange(x.createTime, this.d1, this.d2)).reduce((a, x) => a + Number(x.amount), 0)) + lossCost;
@@ -127,9 +127,13 @@ Pages['page-report'] = {
     supplierRows() {
       const acc = {};
       S.db.purchases.forEach(p => {
-        const n = S.name('suppliers', p.supplierId);
-        if (!acc[n]) acc[n] = { name: n, qty: 0, amt: 0, count: 0 };
-        acc[n].qty += Number(p.qty); acc[n].amt += Number(p.amount); acc[n].count++;
+        (p.items || []).forEach(it => {
+          const n = S.name('suppliers', it.supplierId);
+          if (!acc[n]) acc[n] = { name: n, qty: 0, amt: 0, count: 0 };
+          acc[n].qty += Number(it.qty); acc[n].amt += Number(it.amount);
+        });
+        const sups = Array.from(new Set((p.items || []).map(it => S.name('suppliers', it.supplierId))));
+        sups.forEach(n => { if (acc[n]) acc[n].count++; });
       });
       return Object.values(acc).map(r => ({ ...r, amt: U.round2(r.amt) })).sort((a, b) => b.amt - a.amt);
     },

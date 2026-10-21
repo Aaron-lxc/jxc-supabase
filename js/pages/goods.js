@@ -358,7 +358,9 @@ const SupplierList = {
     },
     goodsCount(s) { return S.db.goods.filter(g => g.supplierId === s.id).length; },
     purchaseAmt(s) {
-      return U.round2(S.db.purchases.filter(p => p.supplierId === s.id).reduce((a, p) => a + Number(p.amount || 0), 0));
+      let amt = 0;
+      S.db.purchases.forEach(p => (p.items || []).forEach(it => { if (it.supplierId === s.id) amt += Number(it.amount || 0); }));
+      return U.round2(amt);
     },
     payableAmt(s) {
       /* 供应商累计应付 = 累计采购额 + 启用后的期初应付（与期初库存口径一致：启用后生效） */

@@ -124,27 +124,47 @@ function reset() {
   // 期初批次（opened 标记，FEFO 优先）
   S.addLotQty(rec, { batchNo: 'OP-1', productionDate: '2026-09-01', cost: 16, opened: true }, 258);
   // 采购批次 299
-  const p = S.addPurchase({ whId: 'W1', goodsId: 'G1', qty: 299, price: 18, batchNo: 'PO-0001', productionDate: '2026-10-17' });
+  const p = S.addPurchase({ whId: 'W1', items: [{ goodsId: 'G1', qty: 299, price: 18, batchNo: 'PO-0001', productionDate: '2026-10-17' }] });
   eq(rec.qty, 557, 'A2-1 初期合计 258+299=557');
   eq(rec.lots.find(l => l.batchNo === 'OP-1').qty, 258, 'A2-2 期初批次独立 258');
   // 修改采购单（数量不变，仅改价/日期）：根因场景
-  const err = S.updatePurchase(p.id, { whId: 'W1', goodsId: 'G1', qty: 299, price: 18, batchNo: 'PO-0001', productionDate: '2026-10-17' });
+  const err = S.updatePurchase(p.id, { whId: 'W1', items: [{ goodsId: 'G1', qty: 299, price: 18, batchNo: 'PO-0001', productionDate: '2026-10-17' }] });
   eq(err, null, 'A2-3 updatePurchase 返回成功');
   eq(rec.lots.find(l => l.batchNo === 'OP-1').qty, 258, 'A2-4 修改采购单后期初批次仍为 258（不被 FEFO 吞噬）');
   eq(rec.lots.find(l => l.batchNo === 'PO-0001').qty, 299, 'A2-5 采购批次仍为 299');
   eq(rec.qty, 557, 'A2-6 合计不变 557');
   // 数量增大的修改：回滚本批次后再加，期初不受影响
-  S.updatePurchase(p.id, { whId: 'W1', goodsId: 'G1', qty: 350, price: 18, batchNo: 'PO-0001', productionDate: '2026-10-17' });
+  S.updatePurchase(p.id, { whId: 'W1', items: [{ goodsId: 'G1', qty: 350, price: 18, batchNo: 'PO-0001', productionDate: '2026-10-17' }] });
   eq(rec.lots.find(l => l.batchNo === 'OP-1').qty, 258, 'A2-7 增大采购量后期初仍为 258');
   eq(rec.lots.find(l => l.batchNo === 'PO-0001').qty, 350, 'A2-8 采购批次变 350');
   // 删除采购单：应扣本批次，期初不动
-  const p2 = S.addPurchase({ whId: 'W1', goodsId: 'G1', qty: 100, price: 18, batchNo: 'PO-0002', productionDate: '2026-10-18' });
+  const p2 = S.addPurchase({ whId: 'W1', items: [{ goodsId: 'G1', qty: 100, price: 18, batchNo: 'PO-0002', productionDate: '2026-10-18' }] });
   eq(rec.qty, 708, 'A2-9 三批次合计 258+350+100=708');
   const derr = S.deletePurchase(p2.id);
   eq(derr, null, 'A2-10 deletePurchase 返回成功');
   eq(rec.lots.find(l => l.batchNo === 'OP-1').qty, 258, 'A2-11 删除采购单后期初仍为 258');
   eq(rec.lots.some(l => l.batchNo === 'PO-0002'), false, 'A2-12 PO-0002 已移除');
   eq(rec.qty, 608, 'A2-13 删除后合计 258+350=608');
+})();
+
+/* =================== A3. 一张采购单含多件明细（表头+items） =================== */
+(function () {
+  const db = reset();
+  const rec1 = S.stockRec('W1', 'G1', true);
+  const rec2 = S.stockRec('W1', 'G2', true);
+  const p = S.addPurchase({ whId: 'W1', items: [
+    { goodsId: 'G1', qty: 10, price: 5, batchNo: 'PO-A1' },
+    { goodsId: 'G2', qty: 20, price: 3, batchNo: 'PO-A2' }
+  ] });
+  eq(typeof p, 'object', 'A3-1 addPurchase 返回对象（非错误串）');
+  eq(p.items.length, 2, 'A3-2 含 2 条明细');
+  eq(p.amount, U.round2(10 * 5 + 20 * 3), 'A3-3 采购费用合计 = 各明细金额之和');
+  eq(rec1.lots.find(l => l.batchNo === 'PO-A1').qty, 10, 'A3-4 G1 批次库存 10');
+  eq(rec2.lots.find(l => l.batchNo === 'PO-A2').qty, 20, 'A3-5 G2 批次库存 20');
+  const derr = S.deletePurchase(p.id);
+  eq(derr, null, 'A3-6 删除整单成功');
+  eq(rec1.lots.some(l => l.batchNo === 'PO-A1'), false, 'A3-7 删除后 G1 批次已移除');
+  eq(rec2.lots.some(l => l.batchNo === 'PO-A2'), false, 'A3-8 删除后 G2 批次已移除');
 })();
 
 /* =================== B. 经销商阶梯 + 预存货款 FIFO =================== */

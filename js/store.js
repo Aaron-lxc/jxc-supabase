@@ -59,6 +59,7 @@ window.S = {
     }
     for (const k of Object.keys(base)) if (data[k] === undefined) data[k] = base[k];
     this.migrateTaxManual(data);
+    this.migratePurchaseItems(data);
     this.ensureSettings(data);
 
     this.state.db = data;
@@ -90,6 +91,7 @@ window.S = {
     const base = this.emptyDB();
     for (const k of Object.keys(base)) if (db[k] === undefined) db[k] = base[k];
     this.migrateTaxManual(db);
+    this.migratePurchaseItems(db);
     this.ensureSettings(db);
     if (!this.state.db) { this.state.db = db; }
     else {
@@ -104,6 +106,7 @@ window.S = {
     const base = this.emptyDB();
     for (const k of Object.keys(base)) if (db[k] === undefined) db[k] = base[k];
     this.migrateTaxManual(db);
+    this.migratePurchaseItems(db);
     this.ensureSettings(db);
     for (const k of Object.keys(db)) this.state.db[k] = db[k];
     for (const k of Object.keys(this.state.db)) if (db[k] === undefined) delete this.state.db[k];
@@ -127,6 +130,22 @@ window.S = {
       const sRate = (s.taxRate == null || s.taxRate === '') ? cRate : Number(s.taxRate);
       const sExempt = (s.taxExempt == null || s.taxExempt === '') ? cExempt : s.taxExempt;
       s.taxManual = (sRate !== cRate || sExempt !== cExempt);
+    });
+  },
+
+  /* 存量数据一次性迁移：把历史「平铺单件」采购单升级为带 items 明细的结构（幂等）。
+     老字段 goodsId/typeId/unitId/supplierId/qty/price/productionDate/batchNo 原样包进 items[0]；
+     amount 缺失则按 qty*price 补算；whId/payMethod/remark 已是表头原样保留。 */
+  migratePurchaseItems(db) {
+    (db.purchases || []).forEach(p => {
+      if (!p.items) {
+        p.items = [{
+          goodsId: p.goodsId, typeId: p.typeId, unitId: p.unitId, supplierId: p.supplierId,
+          qty: Number(p.qty), price: Number(p.price), amount: U.round2(Number(p.qty) * Number(p.price)),
+          productionDate: p.productionDate || null, batchNo: p.batchNo || ''
+        }];
+      }
+      if (p.amount == null) p.amount = U.round2((p.items || []).reduce((a, it) => a + Number(it.amount || 0), 0));
     });
   },
 
@@ -259,7 +278,7 @@ window.S = {
       resourcePartners: () => db.customers.some(c => c.r1 === id || c.r2 === id || c.r3 === id),
       regionPartners: () => db.customers.some(c => c.regionPartnerId === id) || db.regionRates.some(r => r.partnerId === id),
       warehouses: () => db.purchases.some(p => p.whId === id) || db.sales.some(s => s.whId === id) || db.stocks.some(s => s.whId === id && s.qty > 0),
-      goods: () => db.purchases.some(p => p.goodsId === id) || db.sales.some(s => (s.items || []).some(i => i.goodsId === id)) || db.stocks.some(s => s.goodsId === id && s.qty > 0),
+      goods: () => db.purchases.some(p => (p.items || []).some(it => it.goodsId === id)) || db.sales.some(s => (s.items || []).some(i => i.goodsId === id)) || db.stocks.some(s => s.goodsId === id && s.qty > 0),
       customers: () => db.sales.some(s => s.customerId === id) || db.complaints.some(c => c.customerId === id),
       expenseCats: () => db.expenses.some(x => x.catId === id),
       incomeCats: () => db.incomes.some(x => x.catId === id),
@@ -929,64 +948,110 @@ window.S = {
     return null;
   },
 
-  /* ------- 采购 ------- */
+  /* ------- 采购（支持一张单多件明细 items） -------
+     结构：purchase = { id, no, inTime, operator, whId, payMethod, remark,
+       supplierId(首行商品供应商，仅供查询/展示), amount(=Σitems.amount),
+       items:[{ goodsId, typeId, unitId, supplierId, qty, price, amount, productionDate, batchNo }] }
+     批次号：明细行可手填；留空则 = 采购单号（沿用旧逻辑兜底）。 */
   addPurchase(p) {
+    if (!p.items || !p.items.length) return '请至少添加一项采购明细';
+    const items = [];
+    for (const it of p.items) {
+      const g = this.byId('goods', it.goodsId);
+      if (!g) return '商品不存在：' + (it.goodsId || '');
+      items.push({
+        goodsId: g.id, typeId: g.typeId, unitId: g.unitId, supplierId: g.supplierId,
+        qty: Number(it.qty), price: Number(it.price), amount: U.round2(Number(it.qty) * Number(it.price)),
+        productionDate: it.productionDate || null, batchNo: it.batchNo || ''
+      });
+    }
     p.id = this.genId();
     p.no = this.genNo('PO');
     p.inTime = U.now();
-    p.amount = U.round2(p.qty * p.price);
     p.operator = Cloud.state.user ? Cloud.state.user.name : '';
     p.payMethod = p.payMethod || '';
+    p.remark = p.remark || '';
+    p.amount = U.round2(items.reduce((a, it) => a + it.amount, 0));
+    p.supplierId = items.length ? items[0].supplierId : null;
+    p.items = items;
     this.db.purchases.push(p);
-    const rec = this.stockRec(p.whId, p.goodsId, true);
-    this.addLotQty(rec, { batchNo: p.batchNo || p.no, productionDate: p.productionDate || null, cost: Number(p.price) || 0 }, Number(p.qty));
-    rec.lastInTime = p.inTime;
+    for (const it of items) {
+      const rec = this.stockRec(p.whId, it.goodsId, true);
+      const bno = it.batchNo || p.no;
+      this.addLotQty(rec, { batchNo: bno, productionDate: it.productionDate, cost: Number(it.price) || 0 }, Number(it.qty));
+      rec.lastInTime = p.inTime;
+    }
     return p;
   },
   deletePurchase(id) {
     const p = this.byId('purchases', id);
     if (!p) return '单据不存在';
-    const rec = this.stockRec(p.whId, p.goodsId, false);
-    if (!rec || rec.qty < Number(p.qty)) return '库存不足以回滚（该批货可能已售出），无法删除';
-    const g = this.byId('goods', p.goodsId) || {};
-    const ownBatch = p.batchNo || p.no;
-    const ownLot = (rec.lots || []).find(l => l.batchNo === ownBatch);
-    const ownQty = ownLot ? Math.min(Number(ownLot.qty) || 0, Number(p.qty)) : 0;
-    if (ownQty > 0) this.consumeLotSelected(rec, g, ownQty, ownBatch);  // 先扣本采购批次
-    const remain = U.round2(Number(p.qty) - ownQty);
-    if (remain > 0) this.consumeLotSelected(rec, g, remain, null);  // 不足部分 FEFO 溢出，避免只改 rec.qty 不回滚 lots 导致数量复活
+    const items = p.items || [];
+    /* 先按商品聚合，校验整单库存是否足以回滚 */
+    const byGoods = {};
+    items.forEach(it => { byGoods[it.goodsId] = U.round2((byGoods[it.goodsId] || 0) + Number(it.qty)); });
+    for (const gid in byGoods) {
+      const rec = this.stockRec(p.whId, gid, false);
+      if (!rec || rec.qty < byGoods[gid]) return '库存不足以回滚（该批货可能已售出），无法删除';
+    }
+    /* 逐明细回滚：优先扣本单批次（手填批次 / 采购单号），不足部分 FEFO 溢出，避免数量复活 */
+    for (const it of items) {
+      const rec = this.stockRec(p.whId, it.goodsId, false);
+      const g = this.byId('goods', it.goodsId) || {};
+      const ownBatch = it.batchNo || p.no;
+      const ownLot = (rec.lots || []).find(l => l.batchNo === ownBatch);
+      const ownQty = ownLot ? Math.min(Number(ownLot.qty) || 0, Number(it.qty)) : 0;
+      if (ownQty > 0) this.consumeLotSelected(rec, g, ownQty, ownBatch);  // 先扣本采购批次
+      const remain = U.round2(Number(it.qty) - ownQty);
+      if (remain > 0) this.consumeLotSelected(rec, g, remain, null);  // 不足部分 FEFO 溢出
+    }
     this.db.purchases = this.db.purchases.filter(x => x.id !== id);
     return null;
   },
-  /* 修改采购单：先回滚旧库存（同仓同货先减），再按新商品/仓库/数量重新入库，并重算金额。
-     允许改商品与仓库；若旧库存不足（已售出）则拦截返回错误文案。 */
+  /* 修改采购单：先回滚旧明细（同仓同货先减本单批次），再按新明细重新入库，并重算金额。
+     允许改商品、数量、仓库；若原库存不足（已售出）则拦截返回错误文案。 */
   updatePurchase(id, patch) {
     const p = this.byId('purchases', id);
     if (!p) return '单据不存在';
-    const oldWh = p.whId, oldGoods = p.goodsId, oldQty = Number(p.qty);
-    if (oldWh && oldGoods) {
-      const orec = this.stockRec(oldWh, oldGoods, false);
-      if (!orec || orec.qty < oldQty) return '原库存不足以回滚（该批货可能已售出），无法修改';
-      const g0 = this.byId('goods', oldGoods) || {};
-      const ownBatch = p.batchNo || p.no;
-      const ownLot = (orec.lots || []).find(l => l.batchNo === ownBatch);
-      const ownQty = ownLot ? Math.min(Number(ownLot.qty) || 0, oldQty) : 0;
-      if (ownQty > 0) this.consumeLotSelected(orec, g0, ownQty, ownBatch);  // 先回滚本采购批次
-      const remain = U.round2(oldQty - ownQty);
-      if (remain > 0) this.consumeLotSelected(orec, g0, remain, null);  // 不足部分 FEFO 溢出（期初批次不再被优先吞噬）
+    const oldItems = p.items || [];
+    const oldByGoods = {};
+    oldItems.forEach(it => { oldByGoods[it.goodsId] = U.round2((oldByGoods[it.goodsId] || 0) + Number(it.qty)); });
+    for (const gid in oldByGoods) {
+      const orec = this.stockRec(p.whId, gid, false);
+      if (!orec || orec.qty < oldByGoods[gid]) return '原库存不足以回滚（该批货可能已售出），无法修改';
     }
-    const g = this.byId('goods', patch.goodsId);
-    if (!g) return '商品不存在';
-    const newQty = Number(patch.qty), newPrice = Number(patch.price);
-    if (!newQty || newQty <= 0) return '请填写采购数量';
-    if (newPrice == null || newPrice < 0) return '请填写采购价';
-    const nrec = this.stockRec(patch.whId, patch.goodsId, true);
-    this.addLotQty(nrec, { batchNo: patch.batchNo || p.no, productionDate: patch.productionDate || null, cost: newPrice }, newQty);
-    nrec.lastInTime = U.now();
-    p.typeId = g.typeId; p.goodsId = g.id; p.supplierId = g.supplierId; p.unitId = g.unitId;
-    p.qty = newQty; p.price = newPrice; p.amount = U.round2(newQty * newPrice);
-    p.whId = patch.whId; p.productionDate = patch.productionDate || null; p.batchNo = patch.batchNo || p.no;
+    for (const it of oldItems) {
+      const orec = this.stockRec(p.whId, it.goodsId, false);
+      const g0 = this.byId('goods', it.goodsId) || {};
+      const ownBatch = it.batchNo || p.no;
+      const ownLot = (orec.lots || []).find(l => l.batchNo === ownBatch);
+      const ownQty = ownLot ? Math.min(Number(ownLot.qty) || 0, Number(it.qty)) : 0;
+      if (ownQty > 0) this.consumeLotSelected(orec, g0, ownQty, ownBatch);  // 先回滚本采购批次
+      const remain = U.round2(Number(it.qty) - ownQty);
+      if (remain > 0) this.consumeLotSelected(orec, g0, remain, null);  // 不足部分 FEFO 溢出
+    }
+    const newItems = [];
+    for (const it of (patch.items || [])) {
+      const g = this.byId('goods', it.goodsId);
+      if (!g) return '商品不存在：' + (it.goodsId || '');
+      newItems.push({
+        goodsId: g.id, typeId: g.typeId, unitId: g.unitId, supplierId: g.supplierId,
+        qty: Number(it.qty), price: Number(it.price), amount: U.round2(Number(it.qty) * Number(it.price)),
+        productionDate: it.productionDate || null, batchNo: it.batchNo || ''
+      });
+    }
+    if (!newItems.length) return '请至少保留一项采购明细';
+    for (const it of newItems) {
+      const rec = this.stockRec(patch.whId, it.goodsId, true);
+      const bno = it.batchNo || p.no;
+      this.addLotQty(rec, { batchNo: bno, productionDate: it.productionDate, cost: Number(it.price) || 0 }, Number(it.qty));
+    }
+    p.whId = patch.whId;
     p.payMethod = patch.payMethod || '';
+    p.remark = patch.remark || '';
+    p.items = newItems;
+    p.amount = U.round2(newItems.reduce((a, it) => a + it.amount, 0));
+    p.supplierId = newItems.length ? newItems[0].supplierId : null;
     return null;
   },
 
@@ -1149,7 +1214,7 @@ window.S = {
       if (Array.isArray(s.payments) && s.payments.length) s.payments.forEach(p => { if ((p.method || '未设置') === method) push(p.time || s.finishTime || s.time, '销售收款', '销售单：' + cust, '收', Number(p.amount)); });
       else if ((s.payMethod || '未设置') === method) push(s.finishTime || s.time, '销售收款', '销售单：' + cust, '收', Number(s.actualPaid) || this.salePayable(s));
     });
-    (db.purchases || []).forEach(p => { if ((p.payMethod || '未设置') === method) push(p.date || p.time, '采购付款', '采购单：' + (S.name('suppliers', p.supplierId) || ''), '支', -Number(p.amount)); });
+    (db.purchases || []).forEach(p => { if ((p.payMethod || '未设置') === method) push(p.inTime || p.date || p.time, '采购付款', '采购单：' + (S.name('suppliers', p.supplierId) || ''), '支', -Number(p.amount)); });
     (db.expenses || []).filter(x => x.status === '已计算').forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.time || x.createTime, '运营支出', (x.remark || x.cat || '运营支出'), '支', -Number(x.amount)); });
     (db.incomes || []).filter(x => x.status === '已确认').forEach(x => { if ((x.payMethod || '未设置') === method) push(x.date || x.time || x.createTime, '其他收入', (x.remark || x.cat || '其他收入'), '收', Number(x.amount)); });
     rows.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.type || '').localeCompare(b.type || ''));
