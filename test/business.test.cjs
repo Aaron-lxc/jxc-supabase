@@ -801,6 +801,46 @@ function reset() {
   eq(s3.payStatus, '已结清', 'B9-7 老单(无payments有actualPaid)回落仍已结清');
 })();
 
+/* ---------- B10. 采购删除/修改守卫：数字型 goodsId 不能误报「库存不足」（数字型 id 聚合铁律） ---------- */
+(function B10_purchaseDeleteNumericId() {
+  // 用数字型 goodsId 复现真实数据场景：旧版对象键聚合会把数字 id 转字符串，
+  // stockRec 用 === 严格比对 → 永远查不到库存 → 误报「库存不足以回滚，无法删除」。
+  reset();
+  const GID = S.genId();        // 数字 id（模拟真实 genId 生成的商品）
+  S.db.goods.push({ id: GID, name: '测试商品N', typeId: 1, unitId: 1, supplierId: null, status: '已启用' });
+  const rec = S.stockRec('W1', GID, true);
+  S.addLotQty(rec, { batchNo: 'PO-N1', productionDate: '2026-10-20', cost: 18 }, 100);
+  eq(rec.qty, 100, 'B10-1 入库 100');
+
+  // 删除：整单尚在库，应成功（修复前此处误报拦截）
+  const p = S.addPurchase({ whId: 'W1', items: [{ goodsId: GID, qty: 100, price: 18, batchNo: 'PO-N1', productionDate: '2026-10-20' }] });
+  eq(S.stockQty('W1', GID), 200, 'B10-2 采购后合计 200');
+  const derr = S.deletePurchase(p.id);
+  eq(derr, null, 'B10-3 数字 id 采购单删除成功（不再误报库存不足）');
+  eq(S.stockQty('W1', GID), 100, 'B10-4 删除后回滚为 100');
+
+  // 删除：库存不足（部分已售出）应仍正确拦截
+  const p2 = S.addPurchase({ whId: 'W1', items: [{ goodsId: GID, qty: 100, price: 18, batchNo: 'PO-N2', productionDate: '2026-10-20' }] });
+  const r2 = S.deletePurchase(p2.id); // 现库存 200，可删
+  eq(r2, null, 'B10-5 第二条采购删除成功');
+  // 把库存人为降到低于第三单数量，验证拦截
+  const p3 = S.addPurchase({ whId: 'W1', items: [{ goodsId: GID, qty: 80, price: 18, batchNo: 'PO-N3', productionDate: '2026-10-20' }] });
+  rec.qty = 50;              // 模拟已售出 150，仅剩 50 < 80
+  rec.lots = rec.lots.filter(l => l.batchNo === 'PO-N3' ? l.qty > 50 : true);
+  const r3 = S.deletePurchase(p3.id);
+  ok(/库存不足以回滚/.test(r3 || ''), 'B10-6 真·库存不足仍正确拦截删除');
+
+  // 修改：数字 id 守卫同样不得误报
+  reset();
+  const GID2 = S.genId();
+  S.db.goods.push({ id: GID2, name: '测试商品M', typeId: 1, unitId: 1, supplierId: null, status: '已启用' });
+  const rec2 = S.stockRec('W1', GID2, true);
+  S.addLotQty(rec2, { batchNo: 'PO-M1', productionDate: '2026-10-20', cost: 10 }, 60);
+  const pm = S.addPurchase({ whId: 'W1', items: [{ goodsId: GID2, qty: 60, price: 10, batchNo: 'PO-M1', productionDate: '2026-10-20' }] });
+  const errMod = S.updatePurchase(pm.id, { whId: 'W1', inTime: '2026-10-20 10:00', remark: '', payMethod: '', items: [{ goodsId: GID2, qty: 60, price: 12, batchNo: 'PO-M1', productionDate: '2026-10-20' }] });
+  eq(errMod, null, 'B10-7 数字 id 采购单修改守卫不误报（仅改价）');
+})();
+
 /* ---------- 汇总 ---------- */
 console.log(`\n业务单元测试：通过 ${pass}，失败 ${fail}`);
 if (fail) { console.log('\n失败项：\n' + fails.join('\n')); process.exit(1); }

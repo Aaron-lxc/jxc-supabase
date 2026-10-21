@@ -987,12 +987,19 @@ window.S = {
     const p = this.byId('purchases', id);
     if (!p) return '单据不存在';
     const items = p.items || [];
-    /* 先按商品聚合，校验整单库存是否足以回滚 */
-    const byGoods = {};
-    items.forEach(it => { byGoods[it.goodsId] = U.round2((byGoods[it.goodsId] || 0) + Number(it.qty)); });
-    for (const gid in byGoods) {
-      const rec = this.stockRec(p.whId, gid, false);
-      if (!rec || rec.qty < byGoods[gid]) return '库存不足以回滚（该批货可能已售出），无法删除';
+    /* 先按商品聚合，校验整单库存是否足以回滚。
+       注意：必须用数组聚合并保留 goodsId 原始类型（数字），不能用对象键 ——
+       对象键会把数字 id 转成字符串，而 stockRec 内部用 === 严格比对，
+       导致数字 id 永远查不到库存、误报「库存不足以回滚」无法删除（数字型 id 聚合铁律）。 */
+    const byGoods = [];
+    items.forEach(it => {
+      const f = byGoods.find(x => x.goodsId === it.goodsId);
+      if (f) f.qty = U.round2(f.qty + Number(it.qty));
+      else byGoods.push({ goodsId: it.goodsId, qty: Number(it.qty) });
+    });
+    for (const x of byGoods) {
+      const rec = this.stockRec(p.whId, x.goodsId, false);
+      if (!rec || rec.qty < x.qty) return '库存不足以回滚（该批货可能已售出），无法删除';
     }
     /* 逐明细回滚：优先扣本单批次（手填批次 / 采购单号），不足部分 FEFO 溢出，避免数量复活 */
     for (const it of items) {
@@ -1014,11 +1021,15 @@ window.S = {
     const p = this.byId('purchases', id);
     if (!p) return '单据不存在';
     const oldItems = p.items || [];
-    const oldByGoods = {};
-    oldItems.forEach(it => { oldByGoods[it.goodsId] = U.round2((oldByGoods[it.goodsId] || 0) + Number(it.qty)); });
-    for (const gid in oldByGoods) {
-      const orec = this.stockRec(p.whId, gid, false);
-      if (!orec || orec.qty < oldByGoods[gid]) return '原库存不足以回滚（该批货可能已售出），无法修改';
+    const oldByGoods = [];
+    oldItems.forEach(it => {
+      const f = oldByGoods.find(x => x.goodsId === it.goodsId);
+      if (f) f.qty = U.round2(f.qty + Number(it.qty));
+      else oldByGoods.push({ goodsId: it.goodsId, qty: Number(it.qty) });
+    });
+    for (const x of oldByGoods) {
+      const orec = this.stockRec(p.whId, x.goodsId, false);
+      if (!orec || orec.qty < x.qty) return '原库存不足以回滚（该批货可能已售出），无法修改';
     }
     for (const it of oldItems) {
       const orec = this.stockRec(p.whId, it.goodsId, false);
