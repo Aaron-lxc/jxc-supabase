@@ -401,6 +401,66 @@ function reset() {
   ok(salesSrc.indexOf('needList') > -1, 'B5a-8 保存侧拦截使用 needList 数组聚合');
 })();
 
+/* ---------- B7. 撤销已完成销售单（库存回补原批次 + 状态复位 + 守卫） ---------- */
+(function B7_revokeSale() {
+  reset();
+  const db = S.db;
+  const rec = S.stockRec('W1', 'G1', true);
+  S.addLotQty(rec, { batchNo: 'B1', productionDate: '2026-01-01', qty: 100, cost: 10 }, 100);
+  db.customers.push({ id: 'C1', name: '客户1', taxRate: 0, taxExempt: '否', remark: '' });
+  const sale = { id: 'SR', no: 'SO-R', customerId: 'C1', whId: 'W1', items: [{ goodsId: 'G1', qty: 30, price: 15, amount: 450, lotKey: 'B1', alloc: [] }], total: 450, status: '未完成', payStatus: '', payTime: '', createTime: 'T0', finishTime: '' };
+  db.sales.push(sale);
+  ok(S.finishSale(sale) === null, 'B7-1 finishSale 成功');
+  eq(S.stockQty('W1', 'G1'), 70, 'B7-2 完成后库存 70');
+  eq(rec.lots.find(l => l.batchNo === 'B1').qty, 70, 'B7-3 批次 B1 余量 70');
+  ok(sale.items[0].alloc && sale.items[0].alloc.length === 1 && sale.items[0].alloc[0].batchNo === 'B1', 'B7-4 alloc 记录原批次 B1');
+  // 撤销 → 库存精确回补原批次
+  ok(S.revokeSale(sale) === null, 'B7-5 revokeSale 成功');
+  eq(S.stockQty('W1', 'G1'), 100, 'B7-6 撤销后库存回补=100');
+  eq(rec.lots.find(l => l.batchNo === 'B1').qty, 100, 'B7-7 批次 B1 精确回补到 100');
+  eq(sale.status, '未完成', 'B7-8 状态复位为未完成');
+  eq(sale.finishTime, '', 'B7-9 finishTime 清空');
+  eq(sale.payStatus, '', 'B7-10 payStatus 清空');
+  ok(sale.items[0].alloc === null, 'B7-11 alloc 已清空');
+  // 撤销后可删除（无孤儿数据）
+  S.db.sales = S.db.sales.filter(x => x.id !== sale.id);
+  eq(S.stockQty('W1', 'G1'), 100, 'B7-12 删除后库存不再变化(仍为100)');
+
+  // 守卫：未完成不可撤销
+  reset();
+  const db2 = S.db;
+  db2.customers.push({ id: 'C1', name: '客户1', taxRate: 0, taxExempt: '否', remark: '' });
+  const sale2 = { id: 'S2', no: 'SO-2', customerId: 'C1', whId: 'W1', items: [{ goodsId: 'G1', qty: 5, lotKey: '', alloc: [] }], total: 0, status: '未完成', payStatus: '', createTime: 'T0', finishTime: '' };
+  db2.sales.push(sale2);
+  ok(/仅已完成/.test(S.revokeSale(sale2) || ''), 'B7-13 未完成单撤销被拒');
+
+  // 守卫：已收款不可撤销
+  reset();
+  const db3 = S.db;
+  const rec3 = S.stockRec('W1', 'G1', true);
+  S.addLotQty(rec3, { batchNo: 'B1', productionDate: '2026-01-01', qty: 100, cost: 10 }, 100);
+  db3.customers.push({ id: 'C1', name: '客户1', taxRate: 0, taxExempt: '否', remark: '' });
+  const sale3 = { id: 'S3', no: 'SO-3', customerId: 'C1', whId: 'W1', items: [{ goodsId: 'G1', qty: 10, lotKey: 'B1', alloc: [] }], total: 150, status: '未完成', payStatus: '', payTime: '', createTime: 'T0', finishTime: '' };
+  db3.sales.push(sale3);
+  S.finishSale(sale3);
+  sale3.payStatus = '已支付';
+  ok(/已收款/.test(S.revokeSale(sale3) || ''), 'B7-14 已收款单撤销被拒');
+  eq(S.stockQty('W1', 'G1'), 90, 'B7-15 已收款单撤销被拒后库存未动(仍为90)');
+
+  // 守卫：有退货记录不可撤销
+  reset();
+  const db4 = S.db;
+  const rec4 = S.stockRec('W1', 'G1', true);
+  S.addLotQty(rec4, { batchNo: 'B1', productionDate: '2026-01-01', qty: 100, cost: 10 }, 100);
+  db4.customers.push({ id: 'C1', name: '客户1', taxRate: 0, taxExempt: '否', remark: '' });
+  const sale4 = { id: 'S4', no: 'SO-4', customerId: 'C1', whId: 'W1', items: [{ goodsId: 'G1', qty: 20, lotKey: 'B1', alloc: [] }], total: 300, status: '未完成', payStatus: '', payTime: '', createTime: 'T0', finishTime: '' };
+  db4.sales.push(sale4);
+  S.finishSale(sale4);
+  ok(S.addReturn(sale4, [{ itemIdx: 0, qty: 5 }]) === null, 'B7-16 退货成功');
+  ok(/退货记录/.test(S.revokeSale(sale4) || ''), 'B7-17 有退货记录撤销被拒');
+  eq(S.stockQty('W1', 'G1'), 85, 'B7-18 有退货单撤销被拒后库存未动(仍为85)');
+})();
+
 /* ---------- B6 客户自定义佣金比例 + 已支付单锁定 ---------- */
 (function B6_customCommissionAndLock() {
   reset();

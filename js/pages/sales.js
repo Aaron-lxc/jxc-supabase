@@ -264,6 +264,12 @@ const SaleList = {
       if (!U.confirm('确定删除销售单 ' + s.no + ' 吗？')) return;
       S.db.sales = S.db.sales.filter(x => x.id !== s.id);
     },
+    revoke(s) {
+      if (s.status !== '已完成') return;
+      if (!U.confirm('撤销将把库存回补到原始批次，并将单据退回「未完成」，确定撤销吗？')) return;
+      const err = S.revokeSale(s);
+      if (err) alert(err); else alert('已撤销销售单 ' + s.no + '，库存已回补');
+    },
     finish(s) {
       if (s.status === '已完成') return;
       if (!U.confirm('完成销售单将扣减库存并计入销售统计，确定完成吗？')) return;
@@ -514,7 +520,10 @@ const SaleList = {
               <span class="link danger" @click="del(s)">删除</span>
               <span class="link green" @click="finish(s)">完成</span>
             </template>
-            <span v-else class="link" @click="detail=s">详情</span>
+            <template v-else>
+              <span class="link danger" @click="revoke(s)">撤销</span>
+              <span class="link" @click="detail=s">详情</span>
+            </template>
           </td>
         </tr>
         <tr v-if="!paged.length"><td colspan="16" class="empty">暂无数据</td></tr>

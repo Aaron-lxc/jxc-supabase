@@ -1352,6 +1352,31 @@ window.S = {
     return null;
   },
 
+  /* 撤销已完成的销售单：把库存精确回补到原始批次，并将单据退回「未完成」。
+     守卫：① 仅已完成可撤销；② 已有退货记录的单须先在退货管理处理，避免孤儿数据；
+     ③ 已收款的单须先处理收款，避免资金账不平。撤销后 it.alloc 清空、状态/完成时间/收款状态复位，
+     并触发经销商级别重评（撤销会改变当年累计销售额）。 */
+  revokeSale(sale) {
+    if (sale.status !== '已完成') return '仅已完成的销售单可撤销';
+    /* 守卫：只要存在退货记录就拦截——即使退货金额为 0，也会把库存加回，
+       若再 revoke 会二次回补造成库存虚增（孤儿数据）。故以「退货记录存在」为准，而非退货金额。 */
+    if (this.db.returns.some(r => r.saleId === sale.id)) return '该单已有退货记录，请先在退货管理处理，不可撤销';
+    if (sale.payStatus && sale.payStatus !== '未支付') return '该单已收款（' + sale.payStatus + '），请先处理收款，不可撤销';
+    (sale.items || []).forEach(it => {
+      const rec = this.stockRec(sale.whId, it.goodsId, true);
+      const g = this.byId('goods', it.goodsId) || {};
+      /* 完成瞬间固化了 alloc；老数据或异常情况下 alloc 缺失时按整单数量回补（无批次号） */
+      const alloc = (it.alloc && it.alloc.length) ? it.alloc : [{ batchNo: null, qty: Number(it.qty) || 0 }];
+      this.returnLotByAlloc(rec, g, alloc);
+      it.alloc = null;
+    });
+    sale.status = '未完成';
+    sale.finishTime = '';
+    sale.payStatus = '';
+    this.evalDealerLevels([sale.customerId]);
+    return null;
+  },
+
   /* 修改已完成的销售单：业务闭环（还旧扣新）。有退货的单也允许改，但需满足：
      ① 已退货明细行不能删除（保留原 itemIdx 对应行）；② 修改后数量≥已退货数量；③ 已退货商品不能更换。
      校验通过后才动库存：先把本单「剩余占用」(原 alloc 按(原数量-已退)/原数量比例缩放)还回原仓库批次，
