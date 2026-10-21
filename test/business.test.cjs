@@ -762,6 +762,45 @@ function reset() {
   eq(sum, 1050, 'S2-11 各笔金额合计=1050 与末笔累计一致');
 })();
 
+/* ---------- B9. 收款撤回后支付状态正确归位（syncPayStatus 不再读回残留 actualPaid） ---------- */
+(function B9_syncPayStatus() {
+  // 加载页面级组件（含结算列表的 syncPayStatus 逻辑）
+  eval(fs.readFileSync(path.join(ROOT, 'js/pages/sales.js'), 'utf8') + ';global.__SettleList = SettleList;');
+  const SL = global.__SettleList.methods;
+  function mkSale(extra) {
+    return Object.assign({
+      id: 'SX', no: 'SO-X', customerId: 'C1', whId: 'W1', status: '已完成',
+      total: 100, payMethod: '', payTime: '', payStatus: '', actualPaid: 0,
+      payments: [], finishTime: 'T0', createTime: 'T0',
+      items: [{ goodsId: 'G1', qty: 1, price: 100, amount: 100, alloc: [] }]
+    }, extra);
+  }
+  // 场景1：收满 → 已结清，撤空 → 应回未支付（修复点：不得被镜像 actualPaid 复活）
+  reset();
+  S.db.customers.push({ id: 'C1', name: '客户1', taxRate: 0, taxExempt: '否', remark: '' });
+  const s1 = mkSale({ payments: [{ method: '微信', amount: 100, fee: 0, time: 'T1', remark: '收' }], actualPaid: 100, payStatus: '已结清' });
+  SL.syncPayStatus(s1);
+  eq(s1.payStatus, '已结清', 'B9-1 收满显示已结清');
+  eq(s1.actualPaid, 100, 'B9-2 镜像=100');
+  s1.payments = [];                 // 模拟 undoAllPayments 撤空
+  SL.syncPayStatus(s1);
+  eq(s1.payStatus, '未支付', 'B9-3 撤空后正确回到未支付（未被镜像复活）');
+  eq(s1.actualPaid, 0, 'B9-4 镜像同步清零');
+
+  // 场景2：部分收 → 部分支付，撤回剩余 → 回未支付
+  const s2 = mkSale({ payments: [{ method: '微信', amount: 40, fee: 0, time: 'T1' }], actualPaid: 40, payStatus: '部分支付' });
+  SL.syncPayStatus(s2);
+  eq(s2.payStatus, '部分支付', 'B9-5 部分收显示部分支付');
+  s2.payments = [];
+  SL.syncPayStatus(s2);
+  eq(s2.payStatus, '未支付', 'B9-6 部分撤回后回未支付');
+
+  // 场景3：老单兼容（无 payments 数组但有 actualPaid）→ 回落仍已结清
+  const s3 = mkSale({ payments: undefined, actualPaid: 100, payStatus: '已结清' });
+  SL.syncPayStatus(s3);
+  eq(s3.payStatus, '已结清', 'B9-7 老单(无payments有actualPaid)回落仍已结清');
+})();
+
 /* ---------- 汇总 ---------- */
 console.log(`\n业务单元测试：通过 ${pass}，失败 ${fail}`);
 if (fail) { console.log('\n失败项：\n' + fails.join('\n')); process.exit(1); }

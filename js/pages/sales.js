@@ -922,11 +922,17 @@ const SettleList = {
       ];
     },
     /* 打开收款结算弹窗：老单（有 actualPaid 无 payments）迁移为一条历史收款，便于逐笔撤回 */
-    openSettle(r) {
+    async openSettle(r) {
       if (!Array.isArray(r.s.payments) && Number(r.s.actualPaid) > 0) {
         r.s.payments = [{ method: r.s.payMethod || '', amount: Number(r.s.actualPaid), fee: Number(r.s.fee) || 0, time: r.s.payTime || '', remark: '历史收款' }];
       }
       if (!Array.isArray(r.s.payments)) r.s.payments = [];
+      // 自愈合：撤回后 payments 已空但 actualPaid 残留（旧镜像字段曾把金额复活），
+      // 以空收款重算为「未支付」并持久化，使已错乱的已收/已结清状态恢复。
+      if (r.s.payments.length === 0 && Number(r.s.actualPaid) > 0) {
+        this.syncPayStatus(r.s);
+        await S.persistNow();
+      }
       this.cur = r;
       this.settleForm = { method: '', amount: null, remark: '', deliveryFee: r.s.deliveryFee || 0, prepaidDeduct: r.s.prepaidDeduct || 0 };
       this.showSettle = true;
@@ -979,9 +985,14 @@ const SettleList = {
       this.syncPayStatus(r.s);
       await S.persistNow();
     },
-    /* 重算支付状态：未收 / 部分支付 / 已结清，并维护镜像字段 actualPaid */
+    /* 重算支付状态：未收 / 部分支付 / 已结清，并维护镜像字段 actualPaid。
+       关键修复：只要该单存在 payments 数组（哪怕已撤空），就严格按逐笔累加，
+       不再回落到 actualPaid。否则撤空后 payments=[] 会读回上一次镜像写入的
+       actualPaid，导致状态复活为「已结清」、已收金额残留。
+       仅对「从来没有 payments 数组」的老单保留 actualPaid 回落兼容。 */
     syncPayStatus(s) {
-      const rec = S.saleReceived(s);
+      const hasP = Array.isArray(s.payments);
+      const rec = hasP ? U.round2((s.payments || []).reduce((a, p) => a + Number(p.amount || 0), 0)) : S.saleReceived(s);
       s.actualPaid = rec;
       if (rec <= 0) { s.payStatus = '未支付'; s.payTime = ''; }
       else if (rec >= S.salePayable(s)) {
