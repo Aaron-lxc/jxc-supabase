@@ -100,7 +100,7 @@ Pages['page-inventory'] = {
             sku: g.sku || '', unitName: S.name('units', g.unitId), supplierName: S.name('suppliers', g.supplierId),
             batchNo: l.batchNo || '未分批次', productionDate: l.productionDate || '-',
             opened: !!l.opened, expiryDate: ei.expiryDate || '-', days: ei.expiryDate ? ei.days : '',
-            qty: l.qty, expiring: ei.expiring, minStock: g.minStock || 0,
+            qty: l.qty, expiring: ei.expiring, minStock: g.minStock || 0, totalQty: s.qty,
             cost: U.round2(l.qty * (g.purchasePrice || 0)), value: U.round2(l.qty * (g.retailPrice || 0)),
             lastInTime: s.lastInTime || '-', lastCheckTime: s.lastCheckTime || '-'
           });
@@ -508,8 +508,8 @@ Pages['page-inventory'] = {
             <td data-label="SKU">{{r.sku}}</td><td data-label="单位">{{r.unitName}}</td><td data-label="供应商">{{r.supplierName}}</td>
             <td data-label="批次号">{{r.batchNo}}<span v-if="r.opened" class="tag tag-blue" style="margin-left:6px">期初</span></td><td data-label="生产日期">{{r.productionDate}}</td><td data-label="到期日">{{r.expiryDate}}</td>
             <td class="num" :class="{red: r.expiring}" data-label="临期天数">{{r.days}}</td>
-            <td class="num" :class="{red: r.qty < r.minStock}" data-label="当前库存"><b>{{r.qty}}</b>
-              <span v-if="r.qty < r.minStock" class="tag tag-red">低于下限</span></td>
+            <td class="num" :class="{red: r.totalQty < r.minStock}" data-label="当前库存"><b>{{r.qty}}</b>
+              <span v-if="r.totalQty < r.minStock" class="tag tag-red">低于下限</span></td>
             <td class="num" data-label="最低库存">{{r.minStock}}</td>
             <td class="num" :class="{red: r.expiring}" data-label="临期库存">{{r.expiring ? r.qty : 0}}</td>
             <td class="num money" data-label="库存成本">{{fmtMoney(r.cost)}}</td><td class="num money" data-label="库存价值">{{fmtMoney(r.value)}}</td>
