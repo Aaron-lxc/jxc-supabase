@@ -79,8 +79,8 @@ AppComponents['x-status'] = {
     cls() {
       return ({
         '已启用': 'tag-green', '已完成': 'tag-green', '已支付': 'tag-green', '已结清': 'tag-green', '已处理': 'tag-green', '已计算': 'tag-green', '已解决': 'tag-green',
-        '部分支付': 'tag-orange',
-        '未启用': 'tag-gray', '未完成': 'tag-blue', '未支付': 'tag-red', '未处理': 'tag-orange', '未计算': 'tag-orange', '未解决': 'tag-orange'
+        '部分支付': 'tag-orange', '部分退货': 'tag-orange',
+        '未启用': 'tag-gray', '未完成': 'tag-blue', '已退货': 'tag-gray', '未支付': 'tag-red', '未处理': 'tag-orange', '未计算': 'tag-orange', '未解决': 'tag-orange'
       })[this.v] || 'tag-gray';
     }
   },

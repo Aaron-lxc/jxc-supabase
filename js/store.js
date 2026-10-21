@@ -1316,6 +1316,16 @@ window.S = {
     });
     return q;
   },
+  /* 列表/详情/打印展示用状态：实时推导，不修改库里存储的 status。
+     仅当「已完成」且「存在退货记录」时重判：净数量>0 为部分退货，否则已退货。
+     其余情况（含未完成、被撤销回退的未完成）一律沿用存储 status，
+     以免影响欠款/佣金/经销商级别/报表等依赖 status==='已完成' 的全套统计。 */
+  saleDisplayStatus(sale) {
+    if (sale.status === '已完成' && this.db.returns.some(r => r.saleId === sale.id)) {
+      return this.saleNetQty(sale) > 0 ? '部分退货' : '已退货';
+    }
+    return sale.status;
+  },
   saleCost(sale) { /* 按商品采购价计算销售成本（净额口径：扣除退货数量） */
     let cost = 0;
     (sale.items || []).forEach((it, idx) => {

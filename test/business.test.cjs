@@ -461,6 +461,49 @@ function reset() {
   eq(S.stockQty('W1', 'G1'), 85, 'B7-18 有退货单撤销被拒后库存未动(仍为85)');
 })();
 
+/* ---------- B8. 销售单退货状态实时推导（不改存储 status） ---------- */
+(function B8_saleDisplayStatus() {
+  function buildFinished() {
+    reset();
+    const db = S.db;
+    const rec = S.stockRec('W1', 'G1', true);
+    S.addLotQty(rec, { batchNo: 'B1', productionDate: '2026-01-01', qty: 100, cost: 10 }, 100);
+    db.customers.push({ id: 'C1', name: '客户1', taxRate: 0, taxExempt: '否', remark: '' });
+    const sale = { id: 'SR', no: 'SO-R', customerId: 'C1', whId: 'W1', items: [{ goodsId: 'G1', qty: 20, price: 15, amount: 300, lotKey: 'B1', alloc: [] }], total: 300, status: '未完成', payStatus: '', payTime: '', createTime: 'T0', finishTime: '' };
+    db.sales.push(sale);
+    ok(S.finishSale(sale) === null, 'B8-1 finishSale 成功');
+    return sale;
+  }
+  // 未完成 → 显示未完成
+  reset();
+  const db0 = S.db;
+  db0.customers.push({ id: 'C1', name: '客户1', taxRate: 0, taxExempt: '否', remark: '' });
+  const s0 = { id: 'S0', no: 'SO-0', customerId: 'C1', whId: 'W1', items: [{ goodsId: 'G1', qty: 20, alloc: [] }], total: 300, status: '未完成', payStatus: '', createTime: 'T0', finishTime: '' };
+  db0.sales.push(s0);
+  eq(S.saleDisplayStatus(s0), '未完成', 'B8-2 未完成单显示未完成');
+
+  // 已完成 + 无退货 → 已完成
+  const s1 = buildFinished();
+  eq(S.saleDisplayStatus(s1), '已完成', 'B8-3 已完成无退货显示已完成');
+  eq(s1.status, '已完成', 'B8-4 存储 status 未被改动（仍为已完成）');
+
+  // 已完成 + 部分退货（5/20）→ 部分退货
+  const s2 = buildFinished();
+  ok(S.addReturn(s2, [{ itemIdx: 0, qty: 5 }]) === null, 'B8-5 退货 5/20 成功');
+  eq(S.saleDisplayStatus(s2), '部分退货', 'B8-6 部分退货显示部分退货');
+  eq(s2.status, '已完成', 'B8-7 部分退货存储 status 仍为已完成（不被改写）');
+
+  // 已完成 + 全部退货（20/20）→ 已退货
+  const s3 = buildFinished();
+  ok(S.addReturn(s3, [{ itemIdx: 0, qty: 20 }]) === null, 'B8-8 退货 20/20 成功');
+  eq(S.saleDisplayStatus(s3), '已退货', 'B8-9 全部退货显示已退货');
+  eq(s3.status, '已完成', 'B8-10 全部退货存储 status 仍为已完成（不被改写）');
+
+  // 移除退货记录后实时恢复为已完成
+  S.db.returns = S.db.returns.filter(r => r.saleId !== s3.id);
+  eq(S.saleDisplayStatus(s3), '已完成', 'B8-11 移除退货记录后显示实时恢复为已完成');
+})();
+
 /* ---------- B6 客户自定义佣金比例 + 已支付单锁定 ---------- */
 (function B6_customCommissionAndLock() {
   reset();

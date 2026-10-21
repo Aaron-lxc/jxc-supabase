@@ -42,7 +42,7 @@ const SaleList = {
     whOpts() { return [{ value: '', label: '请选择' }].concat(S.enabled('warehouses').map(w => ({ value: w.id, label: w.name }))); },
     whOptsAll() { return [{ value: '', label: '全部仓库' }].concat(S.db.warehouses.map(w => ({ value: w.id, label: w.name }))); },
     supplierOptsAll() { return [{ value: '', label: '全部供应商' }].concat(S.db.suppliers.map(t => ({ value: t.id, label: t.name }))); },
-    statusOpts() { return [{ value: '', label: '全部状态' }, { value: '未完成', label: '未完成' }, { value: '已完成', label: '已完成' }]; },
+    statusOpts() { return [{ value: '', label: '全部状态' }, { value: '未完成', label: '未完成' }, { value: '已完成', label: '已完成' }, { value: '部分退货', label: '部分退货' }, { value: '已退货', label: '已退货' }]; },
     incOpts() { return [{ value: '', label: '全部' }, { value: '是', label: '是' }, { value: '否', label: '否' }]; },
     priceTypeOpts() { return ['零售价', '大客价', '批发价'].map(x => ({ value: x, label: x })); },
     whGoodsOpts() { return [{ value: '', label: '请选择' }].concat(this.whGoods.map(g => ({ value: g.id, label: g.name }))); },
@@ -55,7 +55,7 @@ const SaleList = {
         (!this.q.whId || s.whId === this.q.whId) &&
         (!this.q.goods || (s.items || []).some(it => U.kw(S.name('goods', it.goodsId), this.q.goods))) &&
         (!this.q.supplierId || (s.items || []).some(it => { const g = S.byId('goods', it.goodsId); return g && g.supplierId === this.q.supplierId; })) &&
-        (!this.q.status || s.status === this.q.status) &&
+        (!this.q.status || S.saleDisplayStatus(s) === this.q.status) &&
         (!this.q.incRes || (s.incResourceCommission || '是') === this.q.incRes) &&
         (!this.q.incReg || (s.incRegionCommission || '是') === this.q.incReg) &&
         U.inRange(s.createTime, this.q.d1, this.q.d2)
@@ -289,7 +289,7 @@ const SaleList = {
       if (t.head.wh) info.push(`<span>发货仓库：${U.esc(S.name('warehouses', s.whId))}</span>`);
       if (t.head.createTime) info.push(`<span>下单时间：${U.esc(s.createTime)}</span>`);
       if (t.head.finishTime) info.push(`<span>完成时间：${U.esc(s.finishTime || '-')}</span>`);
-      if (t.head.status) info.push(`<span>单据状态：${U.esc(s.status)}${s.payStatus ? ' / ' + U.esc(s.payStatus) : ''}</span>`);
+      if (t.head.status) info.push(`<span>单据状态：${U.esc(S.saleDisplayStatus(s))}${s.payStatus ? ' / ' + U.esc(s.payStatus) : ''}</span>`);
       if (info.length) H.push(`<div class="p-info">${info.join('')}</div>`);
 
       const th = ['<th>序号</th>', '<th>商品名称</th>'];
@@ -510,7 +510,7 @@ const SaleList = {
           <td data-label="计入资源佣金" :class="(s.incResourceCommission||'是')==='否'?'red':''">{{s.incResourceCommission||'是'}}</td>
           <td data-label="计入区域佣金" :class="(s.incRegionCommission||'是')==='否'?'red':''">{{s.incRegionCommission||'是'}}</td>
           <td data-label="客户备注">{{s.custRemark||'-'}}</td>
-          <td data-label="状态"><x-status :v="s.status"/></td><td data-label="销售时间">{{s.saleTime || s.createTime}}</td><td data-label="创建时间">{{s.createTime}}</td>
+          <td data-label="状态"><x-status :v="S.saleDisplayStatus(s)"/></td><td data-label="销售时间">{{s.saleTime || s.createTime}}</td><td data-label="创建时间">{{s.createTime}}</td>
           <td class="ops" data-label="操作">
             <span class="link" @click="openPreview(s)">预览</span>
             <span class="link" @click="print(s)">打印</span>
@@ -599,7 +599,7 @@ const SaleList = {
       <div class="p-info" style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:10px">
         <span>客户：<b>{{S.name('customers',detail.customerId)}}</b></span>
         <span>仓库：{{S.name('warehouses',detail.whId)}}</span>
-        <span>状态：<x-status :v="detail.status"/></span>
+        <span>状态：<x-status :v="S.saleDisplayStatus(detail)"/></span>
         <span v-if="detail.payStatus">支付：<x-status :v="detail.payStatus"/></span>
       </div>
       <table class="grid">
