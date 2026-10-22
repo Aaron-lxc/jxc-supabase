@@ -102,7 +102,9 @@ Pages['page-inventory'] = {
             opened: !!l.opened, expiryDate: ei.expiryDate || '-', days: ei.expiryDate ? ei.days : '',
             qty: l.qty, expiring: ei.expiring, minStock: g.minStock || 0, totalQty: s.qty,
             cost: U.round2(l.qty * (g.purchasePrice || 0)), value: U.round2(l.qty * (g.retailPrice || 0)),
-            lastInTime: s.lastInTime || '-', lastCheckTime: s.lastCheckTime || '-'
+            lastInTime: s.lastInTime || '-', lastCheckTime: s.lastCheckTime || '-',
+            // 来源单据：按批次号前缀映射，便于追溯每批货的来路（SC-生产组装/PO-采购单/QC-期初库存/DB-调拨/BY-报溢）
+            src: (() => { const bn = l.batchNo || ''; return bn.indexOf('SC-') === 0 ? '生产组装' : bn.indexOf('PO-') === 0 ? '采购单' : bn.indexOf('QC-') === 0 ? '期初库存' : bn.indexOf('DB-') === 0 ? '调拨' : bn.indexOf('BY-') === 0 ? '报溢' : (bn === '未分批次' ? '未分批次' : '其他'); })()
           });
         });
       });
@@ -498,7 +500,7 @@ Pages['page-inventory'] = {
       <table class="grid">
         <thead><tr>
           <th>序号</th><th>仓库名称</th><th>商品名称</th><th>商品类型</th><th>SKU</th><th>单位</th><th>供应商</th>
-          <th>批次号</th><th>生产日期</th><th>到期日</th><th class="num">临期天数</th>
+          <th>批次号</th><th>来源单据</th><th>生产日期</th><th>到期日</th><th class="num">临期天数</th>
           <th class="num">当前库存</th><th class="num">最低库存</th><th class="num">临期库存</th><th class="num">库存成本</th><th class="num">库存价值</th>
           <th>最后入库时间</th><th>最近盘库时间</th>
         </tr></thead>
@@ -506,7 +508,7 @@ Pages['page-inventory'] = {
           <tr v-for="(r,i) in paged" :key="r.id">
             <td data-label="序号">{{(page-1)*pageSize+i+1}}</td><td data-label="仓库名称">{{r.whName}}</td><td data-label="商品名称">{{r.goodsName}}</td><td data-label="商品类型">{{r.typeName}}</td>
             <td data-label="SKU">{{r.sku}}</td><td data-label="单位">{{r.unitName}}</td><td data-label="供应商">{{r.supplierName}}</td>
-            <td data-label="批次号">{{r.batchNo}}<span v-if="r.opened" class="tag tag-blue" style="margin-left:6px">期初</span></td><td data-label="生产日期">{{r.productionDate}}</td><td data-label="到期日">{{r.expiryDate}}</td>
+            <td data-label="批次号">{{r.batchNo}}<span v-if="r.opened" class="tag tag-blue" style="margin-left:6px">期初</span></td><td data-label="来源单据">{{r.src}}</td><td data-label="生产日期">{{r.productionDate}}</td><td data-label="到期日">{{r.expiryDate}}</td>
             <td class="num" :class="{red: r.expiring}" data-label="临期天数">{{r.days}}</td>
             <td class="num" :class="{red: r.totalQty < r.minStock}" data-label="当前库存"><b>{{r.qty}}</b>
               <span v-if="r.totalQty < r.minStock" class="tag tag-red">低于下限</span></td>

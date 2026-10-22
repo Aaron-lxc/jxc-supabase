@@ -45,7 +45,7 @@
     dealer: 'js/pages/dealer.js',
     activity: 'js/pages/activity.js',
     warehouse: 'js/pages/warehouse.js', purchase: 'js/pages/purchase.js',
-    production: 'js/pages/production.js', inventory: 'js/pages/inventory.js', sales: 'js/pages/sales.js',
+    production: 'js/pages/production.js', inventory: 'js/pages/inventory.js', invflow: 'js/pages/inventory-flow.js', sales: 'js/pages/sales.js',
     finance: 'js/pages/finance.js', complaint: 'js/pages/complaint.js', reward: 'js/pages/complaint.js',
     report: 'js/pages/report.js', commission: 'js/pages/commission.js',
     members: 'js/pages/members.js', settings: 'js/pages/settings.js',

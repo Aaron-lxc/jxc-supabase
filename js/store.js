@@ -475,14 +475,16 @@ window.S = {
   genScBatch() {
     const d = (U.today() || '').replace(/-/g, '');
     const prefix = 'SC-' + d + '-';
-    // 取当日已有生产单批次号的最大序号 +1（00001 ~ 99999 顺序号）
     let max = 0;
-    for (const p of (this.db.productions || [])) {
-      if (p.batchNo && p.batchNo.indexOf(prefix) === 0) {
-        const n = parseInt(p.batchNo.slice(prefix.length), 10);
+    const bump = (bn) => {
+      if (bn && bn.indexOf(prefix) === 0) {
+        const n = parseInt(bn.slice(prefix.length), 10);
         if (!isNaN(n) && n > max) max = n;
       }
-    }
+    };
+    for (const p of (this.db.productions || [])) bump(p.batchNo);   // 现存生产单
+    // 同时扫描仍在库批次：已删单但批次残留时，其序号不可被新单复用，否则产生孤儿批次
+    for (const s of (this.db.stocks || [])) for (const l of (s.lots || [])) bump(l.batchNo);
     let seq = max + 1;
     if (seq > 99999) seq = 1;   // 超出上限回绕
     return prefix + String(seq).padStart(5, '0');
@@ -583,7 +585,14 @@ window.S = {
   deleteProduction(id) {
     const p = this.byId('productions', id);
     if (!p) return '生产单不存在';
-    if (p.status === '已完成') {
+    const completed = p.status === '已完成';
+    // 防御：本地状态非「已完成」但成品批次仍在库（多设备同步/页面保活导致完成态未同步到删除设备），
+    // 此时该单其实已完成过、库存被占用，删除必须回滚，否则产生孤儿批次。
+    const producedInStock = p.producedGoodsId
+      ? (() => { const r = this.stockRec(p.whId, p.producedGoodsId, false);
+          return !!(r && (r.lots || []).some(l => (l.batchNo || null) === (p.batchNo || null))); })()
+      : false;
+    if (completed || producedInStock) {
       for (const it of (p.items || [])) {
         const g = this.byId('goods', it.goodsId); if (!g) continue;
         const rec = this.stockRec(it.whId, it.goodsId, false);

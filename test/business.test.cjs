@@ -841,6 +841,60 @@ function reset() {
   eq(errMod, null, 'B10-7 数字 id 采购单修改守卫不误报（仅改价）');
 })();
 
+/* =================== B11. 生产组装批次号不复用 + 删除回滚守卫 =================== */
+(function () {
+  /* 1) genScBatch 扫描现存库存 lot：已删单但批次仍在库时序号不复用 */
+  const db = reset();
+  // 模拟一张已删除的生产单，其成品批次仍残留在库存里
+  const rec = S.stockRec('W1', 'G3', true);
+  S.addLotQty(rec, { batchNo: 'SC-20261022-00006', productionDate: '2026-10-22', cost: 2 }, 103);
+  const b1 = S.genScBatch();
+  ok(b1 === 'SC-' + (U.today() || '').replace(/-/g, '') + '-00007', 'B11-1 扫描 lot 后新批次号跳过残留 00006 → 00007（' + b1 + '）');
+  // 没有残留时从 00001 起
+  const db2 = reset();
+  eq(S.genScBatch(), 'SC-' + (U.today() || '').replace(/-/g, '') + '-00001', 'B11-2 空库存时从 00001 起');
+
+  /* 2) deleteProduction：已完成单删除 → 原材料回补 + 成品批次移除 */
+  const db3 = reset();
+  const srcRec = S.stockRec('W1', 'G3', true);
+  S.addLotQty(srcRec, { batchNo: 'PBX', productionDate: '2026-01-01', cost: 2 }, 10);
+  S.addProduction({
+    goodsName: '成品Y', typeId: 1, unitId: 1, supplierId: null, sku: '',
+    items: [{ whId: 'W1', goodsId: 'G3', goodsName: '原料B', unitId: 1, qty: 5, price: 2, amount: 10, batchNo: 'PBX', productionDate: '2026-01-01', shelfLife: 0, expiryDate: null }],
+    laborFee: 0, qty: 3, costPrice: 5, amount: 15, retailPrice: 10, bigPrice: 9, wholesalePrice: 8,
+    shelfLife: 0, expireWarn: 0, whId: 'W1', batchNo: 'SC-20261022-00099', time: '2026-10-22'
+  });
+  const py = db3.productions[0];
+  S.completeProduction(py.id);
+  eq(S.stockRec('W1', 'G3', false).qty, 5, 'B11-3 完成后原材料=5');
+  const ny = db3.goods.find(x => x.name === '成品Y');
+  eq(S.stockRec('W1', ny.id, false).qty, 3, 'B11-4 完成后成品=3');
+  ok(S.deleteProduction(py.id) === null, 'B11-5 删除成功');
+  eq(S.stockRec('W1', 'G3', false).qty, 10, 'B11-6 删除后原材料回补=10');
+  const precY = S.stockRec('W1', ny.id, false);
+  ok(!precY || precY.qty === 0, 'B11-7 删除后成品批次移除');
+
+  /* 3) deleteProduction：本地非「已完成」但成品批次仍在库（完成态未同步）时仍须回滚，杜绝孤儿批次 */
+  const db4 = reset();
+  const srcRec2 = S.stockRec('W1', 'G3', true);
+  S.addLotQty(srcRec2, { batchNo: 'PBZ', productionDate: '2026-01-01', cost: 2 }, 10);
+  S.addProduction({
+    goodsName: '成品Z', typeId: 1, unitId: 1, supplierId: null, sku: '',
+    items: [{ whId: 'W1', goodsId: 'G3', goodsName: '原料B', unitId: 1, qty: 5, price: 2, amount: 10, batchNo: 'PBZ', productionDate: '2026-01-01', shelfLife: 0, expiryDate: null }],
+    laborFee: 0, qty: 3, costPrice: 5, amount: 15, retailPrice: 10, bigPrice: 9, wholesalePrice: 8,
+    shelfLife: 0, expireWarn: 0, whId: 'W1', batchNo: 'SC-20261022-00100', time: '2026-10-22'
+  });
+  const pz = db4.productions[0];
+  S.completeProduction(pz.id);
+  // 模拟完成态未同步到删除设备：把本地状态改回未完成（但成品批次仍在库）
+  pz.status = '未完成';
+  ok(S.deleteProduction(pz.id) === null, 'B11-8 本地非已完成仍删除成功');
+  const nz = db4.goods.find(x => x.name === '成品Z');
+  const precZ = nz ? S.stockRec('W1', nz.id, false) : null;
+  ok(!precZ || precZ.qty === 0, 'B11-9 非已完成但成品在库 → 删除后成品批次仍被移除（无孤儿）');
+  eq(S.stockRec('W1', 'G3', false).qty, 10, 'B11-10 非已完成但原材料在库 → 删除后回补=10（无孤儿）');
+})();
+
 /* ---------- 汇总 ---------- */
 console.log(`\n业务单元测试：通过 ${pass}，失败 ${fail}`);
 if (fail) { console.log('\n失败项：\n' + fails.join('\n')); process.exit(1); }
