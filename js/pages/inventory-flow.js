@@ -6,7 +6,7 @@ window.Pages = window.Pages || {};
 Pages['page-invflow'] = {
   data() {
     return {
-      q: { whId: '', goodsId: '', type: '', t1: '', t2: '' },
+      q: { whId: '', goodsId: '', type: '', batch: '', doc: '', t1: '', t2: '' },
       page: 1, pageSize: 10
     };
   },
@@ -43,9 +43,13 @@ Pages['page-invflow'] = {
         if (this.q.goodsId && goodsId !== this.q.goodsId) return;
         if (this.q.type && type !== this.q.type) return;
         if (!U.inRange(time, this.q.t1, this.q.t2)) return;
+        // 批次号/单据号模糊查询（不区分大小写的包含匹配；未分批次行按显示值参与匹配）
+        const bn = (batchNo === null || batchNo === undefined || batchNo === '__NONE__') ? '未分批次' : batchNo;
+        if (this.q.batch && bn.toLowerCase().indexOf(this.q.batch.trim().toLowerCase()) < 0) return;
+        if (this.q.doc && String(docNo || '').toLowerCase().indexOf(this.q.doc.trim().toLowerCase()) < 0) return;
         out.push({
           time, whName: S.name('warehouses', whId), goodsName: gName(goodsId),
-          batchNo: (batchNo === null || batchNo === undefined || batchNo === '__NONE__') ? '未分批次' : batchNo,
+          batchNo: bn,
           type, typeLabel: (this.typeOpts.find(t => t.value === type) || {}).label || type,
           qty, docNo: docNo || ''
         });
@@ -115,6 +119,8 @@ Pages['page-invflow'] = {
         <x-combobox v-model="q.whId" :options="whOpts" style="width:140px"/>
         <x-combobox v-model="q.goodsId" :options="goodsOpts" style="width:220px"/>
         <x-combobox v-model="q.type" :options="typeOpts" style="width:140px"/>
+        <input type="text" v-model="q.batch" placeholder="批次号模糊查询" style="width:150px">
+        <input type="text" v-model="q.doc" placeholder="单据号模糊查询" style="width:150px">
         <span class="muted">流水时间</span><input type="date" v-model="q.t1"> - <input type="date" v-model="q.t2">
         <div class="spacer"></div>
         <span class="muted">共 {{fmtNum(total)}} 笔 ｜ 入库 {{fmtNum(totals.inQty)}} 件 ｜ 出库 {{fmtNum(totals.outQty)}} 件（只读，不修改数据）</span>
