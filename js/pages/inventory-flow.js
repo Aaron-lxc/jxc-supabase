@@ -7,8 +7,11 @@ Pages['page-invflow'] = {
   data() {
     return {
       q: { whId: '', goodsId: '', type: '', t1: '', t2: '' },
-      page: 1, pageSize: 15
+      page: 1, pageSize: 10
     };
+  },
+  watch: {
+    q: { deep: true, handler() { this.page = 1; } }
   },
   computed: {
     S() { return window.S; },
@@ -76,67 +79,68 @@ Pages['page-invflow'] = {
       return out.sort((a, b) => (b.time || '').localeCompare(a.time || ''));
     },
     paged() { return this.all.slice((this.page - 1) * this.pageSize, this.page * this.pageSize); },
-    total() { return this.all.length; }
+    total() { return this.all.length; },
+    totals() {
+      let inQty = 0, outQty = 0;
+      this.all.forEach(r => { if (r.qty > 0) inQty += r.qty; else outQty += Math.abs(r.qty); });
+      return { inQty: U.round2(inQty), outQty: U.round2(outQty) };
+    }
   },
   methods: {
+    fmtNum: U.fmtNum,
     /* 与 store.transferItems 同源：单条 goodsId 退化为单明细数组 */
     transferItems(t) {
       if (Array.isArray(t.items) && t.items.length) return t.items;
       if (t.goodsId != null) return [{ goodsId: t.goodsId, batchNo: t.batchNo == null ? null : t.batchNo, qty: t.qty }];
       return [];
     },
+    /* 类型标签颜色：期初=蓝，入库=绿，出库=红（与系统 tag 体系一致） */
+    typeTag(r) {
+      if (r.type === 'opening') return 'tag-blue';
+      return r.qty > 0 ? 'tag-green' : 'tag-red';
+    },
     goGoods(g) { if (g) this.q.goodsId = g; },
-    exportCsv() {
-      const head = ['时间', '仓库', '商品', '批次', '类型', '数量', '单据号'];
-      const rows = this.all.map(r => [r.time, r.whName, r.goodsName, r.batchNo, r.typeLabel, (r.qty > 0 ? '+' : '') + r.qty, r.docNo]);
-      const esc = v => { v = (v == null ? '' : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-      const csv = '﻿' + [head].concat(rows).map(line => line.map(esc).join(',')).join('\r\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = '库存流水.csv';
-      a.click();
-      if (URL.revokeObjectURL) setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    exportExcel() {
+      U.exportExcel('库存流水.xlsx', this.all.map((r, i) => ({
+        '序号': i + 1, '时间': r.time, '仓库': r.whName, '商品名称': r.goodsName,
+        '批次号': r.batchNo, '类型': r.typeLabel, '数量': (r.qty > 0 ? '+' : '') + r.qty, '单据号': r.docNo
+      })));
     }
   },
   template: `
-  <div class="page">
-    <div class="page-head">
-      <h2>库存流水</h2>
-      <p class="muted">聚合采购 / 销售 / 退货 / 调拨 / 生产 / 报损 / 报溢 / 期初的逐笔变动，便于追溯每批货的来路。<b>本页只读，不修改任何数据。</b></p>
-    </div>
-    <div class="filters">
-      <x-combobox v-model="q.whId" :options="whOpts" style="width:160px" placeholder="仓库"/>
-      <x-combobox v-model="q.goodsId" :options="goodsOpts" style="width:220px" placeholder="商品"/>
-      <x-combobox v-model="q.type" :options="typeOpts" style="width:160px" placeholder="类型"/>
-      <input type="date" v-model="q.t1" class="input"/>
-      <span class="muted">至</span>
-      <input type="date" v-model="q.t2" class="input"/>
-      <button class="btn" @click="page=1;exportCsv()">导出 CSV</button>
-    </div>
-    <div class="table-wrap">
-      <table class="tbl">
+  <div>
+    <div class="page-title">库存流水</div>
+    <div class="card">
+      <div class="toolbar">
+        <x-combobox v-model="q.whId" :options="whOpts" style="width:140px"/>
+        <x-combobox v-model="q.goodsId" :options="goodsOpts" style="width:220px"/>
+        <x-combobox v-model="q.type" :options="typeOpts" style="width:140px"/>
+        <span class="muted">流水时间</span><input type="date" v-model="q.t1"> - <input type="date" v-model="q.t2">
+        <div class="spacer"></div>
+        <span class="muted">共 {{fmtNum(total)}} 笔 ｜ 入库 {{fmtNum(totals.inQty)}} 件 ｜ 出库 {{fmtNum(totals.outQty)}} 件（只读，不修改数据）</span>
+        <button class="btn" @click="exportExcel">导出</button>
+      </div>
+      <div class="table-wrap">
+      <table class="grid">
         <thead><tr>
-          <th>时间</th><th>仓库</th><th>商品</th><th>批次</th><th>类型</th><th class="num">数量</th><th>单据号</th>
+          <th>序号</th><th>时间</th><th>仓库</th><th>商品名称</th><th>批次号</th><th>类型</th><th class="num">数量</th><th>单据号</th>
         </tr></thead>
         <tbody>
           <tr v-for="(r,i) in paged" :key="i">
-            <td>{{r.time}}</td>
-            <td>{{r.whName}}</td>
-            <td>{{r.goodsName}}</td>
-            <td>{{r.batchNo}}</td>
-            <td>{{r.typeLabel}}</td>
-            <td class="num" :class="{red: r.qty<0, green: r.qty>0}">{{r.qty>0?'+':''}}{{r.qty}}</td>
-            <td>{{r.docNo}}</td>
+            <td data-label="序号">{{(page-1)*pageSize+i+1}}</td>
+            <td data-label="时间">{{r.time}}</td>
+            <td data-label="仓库">{{r.whName}}</td>
+            <td data-label="商品名称">{{r.goodsName}}</td>
+            <td data-label="批次号">{{r.batchNo}}</td>
+            <td data-label="类型"><span class="tag" :class="typeTag(r)">{{r.typeLabel}}</span></td>
+            <td class="num" :class="{red: r.qty<0, 'green-t': r.qty>0}" data-label="数量"><b>{{r.qty>0?'+':''}}{{r.qty}}</b></td>
+            <td data-label="单据号">{{r.docNo}}</td>
           </tr>
-          <tr v-if="!paged.length"><td colspan="7" class="empty">暂无流水记录</td></tr>
+          <tr v-if="!paged.length"><td colspan="8" class="empty">暂无流水记录</td></tr>
         </tbody>
       </table>
-    </div>
-    <div class="pager" v-if="total>pageSize">
-      <button class="btn" :disabled="page<=1" @click="page--">上一页</button>
-      <span class="muted">第 {{page}} / {{Math.ceil(total/pageSize)}} 页 · 共 {{total}} 条</span>
-      <button class="btn" :disabled="page>=Math.ceil(total/pageSize)" @click="page++">下一页</button>
+      </div>
+      <x-pager :total="total" v-model:page="page" v-model:size="pageSize"/>
     </div>
   </div>`
 };
