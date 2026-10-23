@@ -107,12 +107,18 @@ const ExpenseList = {
     </div>
     <div class="table-wrap">
     <table class="grid">
-      <thead><tr><th>序号</th><th>类目名称</th><th class="num">金额</th><th>支付方式</th><th>详细描述</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
+      <thead><tr><th>序号</th><th>类目名称</th><th class="num">金额</th><th>支付方式</th><th>详细描述</th><th>创建时间</th><th>状态</th><th>图片</th><th>操作</th></tr></thead>
       <tbody>
           <tr v-for="(x,i) in paged" :key="x.id">
           <td data-label="序号">{{(page-1)*pageSize+i+1}}</td><td data-label="类目名称">{{S.name('expenseCats',x.catId)}}</td>
           <td class="num money" data-label="金额">{{fmtMoney(x.amount)}}</td><td data-label="支付方式">{{x.payMethod||'—'}}</td><td data-label="详细描述">{{x.desc||'-'}}</td>
           <td data-label="创建时间">{{x.createTime}}</td><td data-label="状态"><x-status :v="x.status"/></td>
+          <td data-label="图片">
+            <div v-if="x.docImages && x.docImages.length" style="display:flex;gap:4px;flex-wrap:wrap">
+              <img v-for="(url,idx) in x.docImages" :key="idx" :src="url" style="width:36px;height:36px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer" @click="openImagePreview(x.docImages)">
+            </div>
+            <span v-else>-</span>
+          </td>
           <td class="ops" data-label="操作">
             <template v-if="x.status==='未计算'">
               <span class="link" @click="openEdit(x)">修改</span>
@@ -120,15 +126,14 @@ const ExpenseList = {
               <span class="link green" @click="calc(x)">计算</span>
             </template>
             <span v-else class="link warn" @click="uncalc(x)">撤销计算</span>
-            <span v-if="x.docImages && x.docImages.length" class="link" @click="openImagePreview(x.docImages)">图片({{x.docImages.length}})</span>
           </td>
         </tr>
         <tr v-if="paged.length" style="background:#eff6ff;font-weight:700">
           <td colspan="2">合计</td>
           <td class="num money">￥{{fmtMoney(paged.reduce((s,x)=>s+Number(x.amount),0))}}</td>
-          <td colspan="5"></td>
+          <td colspan="6"></td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="8" class="empty">暂无数据</td></tr>
+        <tr v-if="!paged.length"><td colspan="9" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
     </div>
@@ -277,12 +282,18 @@ const IncomeList = {
     </div>
     <div class="table-wrap">
     <table class="grid">
-      <thead><tr><th>序号</th><th>类目名称</th><th class="num">金额</th><th>支付方式</th><th>详细描述</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
+      <thead><tr><th>序号</th><th>类目名称</th><th class="num">金额</th><th>支付方式</th><th>详细描述</th><th>创建时间</th><th>状态</th><th>图片</th><th>操作</th></tr></thead>
       <tbody>
           <tr v-for="(x,i) in paged" :key="x.id">
           <td data-label="序号">{{(page-1)*pageSize+i+1}}</td><td data-label="类目名称">{{S.name('incomeCats',x.catId)}}</td>
           <td class="num money" data-label="金额">{{fmtMoney(x.amount)}}</td><td data-label="支付方式">{{x.payMethod||'—'}}</td><td data-label="详细描述">{{x.desc||'-'}}</td>
           <td data-label="创建时间">{{x.createTime}}</td><td data-label="状态"><x-status :v="x.status"/></td>
+          <td data-label="图片">
+            <div v-if="x.docImages && x.docImages.length" style="display:flex;gap:4px;flex-wrap:wrap">
+              <img v-for="(url,idx) in x.docImages" :key="idx" :src="url" style="width:36px;height:36px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer" @click="openImagePreview(x.docImages)">
+            </div>
+            <span v-else>-</span>
+          </td>
           <td class="ops" data-label="操作">
             <template v-if="x.status==='未确认'">
               <span class="link" @click="openEdit(x)">修改</span>
@@ -290,15 +301,14 @@ const IncomeList = {
               <span class="link green" @click="confirm(x)">确认</span>
             </template>
             <span v-else class="link warn" @click="unconfirm(x)">撤销确认</span>
-            <span v-if="x.docImages && x.docImages.length" class="link" @click="openImagePreview(x.docImages)">图片({{x.docImages.length}})</span>
           </td>
         </tr>
         <tr v-if="paged.length" style="background:#eff6ff;font-weight:700">
           <td colspan="2">合计</td>
           <td class="num money">￥{{fmtMoney(paged.reduce((s,x)=>s+Number(x.amount),0))}}</td>
-          <td colspan="5"></td>
+          <td colspan="6"></td>
         </tr>
-        <tr v-if="!paged.length"><td colspan="8" class="empty">暂无数据</td></tr>
+        <tr v-if="!paged.length"><td colspan="9" class="empty">暂无数据</td></tr>
       </tbody>
     </table>
     </div>
