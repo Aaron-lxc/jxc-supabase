@@ -111,6 +111,7 @@ returns text language sql immutable as $$
     when 'dealerLevels'       then 'customers'
     when 'custTypes'          then 'customers'
     when 'regions'            then 'customers'
+    when 'memos'              then 'customers'
     when 'resourcePartners'   then 'partners'
     when 'regionPartners'     then 'partners'
     when 'recommenderBindings' then 'partners'
