@@ -6,7 +6,7 @@ const ExpenseList = {
   data() {
     return {
       q: { catId: '', status: '', desc: '', d1: '', d2: '', payMethod: '' },
-      page: 1, pageSize: 10, showForm: false, editing: null, form: {}
+      page: 1, pageSize: 10, showForm: false, editing: null, form: {}, uploadingImage: false, previewList: null, showImagePreview: false
     };
   },
   computed: {
@@ -33,17 +33,17 @@ const ExpenseList = {
   },
   methods: {
     fmtMoney: U.fmtMoney,
-    openNew() { this.editing = null; this.form = { catId: '', amount: null, desc: '', payMethod: '' }; this.showForm = true; },
+    openNew() { this.editing = null; this.form = { catId: '', amount: null, desc: '', payMethod: '', docImages: [] }; this.showForm = true; },
     openEdit(x) {
       if (x.status === '已计算') return alert('已计算的运营单不能修改，请先撤销计算');
-      this.editing = x; this.form = { catId: x.catId, amount: x.amount, desc: x.desc, payMethod: x.payMethod || '' }; this.showForm = true;
+      this.editing = x; this.form = { catId: x.catId, amount: x.amount, desc: x.desc, payMethod: x.payMethod || '', docImages: x.docImages ? x.docImages.slice() : [] }; this.showForm = true;
     },
     save() {
       const f = this.form;
       if (!f.catId) return alert('请选择类目');
       if (!f.amount || f.amount <= 0) return alert('请填写金额');
-      if (this.editing) Object.assign(this.editing, { catId: f.catId, amount: Number(f.amount), desc: f.desc, payMethod: f.payMethod || '' });
-      else S.db.expenses.push({ id: S.genId(), catId: f.catId, amount: Number(f.amount), desc: f.desc, payMethod: f.payMethod || '', createTime: U.now(), status: '未计算' });
+      if (this.editing) Object.assign(this.editing, { catId: f.catId, amount: Number(f.amount), desc: f.desc, payMethod: f.payMethod || '', docImages: f.docImages || [] });
+      else S.db.expenses.push({ id: S.genId(), catId: f.catId, amount: Number(f.amount), desc: f.desc, payMethod: f.payMethod || '', docImages: f.docImages || [], createTime: U.now(), status: '未计算' });
       this.showForm = false;
     },
     del(x) {
@@ -64,7 +64,33 @@ const ExpenseList = {
         '序号': i + 1, '类目名称': S.name('expenseCats', x.catId), '金额': x.amount,
         '支付方式': x.payMethod || '-', '详细描述': x.desc, '状态': x.status, '创建时间': x.createTime
       })));
-    }
+    },
+    onDocImageSelect(e) {
+      const files = e.target.files;
+      if (files && files.length) Array.from(files).forEach(file => this.uploadDocImage(file));
+      e.target.value = '';
+    },
+    async uploadDocImage(file) {
+      this.uploadingImage = true;
+      try {
+        const url = await Cloud.uploadFinanceDoc(file);
+        if (!this.form.docImages) this.form.docImages = [];
+        this.form.docImages.push(url);
+      } catch (err) {
+        alert('图片上传失败：' + (err.message || err));
+      } finally {
+        this.uploadingImage = false;
+      }
+    },
+    onDocImagePaste(e) {
+      const a = document.activeElement;
+      if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)) return;
+      const files = e.clipboardData && e.clipboardData.files;
+      if (!files || !files.length) return;
+      Array.from(files).filter(f => f.type && f.type.startsWith('image/')).forEach(img => this.uploadDocImage(img));
+    },
+    removeDocImage(idx) { if (this.form.docImages) this.form.docImages.splice(idx, 1); },
+    openImagePreview(list) { this.previewList = list; this.showImagePreview = true; }
   },
   template: `
   <div>
@@ -94,6 +120,7 @@ const ExpenseList = {
               <span class="link green" @click="calc(x)">计算</span>
             </template>
             <span v-else class="link warn" @click="uncalc(x)">撤销计算</span>
+            <span v-if="x.docImages && x.docImages.length" class="link" @click="openImagePreview(x.docImages)">图片({{x.docImages.length}})</span>
           </td>
         </tr>
         <tr v-if="paged.length" style="background:#eff6ff;font-weight:700">
@@ -108,18 +135,38 @@ const ExpenseList = {
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
     <x-modal v-if="showForm" :title="editing?'修改运营单':'新增运营单'" :width="560" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
-      <div class="form-grid">
+      <div class="form-grid" @paste="onDocImagePaste">
         <div class="form-item"><label>类目名称<b class="req">*</b></label>
           <x-combobox v-model="form.catId" :options="catOptsEnabled" placeholder="请选择"/></div>
         <div class="form-item"><label>金额（元）<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="form.amount"></div>
         <div class="form-item"><label>支付方式</label>
           <x-combobox v-model="form.payMethod" :options="payMethodOpts" placeholder="请选择"/></div>
         <div class="form-item full"><label>详细描述</label><textarea rows="2" v-model="form.desc"></textarea></div>
+        <div class="form-item full">
+          <label>费用明细图片</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <input type="file" accept="image/*" multiple class="btn" style="width:auto" @change="onDocImageSelect">
+            <span v-if="!$root.isMobile" class="muted">或在此弹窗内按 Ctrl+V 粘贴截图（支持多张）</span>
+            <span v-if="uploadingImage" class="muted">上传中…</span>
+            <div v-if="form.docImages && form.docImages.length" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div v-for="(url, idx) in form.docImages" :key="idx" style="display:flex;align-items:center;gap:4px">
+                <img :src="url" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer" @click="openImagePreview(form.docImages)">
+                <span class="link danger" @click="removeDocImage(idx)">删除</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <template #foot>
         <button class="btn" @click="showForm=false">取消</button>
         <button class="btn btn-primary" @click="save">保存</button>
       </template>
+    </x-modal>
+    <x-modal v-if="showImagePreview" title="图片预览" :width="640" :fullscreen="$root.isMobile" position="bottom" @close="showImagePreview=false">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center">
+        <img v-for="(url,i) in previewList" :key="i" :src="url" style="max-width:100%;max-height:70vh;border-radius:6px;border:1px solid #eee">
+      </div>
+      <template #foot><button class="btn" @click="showImagePreview=false">关闭</button></template>
     </x-modal>
   </div>`
 };
@@ -129,7 +176,7 @@ const IncomeList = {
   data() {
     return {
       q: { catId: '', status: '', desc: '', d1: '', d2: '', payMethod: '' },
-      page: 1, pageSize: 10, showForm: false, editing: null, form: {}
+      page: 1, pageSize: 10, showForm: false, editing: null, form: {}, uploadingImage: false, previewList: null, showImagePreview: false
     };
   },
   computed: {
@@ -156,17 +203,17 @@ const IncomeList = {
   },
   methods: {
     fmtMoney: U.fmtMoney,
-    openNew() { this.editing = null; this.form = { catId: '', amount: null, desc: '', payMethod: '' }; this.showForm = true; },
+    openNew() { this.editing = null; this.form = { catId: '', amount: null, desc: '', payMethod: '', docImages: [] }; this.showForm = true; },
     openEdit(x) {
       if (x.status === '已确认') return alert('已确认的收入单不能修改，请先撤销确认');
-      this.editing = x; this.form = { catId: x.catId, amount: x.amount, desc: x.desc, payMethod: x.payMethod || '' }; this.showForm = true;
+      this.editing = x; this.form = { catId: x.catId, amount: x.amount, desc: x.desc, payMethod: x.payMethod || '', docImages: x.docImages ? x.docImages.slice() : [] }; this.showForm = true;
     },
     save() {
       const f = this.form;
       if (!f.catId) return alert('请选择收入类目');
       if (!f.amount || f.amount <= 0) return alert('请填写金额');
-      if (this.editing) Object.assign(this.editing, { catId: f.catId, amount: Number(f.amount), desc: f.desc, payMethod: f.payMethod || '' });
-      else S.db.incomes.push({ id: S.genId(), catId: f.catId, amount: Number(f.amount), desc: f.desc, payMethod: f.payMethod || '', createTime: U.now(), status: '未确认' });
+      if (this.editing) Object.assign(this.editing, { catId: f.catId, amount: Number(f.amount), desc: f.desc, payMethod: f.payMethod || '', docImages: f.docImages || [] });
+      else S.db.incomes.push({ id: S.genId(), catId: f.catId, amount: Number(f.amount), desc: f.desc, payMethod: f.payMethod || '', docImages: f.docImages || [], createTime: U.now(), status: '未确认' });
       this.showForm = false;
     },
     del(x) {
@@ -187,7 +234,33 @@ const IncomeList = {
         '序号': i + 1, '类目名称': S.name('incomeCats', x.catId), '金额': x.amount,
         '支付方式': x.payMethod || '-', '详细描述': x.desc, '状态': x.status, '创建时间': x.createTime
       })));
-    }
+    },
+    onDocImageSelect(e) {
+      const files = e.target.files;
+      if (files && files.length) Array.from(files).forEach(file => this.uploadDocImage(file));
+      e.target.value = '';
+    },
+    async uploadDocImage(file) {
+      this.uploadingImage = true;
+      try {
+        const url = await Cloud.uploadFinanceDoc(file);
+        if (!this.form.docImages) this.form.docImages = [];
+        this.form.docImages.push(url);
+      } catch (err) {
+        alert('图片上传失败：' + (err.message || err));
+      } finally {
+        this.uploadingImage = false;
+      }
+    },
+    onDocImagePaste(e) {
+      const a = document.activeElement;
+      if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)) return;
+      const files = e.clipboardData && e.clipboardData.files;
+      if (!files || !files.length) return;
+      Array.from(files).filter(f => f.type && f.type.startsWith('image/')).forEach(img => this.uploadDocImage(img));
+    },
+    removeDocImage(idx) { if (this.form.docImages) this.form.docImages.splice(idx, 1); },
+    openImagePreview(list) { this.previewList = list; this.showImagePreview = true; }
   },
   template: `
   <div>
@@ -217,6 +290,7 @@ const IncomeList = {
               <span class="link green" @click="confirm(x)">确认</span>
             </template>
             <span v-else class="link warn" @click="unconfirm(x)">撤销确认</span>
+            <span v-if="x.docImages && x.docImages.length" class="link" @click="openImagePreview(x.docImages)">图片({{x.docImages.length}})</span>
           </td>
         </tr>
         <tr v-if="paged.length" style="background:#eff6ff;font-weight:700">
@@ -231,18 +305,38 @@ const IncomeList = {
     <x-pager :total="rows.length" v-model:page="page" v-model:size="pageSize"/>
 
     <x-modal v-if="showForm" :title="editing?'修改收入单':'新增收入单'" :width="560" :fullscreen="$root.isMobile" position="bottom" @close="showForm=false">
-      <div class="form-grid">
+      <div class="form-grid" @paste="onDocImagePaste">
         <div class="form-item"><label>收入类目<b class="req">*</b></label>
           <x-combobox v-model="form.catId" :options="catOptsEnabled" placeholder="请选择"/></div>
         <div class="form-item"><label>金额（元）<b class="req">*</b></label><input type="number" min="0" step="0.01" v-model.number="form.amount"></div>
         <div class="form-item"><label>支付方式</label>
           <x-combobox v-model="form.payMethod" :options="payMethodOpts" placeholder="请选择"/></div>
         <div class="form-item full"><label>详细描述</label><textarea rows="2" v-model="form.desc"></textarea></div>
+        <div class="form-item full">
+          <label>收入单据图片</label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <input type="file" accept="image/*" multiple class="btn" style="width:auto" @change="onDocImageSelect">
+            <span v-if="!$root.isMobile" class="muted">或在此弹窗内按 Ctrl+V 粘贴截图（支持多张）</span>
+            <span v-if="uploadingImage" class="muted">上传中…</span>
+            <div v-if="form.docImages && form.docImages.length" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div v-for="(url, idx) in form.docImages" :key="idx" style="display:flex;align-items:center;gap:4px">
+                <img :src="url" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid #ddd;cursor:pointer" @click="openImagePreview(form.docImages)">
+                <span class="link danger" @click="removeDocImage(idx)">删除</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <template #foot>
         <button class="btn" @click="showForm=false">取消</button>
         <button class="btn btn-primary" @click="save">保存</button>
       </template>
+    </x-modal>
+    <x-modal v-if="showImagePreview" title="图片预览" :width="640" :fullscreen="$root.isMobile" position="bottom" @close="showImagePreview=false">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center">
+        <img v-for="(url,i) in previewList" :key="i" :src="url" style="max-width:100%;max-height:70vh;border-radius:6px;border:1px solid #eee">
+      </div>
+      <template #foot><button class="btn" @click="showImagePreview=false">关闭</button></template>
     </x-modal>
   </div>`
 };

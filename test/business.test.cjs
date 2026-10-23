@@ -845,9 +845,9 @@ function reset() {
 (function () {
   /* 1) genScBatch 扫描现存库存 lot：已删单但批次仍在库时序号不复用 */
   const db = reset();
-  // 模拟一张已删除的生产单，其成品批次仍残留在库存里
+  // 模拟一张已删除的生产单，其成品批次仍残留在库存里（用当天日期，避免跨天脆化）
   const rec = S.stockRec('W1', 'G3', true);
-  S.addLotQty(rec, { batchNo: 'SC-20261022-00006', productionDate: '2026-10-22', cost: 2 }, 103);
+  S.addLotQty(rec, { batchNo: 'SC-' + (U.today() || '').replace(/-/g, '') + '-00006', productionDate: U.today(), cost: 2 }, 103);
   const b1 = S.genScBatch();
   ok(b1 === 'SC-' + (U.today() || '').replace(/-/g, '') + '-00007', 'B11-1 扫描 lot 后新批次号跳过残留 00006 → 00007（' + b1 + '）');
   // 没有残留时从 00001 起
