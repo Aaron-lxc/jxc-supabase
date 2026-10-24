@@ -431,7 +431,7 @@ Pages['page-inventory'] = {
         const expiryDate = (it.productionDate && g && g.shelfLife) ? U.addDays(it.productionDate, g.shelfLife) : '';
         items.push({ goodsId: it.goodsId, batchNo, qty: Number(it.qty), costPrice: Number(it.costPrice), amount, productionDate: it.productionDate || null, shelfLife: Number(g ? g.shelfLife : 0) || 0, expiryDate });
       }
-      const data = { fromWhId: f.fromWhId, toWhId: f.toWhId, time: f.time, remark: f.remark || '', logisticsFee: Number(f.logisticsFee) || 0, items };
+      const data = { fromWhId: f.fromWhId, toWhId: f.toWhId, time: f.time, remark: f.remark || '', logisticsFee: Number(f.logisticsFee) || 0, logisticsPayMethod: f.logisticsPayMethod || '', items };
       if (this.editingTransfer) {
         const err = S.updateTransfer(this.editingTransfer.id, data);
         if (err) return alert(err);
@@ -633,7 +633,7 @@ Pages['page-inventory'] = {
         <thead><tr>
           <th>序号</th><th>发货仓库</th><th>商品名称</th><th>批次号</th><th class="num">数量</th>
           <th class="num">成本单价</th><th class="num">成本金额</th><th>生产日期</th><th class="num">保质期(天)</th>
-          <th>到期时间</th><th class="num">物流费用</th><th>收货仓库</th><th>调拨时间</th><th>状态</th><th>备注</th><th>操作</th>
+          <th>到期时间</th><th class="num">物流费用</th><th>物流费支付</th><th>收货仓库</th><th>调拨时间</th><th>状态</th><th>备注</th><th>操作</th>
         </tr></thead>
         <tbody>
           <tr v-for="(t,i) in transferPaged" :key="t.id">
@@ -659,7 +659,7 @@ Pages['page-inventory'] = {
               <span v-if="t.status==='已生效'" class="link warn" @click="reverseTransfer(t)">撤销</span>
             </template><span v-else class="muted">查看</span></td>
           </tr>
-          <tr v-if="!transferPaged.length"><td colspan="16" class="empty">暂无调拨记录</td></tr>
+          <tr v-if="!transferPaged.length"><td colspan="17" class="empty">暂无调拨记录</td></tr>
         </tbody>
       </table>
       </div>

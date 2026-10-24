@@ -1207,6 +1207,8 @@ window.S = {
     (db.purchases || []).forEach(p => add(p.payMethod, -Number(p.amount)));
     (db.expenses || []).filter(x => x.status === '已计算').forEach(x => add(x.payMethod, -Number(x.amount)));
     (db.incomes || []).filter(x => x.status === '已确认').forEach(x => add(x.payMethod, Number(x.amount)));
+    /* 已生效调拨单的物流费：作为对应支付方式的现金流出计入资金账（与仪表盘成本口径一致，均按已生效） */
+    (db.transfers || []).filter(t => t.status === '已生效' && Number(t.logisticsFee) > 0).forEach(t => add(t.logisticsPayMethod, -Number(t.logisticsFee)));
     return Object.keys(m)
       .filter(k => Math.abs(m[k]) > 0.001)
       .map(k => ({ method: k, balance: m[k] }))

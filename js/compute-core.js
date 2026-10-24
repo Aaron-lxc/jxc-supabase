@@ -559,6 +559,7 @@
         (db.purchases || []).forEach(p => add(p.payMethod, -Number(p.amount)));
         (db.expenses || []).filter(x => x.status === '已计算').forEach(x => add(x.payMethod, -Number(x.amount)));
         (db.incomes || []).filter(x => x.status === '已确认').forEach(x => add(x.payMethod, Number(x.amount)));
+        (db.transfers || []).filter(t => t.status === '已生效' && Number(t.logisticsFee) > 0).forEach(t => add(t.logisticsPayMethod, -Number(t.logisticsFee)));
         return Object.keys(m).filter(k => Math.abs(m[k]) > 0.001)
           .map(k => ({ method: k, balance: m[k] })).sort((a, b) => b.balance - a.balance);
       },
