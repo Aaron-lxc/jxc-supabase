@@ -509,7 +509,7 @@ const SaleList = {
           <td class="num money" data-label="配送费">{{fmtMoney(S.saleDeliveryCost(s))}}</td>
           <td data-label="计入资源佣金" :class="(s.incResourceCommission||'是')==='否'?'red':''">{{s.incResourceCommission||'是'}}</td>
           <td data-label="计入区域佣金" :class="(s.incRegionCommission||'是')==='否'?'red':''">{{s.incRegionCommission||'是'}}</td>
-          <td data-label="客户备注">{{s.custRemark||'-'}}</td>
+          <td data-label="客户备注"><span :title="s.custRemark||''" style="display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom">{{s.custRemark||'-'}}</span></td>
           <td data-label="状态"><x-status :v="S.saleDisplayStatus(s)"/></td><td data-label="销售时间">{{s.saleTime || s.createTime}}</td><td data-label="创建时间">{{s.createTime}}</td>
           <td class="ops" data-label="操作">
             <span class="link" @click="openPreview(s)">预览</span>
@@ -934,7 +934,9 @@ const SettleList = {
         await S.persistNow();
       }
       this.cur = r;
-      this.settleForm = { method: '', amount: null, remark: '', deliveryFee: r.s.deliveryFee || 0, prepaidDeduct: r.s.prepaidDeduct || 0 };
+      // 收款金额默认填入当前未收金额（为 0 时不预填，保持置空待手输）
+      const rem = this.remainingUnpaid;
+      this.settleForm = { method: '', amount: rem > 0 ? rem : null, remark: '', deliveryFee: r.s.deliveryFee || 0, prepaidDeduct: r.s.prepaidDeduct || 0 };
       this.showSettle = true;
     },
     /* 新增一笔收款：逐笔各自算手续费；收满自动结清；支持部分支付 */
@@ -966,7 +968,7 @@ const SettleList = {
       r.s.prepaidDeduct = deduct;
       this.syncPayStatus(r.s);
       await S.persistNow();
-      this.settleForm = { method: '', amount: null, remark: '', deliveryFee: r.s.deliveryFee, prepaidDeduct: r.s.prepaidDeduct };
+      this.settleForm = { method: '', amount: this.remainingUnpaid > 0 ? this.remainingUnpaid : null, remark: '', deliveryFee: r.s.deliveryFee, prepaidDeduct: r.s.prepaidDeduct };
       // 不关闭弹窗，可继续收下一笔
     },
     async undoPayment(p) {
