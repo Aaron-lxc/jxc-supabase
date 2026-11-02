@@ -164,6 +164,7 @@ const CustomerList = {
         '区域': S.name('regions', c.regionId), '类型': S.name('custTypes', c.typeId), '级别': S.name('custLevels', c.levelId), '经销商级别': S.name('dealerLevels', c.dealerLevelId),
         '支付方式': c.payMethod, '支付周期': c.payCycle + (c.payDay ? '/' + c.payDay + '号' : ''),
         '银行卡': c.bankCard || '', '对公账户': c.corpAccount || '', '开票信息': c.invoiceInfo || '',
+        '客户地址': c.address || '', '备注': c.remark || '',
         '税点(%)': c.taxRate || 0, '是否减免': c.taxExempt || '否', '累计税点成本': this.taxCost(c),
         '一级资源': this.rpName(c.r1), '二级资源': this.rpName(c.r2), '三级资源': this.rpName(c.r3),
         '区域合伙人': c.regionPartnerId ? S.name('regionPartners', c.regionPartnerId) : '-',
