@@ -9,6 +9,15 @@
       合并时同步更新 shadow，因此不会被 diff 误判成本地改动而回推（天然防回环）；
    4. shadow 只在推送成功后更新，推送失败下次自动重试，不丢数据。
    ========================================================================== */
+/* 规范化 JSON：按键名字典序重排，使「键顺序不同但语义相等」的对象可被正确判等。
+   用于回声比对：Supabase jsonb 回显的键序与本地不同，原生 JSON.stringify 比对会误判为远端改动，
+   从而把「自己刚推送的记录」当成他人改动整体替换掉内存对象（弹窗内正在操作的单据引用会被变成孤儿）。 */
+function canon(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
+  return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
+}
+
 window.Sync = {
   /* 数组型集合（每条记录一行） */
   COLLS: [
@@ -83,10 +92,10 @@ window.Sync = {
     const sh = {};
     this.COLLS.forEach(c => {
       const m = {};
-      (db[c] || []).forEach(r => { if (r && r.id != null) m[String(r.id)] = JSON.stringify(r); });
+      (db[c] || []).forEach(r => { if (r && r.id != null) m[String(r.id)] = canon(r); });
       sh[c] = m;
     });
-    this.SINGLETONS.forEach(k => { sh[k] = JSON.stringify(db[k] || null); });
+    this.SINGLETONS.forEach(k => { sh[k] = canon(db[k] || null); });
     return sh;
   },
 
@@ -100,7 +109,7 @@ window.Sync = {
       (db[c] || []).forEach(r => {
         if (!r || r.id == null) return;
         const rid = String(r.id);
-        const json = JSON.stringify(r);
+        const json = canon(r);
         seen[rid] = true;
         if (prev[rid] !== json) ups.push({ coll: c, rid, json, data: JSON.parse(json) });
       });
@@ -121,7 +130,10 @@ window.Sync = {
 
   async push() {
     const ws = this.wsId();
-    if (!ws || !S.db || this.state.status === 'saving') return;
+    if (!ws || !S.db) return;
+    /* 上一次推送仍在进行：标记脏位后返回，待本次推送成功结束后再触发一次，
+       避免推送期间产生的本地改动被静默丢弃（曾导致收款等改动偶发丢失、需重复操作） */
+    if (this.state.status === 'saving') { this._retryPending = true; return; }
     const { ups, dels } = this.diff(S.db);
     if (!ups.length && !dels.length) return;
 
@@ -156,6 +168,7 @@ window.Sync = {
 
       this.state.status = 'idle';
       this.state.lastSync = U.now();
+      if (this._retryPending) { this._retryPending = false; this.schedule(); }
     } catch (e) {
       const msg = String(e.message || e);
       if (/row-level security|violates row-level|permission denied/i.test(msg)) {
@@ -250,9 +263,9 @@ window.Sync = {
       return;
     }
 
-    const json = JSON.stringify(row.data);
+    const json = canon(row.data);
     if (this.SINGLETONS.includes(coll)) {
-      if (this.shadow[coll] === json) return;  // 与本地一致 → 自己推的
+      if (this.shadow[coll] === json) return;  // 与本地一致 → 自己推的回声，跳过（不再把自身改动误当远端替换）
       S.db[coll] = row.data;
       this.shadow[coll] = json;
     } else {

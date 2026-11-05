@@ -942,49 +942,55 @@ const SettleList = {
     /* 新增一笔收款：逐笔各自算手续费；收满自动结清；支持部分支付 */
     async addPayment() {
       const r = this.cur; if (!r) return;
+      /* 弹窗可能持有被云端回声整体替换后的孤儿引用：按单号重新取内存实时对象，
+         保证本次收款始终写入真实记录（双保险，配合 Sync 回声去重） */
+      const s = S.byId('sales', r.s.id) || r.s;
+      if (s !== r.s) r.s = s;
       if (!this.settleForm.method) return alert('请选择收款方式');
       const amt = Number(this.settleForm.amount);
       if (!amt || amt <= 0) return alert('请填写收款金额');
       if (amt > this.remainingUnpaid + 1e-6) return alert('收款金额不能超过未收余额 ￥' + U.fmtMoney(this.remainingUnpaid));
       // 预存货款抵扣：先释放旧值再应用新值（整单一次性）
       const deduct = U.round2(Number(this.settleForm.prepaidDeduct) || 0);
-      if (r.s.prepaidDeduct) S.releasePrepaidDeduct(r.s.customerId, r.s.prepaidDeduct);
+      if (s.prepaidDeduct) S.releasePrepaidDeduct(s.customerId, s.prepaidDeduct);
       if (deduct > 0) {
-        if (!S.isDealer(r.s.customerId)) {
-          if (r.s.prepaidDeduct) S.applyPrepaidDeduct(r.s.customerId, r.s.prepaidDeduct);
+        if (!S.isDealer(s.customerId)) {
+          if (s.prepaidDeduct) S.applyPrepaidDeduct(s.customerId, s.prepaidDeduct);
           return alert('当前客户不是经销商，不能使用预存货款抵扣');
         }
-        const res = S.applyPrepaidDeduct(r.s.customerId, deduct);
+        const res = S.applyPrepaidDeduct(s.customerId, deduct);
         if (!res.ok) {
-          if (r.s.prepaidDeduct) S.applyPrepaidDeduct(r.s.customerId, r.s.prepaidDeduct);
+          if (s.prepaidDeduct) S.applyPrepaidDeduct(s.customerId, s.prepaidDeduct);
           return alert(res.msg);
         }
       }
       const rate = S.feeRateOf(this.settleForm.method);
       const fee = U.round2(amt * rate / 100);   // 逐笔各自计手续费
-      r.s.payments.push({ method: this.settleForm.method, amount: U.round2(amt), fee, time: U.now(), remark: this.settleForm.remark || '' });
-      r.s.payMethod = this.settleForm.method;   // 记录最近一次收款方式
-      r.s.deliveryFee = U.round2(Number(this.settleForm.deliveryFee) || 0);
-      r.s.prepaidDeduct = deduct;
-      this.syncPayStatus(r.s);
+      s.payments.push({ method: this.settleForm.method, amount: U.round2(amt), fee, time: U.now(), remark: this.settleForm.remark || '' });
+      s.payMethod = this.settleForm.method;   // 记录最近一次收款方式
+      s.deliveryFee = U.round2(Number(this.settleForm.deliveryFee) || 0);
+      s.prepaidDeduct = deduct;
+      this.syncPayStatus(s);
       await S.persistNow();
-      this.settleForm = { method: '', amount: this.remainingUnpaid > 0 ? this.remainingUnpaid : null, remark: '', deliveryFee: r.s.deliveryFee, prepaidDeduct: r.s.prepaidDeduct };
+      this.settleForm = { method: '', amount: this.remainingUnpaid > 0 ? this.remainingUnpaid : null, remark: '', deliveryFee: s.deliveryFee, prepaidDeduct: s.prepaidDeduct };
       // 不关闭弹窗，可继续收下一笔
     },
     async undoPayment(p) {
       const r = this.cur; if (!r) return;
+      const s = S.byId('sales', r.s.id) || r.s; if (s !== r.s) r.s = s;
       if (!U.confirm('确认撤回该笔收款（' + p.method + ' ￥' + U.fmtMoney(p.amount) + '）？')) return;
-      if (r.s.prepaidDeduct) { S.releasePrepaidDeduct(r.s.customerId, r.s.prepaidDeduct); r.s.prepaidDeduct = 0; }
-      const i = r.s.payments.indexOf(p); if (i >= 0) r.s.payments.splice(i, 1);
-      this.syncPayStatus(r.s);
+      if (s.prepaidDeduct) { S.releasePrepaidDeduct(s.customerId, s.prepaidDeduct); s.prepaidDeduct = 0; }
+      const i = s.payments.indexOf(p); if (i >= 0) s.payments.splice(i, 1);
+      this.syncPayStatus(s);
       await S.persistNow();
     },
     async undoAllPayments() {
       const r = this.cur; if (!r) return;
+      const s = S.byId('sales', r.s.id) || r.s; if (s !== r.s) r.s = s;
       if (!U.confirm('确认撤回全部已收？该单将回到未支付状态，已应用的预存货款抵扣也会释放。')) return;
-      if (r.s.prepaidDeduct) { S.releasePrepaidDeduct(r.s.customerId, r.s.prepaidDeduct); r.s.prepaidDeduct = 0; }
-      r.s.payments = [];
-      this.syncPayStatus(r.s);
+      if (s.prepaidDeduct) { S.releasePrepaidDeduct(s.customerId, s.prepaidDeduct); s.prepaidDeduct = 0; }
+      s.payments = [];
+      this.syncPayStatus(s);
       await S.persistNow();
     },
     /* 重算支付状态：未收 / 部分支付 / 已结清，并维护镜像字段 actualPaid。
